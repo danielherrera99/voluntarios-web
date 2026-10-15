@@ -677,20 +677,6 @@ export default function ConsultaVoluntariado() {
               <summary className="font-bold text-stone-800 cursor-pointer flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <i className="fa-solid fa-circle-question text-diocesis-red"></i>
-                  <span>¿Pueden participar menores de edad en este voluntariado?</span>
-                </span>
-                <i className="fa-solid fa-chevron-down group-open:rotate-180 transition-transform text-diocesis-mustard"></i>
-              </summary>
-              <p className="mt-2 text-stone-600 font-medium leading-relaxed pl-6">
-                Por disposiciones organizativas y protocolos de seguridad diocesana para la magnitud de los eventos, el voluntariado oficial está reservado <strong>únicamente para personas mayores de edad (18 años a más cumplidos)</strong>. Los postulantes menores de edad no ingresan al padrón oficial, pero los animamos fraternalmente a seguir sirviendo y participando en los grupos juveniles de su respectiva parroquia.
-              </p>
-            </details>
-
-            {/* FAQ 4 */}
-            <details className="group bg-stone-50 rounded-2xl p-4 border border-stone-200">
-              <summary className="font-bold text-stone-800 cursor-pointer flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <i className="fa-solid fa-circle-question text-diocesis-red"></i>
                   <span>¿Cómo sé si fui seleccionado/a para la Tercera Etapa?</span>
                 </span>
                 <i className="fa-solid fa-chevron-down group-open:rotate-180 transition-transform text-diocesis-mustard"></i>
