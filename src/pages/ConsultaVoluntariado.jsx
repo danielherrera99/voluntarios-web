@@ -149,57 +149,56 @@ export default function ConsultaVoluntariado() {
       <header className="header-gradient text-white border-b-4 border-diocesis-mustard shadow-lg relative overflow-hidden no-print">
         <div className="max-w-5xl mx-auto px-4 py-6 md:py-8 relative z-10 space-y-6">
 
-          {/* BARRA DE LOGOTIPOS RECREADOS */}
-          <div className="bg-white/95 backdrop-blur rounded-2xl p-3 md:p-4 shadow-xl border border-diocesis-mustard/30 flex flex-wrap items-center justify-between gap-4">
+          {/* BARRA DE LOGOTIPOS OFICIALES */}
+          <div className="bg-white/95 backdrop-blur rounded-2xl p-3 md:p-4 shadow-xl border border-diocesis-mustard/30 flex flex-wrap items-center justify-around gap-4 sm:gap-6">
 
             {/* Logo 1: Diócesis de Chiclayo */}
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-diocesis-red text-diocesis-mustard rounded-xl flex items-center justify-center font-bold text-xl shadow-md border border-diocesis-mustard">
-                <i className="fa-solid fa-church"></i>
-              </div>
-              <div className="leading-tight">
-                <span className="block text-[11px] font-extrabold text-diocesis-redDark uppercase tracking-tight">Diócesis de Chiclayo</span>
-                <span className="block text-xs font-black text-stone-900 font-title uppercase">"Chiclayo y Santa Cruz"</span>
-              </div>
+            <div className="flex items-center gap-2 hover:scale-105 transition-transform duration-200">
+              <img 
+                src="/logos/logo_diocesis.png" 
+                alt="Diócesis de Chiclayo" 
+                className="h-10 sm:h-12 md:h-14 w-auto object-contain"
+              />
+              <span className="hidden xl:inline text-xs font-black text-stone-900 font-title uppercase">
+                "Chiclayo y Santa Cruz"
+              </span>
             </div>
 
-            <div className="hidden sm:block h-8 w-px bg-stone-300"></div>
+            <div className="hidden sm:block h-8 w-px bg-stone-200"></div>
 
             {/* Logo 2: Pastoral Juvenil */}
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-emerald-600 text-white rounded-xl flex items-center justify-center font-bold text-xl shadow-md">
-                <i className="fa-solid fa-hands-praying"></i>
-              </div>
-              <div className="leading-tight">
-                <span className="block text-[10px] font-extrabold text-emerald-700 uppercase">Pastoral</span>
-                <span className="block text-xs font-black text-stone-900 font-title">JUVENIL</span>
+            <div className="flex items-center gap-2 hover:scale-105 transition-transform duration-200">
+              <img 
+                src="/logos/logo_pastoral_juvenil.png" 
+                alt="Pastoral Juvenil - Diócesis de Chiclayo" 
+                className="h-10 sm:h-12 md:h-14 w-auto object-contain"
+              />
+            </div>
+
+            <div className="hidden md:block h-8 w-px bg-stone-200"></div>
+
+            {/* Logo 3: Comisión Diocesana de Juventud */}
+            <div className="flex items-center gap-2.5 hover:scale-105 transition-transform duration-200">
+              <img 
+                src="/logos/logo_comision_juventud.png" 
+                alt="Comisión Diocesana de Juventud" 
+                className="h-10 sm:h-12 md:h-14 w-auto object-contain drop-shadow-sm"
+              />
+              <div className="leading-tight hidden sm:block">
+                <span className="block text-[9px] font-extrabold text-diocesis-redDark uppercase tracking-tight">Comisión Diocesana</span>
+                <span className="block text-[11px] font-black text-stone-900 font-title uppercase">de Juventud</span>
               </div>
             </div>
 
-            <div className="hidden md:block h-8 w-px bg-stone-300"></div>
-
-            {/* Logo 3: Comisión Diocesana */}
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-sky-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-md">
-                <i className="fa-solid fa-users-between-lines"></i>
-              </div>
-              <div className="leading-tight">
-                <span className="block text-[9px] font-extrabold text-sky-800 uppercase">Comisión Diocesana</span>
-                <span className="block text-[11px] font-black text-stone-900 font-title">DE JUVENTUD</span>
-              </div>
-            </div>
-
-            <div className="hidden sm:block h-8 w-px bg-stone-300"></div>
+            <div className="hidden sm:block h-8 w-px bg-stone-200"></div>
 
             {/* Logo 4: Área Diocesana de Laicos */}
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-diocesis-mustard text-white rounded-xl flex items-center justify-center font-bold text-lg shadow-md">
-                <i className="fa-solid fa-heart-pulse"></i>
-              </div>
-              <div className="leading-tight">
-                <span className="block text-[9px] font-extrabold text-diocesis-mustardDark uppercase">Área Diocesana de</span>
-                <span className="block text-xs font-black text-stone-900 font-title">LAICOS</span>
-              </div>
+            <div className="flex items-center gap-2 hover:scale-105 transition-transform duration-200">
+              <img 
+                src="/logos/logo_laicos.png" 
+                alt="Área Diocesana de Laicos" 
+                className="h-10 sm:h-12 md:h-14 w-auto object-contain"
+              />
             </div>
 
           </div>
@@ -310,6 +309,11 @@ export default function ConsultaVoluntariado() {
 
                 {/* CABECERA EXCLUSIVA PARA IMPRESIÓN OFICIAL */}
                 <div className="print-only p-6 border-b-2 border-emerald-600 bg-emerald-50 text-center">
+                  <div className="flex items-center justify-center gap-6 mb-3">
+                    <img src="/logos/logo_diocesis.png" alt="Diócesis de Chiclayo" className="h-12 w-auto object-contain" />
+                    <img src="/logos/logo_comision_juventud.png" alt="Comisión Diocesana de Juventud" className="h-12 w-auto object-contain" />
+                    <img src="/logos/logo_pastoral_juvenil.png" alt="Pastoral Juvenil" className="h-12 w-auto object-contain" />
+                  </div>
                   <p className="text-xs font-bold text-emerald-800 tracking-widest uppercase mb-1">
                     ✞ DIÓCESIS DE CHICLAYO "CHICLAYO Y SANTA CRUZ" ✞
                   </p>

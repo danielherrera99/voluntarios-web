@@ -188,9 +188,11 @@ export default function Dashboard() {
       <nav className="bg-diocesis-redDark text-white sticky top-0 z-40 shadow-lg border-b-2 border-diocesis-mustard">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-diocesis-mustard flex items-center justify-center text-diocesis-redDark shadow">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
+            <img 
+              src="/logos/logo_comision_juventud.png" 
+              alt="Comisión Diocesana de Juventud" 
+              className="w-10 h-10 object-contain drop-shadow"
+            />
             <div>
               <span className="font-title font-bold text-lg md:text-xl tracking-wide text-white block leading-tight">
                 Panel de Administración
