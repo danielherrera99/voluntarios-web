@@ -138,7 +138,7 @@ export default function ConsultaVoluntariado() {
       </div>
 
       {/* CABECERA CON LOGOS OFICIALES */}
-      <header className="header-gradient text-white border-b-4 border-diocesis-mustard shadow-lg relative overflow-hidden greca-pattern">
+      <header className="header-gradient text-white border-b-4 border-diocesis-mustard shadow-lg relative overflow-hidden">
         <div className="max-w-5xl mx-auto px-4 py-6 md:py-8 relative z-10 space-y-6">
           
           {/* BARRA DE LOGOTIPOS RECREADOS */}
@@ -202,10 +202,10 @@ export default function ConsultaVoluntariado() {
               <span className="inline-block px-3 py-1 bg-diocesis-mustard text-white text-xs font-bold rounded-full uppercase tracking-wider mb-2 shadow-sm">
                 Proceso de Selección
               </span>
-              <h1 className="text-2xl md:text-4xl font-title font-bold text-white tracking-wide">
+              <h1 className="text-2xl md:text-4xl font-title font-bold text-white tracking-wide" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
                 DIÓCESIS DE CHICLAYO Y SANTA CRUZ
               </h1>
-              <p className="text-xs md:text-sm text-stone-200 mt-1 font-medium">
+              <p className="text-xs md:text-sm text-stone-100 mt-1 font-semibold" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
                 Sistema de Validación de Postulantes al Voluntariado Diocesano
               </p>
             </div>
