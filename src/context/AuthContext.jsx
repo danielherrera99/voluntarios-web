@@ -21,7 +21,8 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await fetch('http://localhost:3001/api/auth/login', {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const response = await fetch(`${apiUrl}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
