@@ -26,7 +26,7 @@ const mockDatabase = {
 };
 
 // Enlace al Formulario Oficial de Google Forms (Etapa 2)
-const GOOGLE_FORM_URL = "https://forms.google.com";
+const GOOGLE_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfO_z7lnEDjQR37y7V7uh9gEsFs5ZNlznvM6_GyeKiAljmlmA/viewform";
 
 export default function ConsultaVoluntariado() {
   const [dniInput, setDniInput] = useState('');
@@ -414,7 +414,7 @@ export default function ConsultaVoluntariado() {
                       </p>
                       <div className="pt-2">
                         <a 
-                          href="https://forms.google.com" 
+                          href={GOOGLE_FORM_URL} 
                           target="_blank" 
                           rel="noreferrer"
                           className="inline-flex items-center gap-2 bg-diocesis-mustard hover:bg-diocesis-mustardDark text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow-sm"
