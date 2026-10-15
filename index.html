@@ -1,73 +1,87 @@
 <!doctype html>
 <html lang="es" class="h-full bg-stone-100">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Diócesis de Chiclayo y Santa Cruz - Portal de Voluntariado</title>
 
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Diócesis de Chiclayo "Chiclayo y Santa Cruz" - Portal de Voluntariado</title>
 
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- Google Fonts: Montserrat & Fredoka (Simulando Neulis en títulos redondeados) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;1,600&display=swap" rel="stylesheet" />
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              diocesis: {
-                red: '#9B1C22',
-                redDark: '#6B0D12',
-                redLight: '#B8282F',
-                mustard: '#B5871D',
-                mustardDark: '#8F6812',
-                mustardLight: '#D4A433',
-                cream: '#FFF8F0',
-              }
-            },
-            fontFamily: {
-              sans: ['Montserrat', 'sans-serif'],
-              title: ['Neulis', 'Fredoka', 'Montserrat', 'sans-serif'],
+  <!-- Google Fonts: Montserrat & Fredoka (Simulando Neulis en títulos redondeados) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;1,600&display=swap"
+    rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            diocesis: {
+              red: '#9B1C22',
+              redDark: '#6B0D12',
+              redLight: '#B8282F',
+              mustard: '#B5871D',
+              mustardDark: '#8F6812',
+              mustardLight: '#D4A433',
+              cream: '#FFF8F0',
             }
+          },
+          fontFamily: {
+            sans: ['Montserrat', 'sans-serif'],
+            title: ['Neulis', 'Fredoka', 'Montserrat', 'sans-serif'],
           }
         }
       }
-    </script>
-    <style>
-      @font-face {
-        font-family: 'Neulis';
-        src: local('Fredoka'), local('Montserrat');
+    }
+  </script>
+  <style>
+    @font-face {
+      font-family: 'Neulis';
+      src: local('Fredoka'), local('Montserrat');
+    }
+
+    .header-gradient {
+      background-color: #6B0D12;
+      background:
+        url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h20v20H0V0zm10 10h10v20H10V10zm10 10h20v20H20V20z' fill='%23B5871D' fill-opacity='0.12' fill-rule='evenodd'/%3E%3C/svg%3E") repeat,
+        linear-gradient(135deg, #6B0D12 0%, #9B1C22 50%, #821319 100%) !important;
+    }
+
+    .card-shadow {
+      box-shadow: 0 10px 25px -5px rgba(107, 13, 18, 0.12);
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
       }
 
-      .header-gradient {
-        background-color: #6B0D12;
-        background: 
-          url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h20v20H0V0zm10 10h10v20H10V10zm10 10h20v20H20V20z' fill='%23B5871D' fill-opacity='0.12' fill-rule='evenodd'/%3E%3C/svg%3E") repeat,
-          linear-gradient(135deg, #6B0D12 0%, #9B1C22 50%, #821319 100%) !important;
+      to {
+        opacity: 1;
+        transform: translateY(0);
       }
+    }
 
-      .card-shadow {
-        box-shadow: 0 10px 25px -5px rgba(107, 13, 18, 0.12);
-      }
+    .animate-fade-in {
+      animation: fadeIn 0.35s ease-out forwards;
+    }
+  </style>
+</head>
 
-      @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      .animate-fade-in {
-        animation: fadeIn 0.35s ease-out forwards;
-      }
-    </style>
-  </head>
-  <body class="font-sans antialiased text-stone-800 min-h-full bg-stone-100 selection:bg-diocesis-mustard selection:text-white">
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<body
+  class="font-sans antialiased text-stone-800 min-h-full bg-stone-100 selection:bg-diocesis-mustard selection:text-white">
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
 </html>

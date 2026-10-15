@@ -123,7 +123,7 @@ export default function ConsultaVoluntariado() {
       {/* BARRA SUPERIOR INSTITUCIONAL */}
       <div className="bg-diocesis-mustard text-white px-4 py-2 text-xs md:text-sm font-semibold text-center flex items-center justify-center gap-2 shadow-sm relative">
         <i className="fa-solid fa-cross"></i>
-        <span className="font-title tracking-wide text-sm md:text-base">DIÓCESIS DE CHICLAYO Y SANTA CRUZ</span>
+        <span className="font-title tracking-wide text-sm md:text-base">DIÓCESIS DE CHICLAYO "CHICLAYO Y SANTA CRUZ"</span>
         <span className="hidden md:inline">• Portal Oficial de Consulta de Voluntariado</span>
 
         {/* Acceso discreto a Administradores */}
@@ -150,8 +150,8 @@ export default function ConsultaVoluntariado() {
                 <i className="fa-solid fa-church"></i>
               </div>
               <div className="leading-tight">
-                <span className="block text-[11px] font-extrabold text-diocesis-redDark uppercase tracking-tight">Diócesis de</span>
-                <span className="block text-xs font-black text-stone-900 font-title uppercase">Chiclayo y Santa Cruz</span>
+                <span className="block text-[11px] font-extrabold text-diocesis-redDark uppercase tracking-tight">Diócesis de Chiclayo</span>
+                <span className="block text-xs font-black text-stone-900 font-title uppercase">"Chiclayo y Santa Cruz"</span>
               </div>
             </div>
 
@@ -203,7 +203,7 @@ export default function ConsultaVoluntariado() {
                 Proceso de Selección
               </span>
               <h1 className="text-2xl md:text-4xl font-title font-bold text-white tracking-wide" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
-                DIÓCESIS DE CHICLAYO Y SANTA CRUZ
+                DIÓCESIS DE CHICLAYO "CHICLAYO Y SANTA CRUZ"
               </h1>
               <p className="text-xs md:text-sm text-stone-100 mt-1 font-semibold" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
                 Sistema de Validación de Postulantes al Voluntariado Diocesano
@@ -211,7 +211,7 @@ export default function ConsultaVoluntariado() {
             </div>
 
             <a 
-              href="https://wa.me/51999999999?text=Hola,%20tengo%20una%20consulta%20sobre%20el%20voluntariado%20de%20la%20Diocesis%20de%20Chiclayo%20y%20Santa%20Cruz" 
+              href="https://wa.me/51945854083?text=Hola,%20tengo%20una%20consulta%20sobre%20el%20voluntariado%20de%20la%20Diócesis%20de%20Chiclayo" 
               target="_blank" 
               rel="noreferrer"
               className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs md:text-sm font-bold px-5 py-3 rounded-xl transition shadow-md hover:shadow-lg border border-emerald-400/30 shrink-0"
@@ -529,7 +529,7 @@ export default function ConsultaVoluntariado() {
       <footer className="bg-diocesis-redDark text-stone-300 text-xs md:text-sm py-8 border-t-4 border-diocesis-mustard mt-12">
         <div className="max-w-5xl mx-auto px-4 text-center space-y-3">
           <p className="font-title font-bold text-white text-base tracking-wide">
-            DIÓCESIS DE CHICLAYO Y SANTA CRUZ
+            DIÓCESIS DE CHICLAYO "CHICLAYO Y SANTA CRUZ"
           </p>
           <p className="text-stone-300 font-medium">
             Pastoral Juvenil • Comisión Diocesana de Juventud • Área Diocesana de Laicos
