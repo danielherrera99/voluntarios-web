@@ -51,10 +51,11 @@ export default function ConsultaVoluntariado() {
       if (f2Data) {
         const valStr = String(f2Data.estado || '').toUpperCase();
         let mappedStatus = 'PENDING';
+        const isVerificar = valStr.includes('REVISI') || valStr.includes('OBSERV') || valStr.includes('VERIFICAR');
 
         if (f2Data.info_validada || valStr.includes('SELECCIONAD') || valStr.includes('APROBAD')) {
           mappedStatus = 'SELECTED';
-        } else if (valStr.includes('REVISI') || valStr.includes('OBSERV') || valStr.includes('VERIFICAR')) {
+        } else if (isVerificar) {
           mappedStatus = 'PENDING';
         } else if (valStr.includes('NO') || valStr.includes('RECHAZ')) {
           mappedStatus = 'NOT_SELECTED';
@@ -68,7 +69,8 @@ export default function ConsultaVoluntariado() {
           codigo: f2Data.codigo,
           comision: f2Data.servicio || 'Servicio Diocesano Asignado',
           area: f2Data.departamento || 'Diócesis de Chiclayo y Santa Cruz',
-          observacion: f2Data.observacion || (mappedStatus === 'PENDING' ? 'Tu postulación de Segunda Fase se encuentra en proceso de validación.' : '')
+          esVerificar: isVerificar,
+          observacion: f2Data.observacion || null
         });
         return;
       }
@@ -399,7 +401,7 @@ export default function ConsultaVoluntariado() {
                     </div>
                   </div>
 
-                  {result.observacion ? (
+                  {result.esVerificar && result.observacion ? (
                     <div className="bg-white border-l-4 border-amber-500 p-4 rounded-r-2xl shadow-sm bg-stone-50 space-y-2">
                       <h4 className="font-title font-bold text-amber-900 text-sm md:text-base flex items-center gap-2">
                         <i className="fa-solid fa-folder-open text-amber-600"></i> Observación registrada por la comisión:
