@@ -159,9 +159,6 @@ export default function ConsultaVoluntariado() {
                 alt="Diócesis de Chiclayo" 
                 className="h-10 sm:h-12 md:h-14 w-auto object-contain"
               />
-              <span className="hidden xl:inline text-xs font-black text-stone-900 font-title uppercase">
-                "Chiclayo y Santa Cruz"
-              </span>
             </div>
 
             <div className="hidden sm:block h-8 w-px bg-stone-200"></div>
