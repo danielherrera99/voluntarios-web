@@ -37,56 +37,75 @@ export default function ConsultaVoluntariado() {
     setLoading(true);
 
     try {
-      // 1. Verificar si coincide con la base demo simulada
-      if (mockDatabase[cleanDni]) {
-        setResult(mockDatabase[cleanDni]);
-        setLoading(false);
-        scrollIntoResult();
-        return;
-      }
-
-      // 2. Consultar base de datos real en Supabase
-      const { data, error } = await supabase
+      // 1. Consultar Fase 2 (voluntarios)
+      const { data: f2Data, error: f2Error } = await supabase
         .from('voluntarios')
         .select('*')
         .eq('dni', cleanDni)
         .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
-        console.warn('Error al consultar Supabase:', error.message);
+      if (f2Error && f2Error.code !== 'PGRST116') {
+        console.warn('Aviso en consulta Fase 2:', f2Error.message);
       }
 
-      if (data) {
-        // Mapear estado de base de datos a los 3 estados visuales
-        const estadoUpper = (data.estado || '').toUpperCase();
+      if (f2Data) {
+        const valStr = String(f2Data.estado || '').toUpperCase();
         let mappedStatus = 'PENDING';
 
-        if (estadoUpper.includes('SELECCIONAD') || estadoUpper.includes('APROBAD') || data.info_validada) {
+        if (f2Data.info_validada || valStr.includes('SELECCIONAD') || valStr.includes('APROBAD')) {
           mappedStatus = 'SELECTED';
-        } else if (estadoUpper.includes('NO') || estadoUpper.includes('RECHAZ')) {
-          mappedStatus = 'NOT_SELECTED';
-        } else {
+        } else if (valStr.includes('REVISI') || valStr.includes('OBSERV') || valStr.includes('VERIFICAR')) {
           mappedStatus = 'PENDING';
+        } else if (valStr.includes('NO') || valStr.includes('RECHAZ')) {
+          mappedStatus = 'NOT_SELECTED';
         }
 
         setResult({
           status: mappedStatus,
-          name: data.nombres_apellidos || 'Postulante',
-          dni: data.dni,
-          comision: data.servicio || 'Por Asignar',
-          area: data.departamento || 'Pastoral Juvenil / Laicos',
-          observacion: data.observacion || (mappedStatus === 'PENDING' ? 'Tu postulación se encuentra en proceso de validación por el equipo diocesano.' : '')
+          fase: f2Data.fase || '2',
+          name: f2Data.nombres_apellidos || 'Postulante',
+          dni: f2Data.dni,
+          codigo: f2Data.codigo,
+          comision: f2Data.servicio || 'Servicio Diocesano Asignado',
+          area: f2Data.departamento || 'Diócesis de Chiclayo y Santa Cruz',
+          observacion: f2Data.observacion || (mappedStatus === 'PENDING' ? 'Tu postulación de Segunda Fase se encuentra en proceso de validación.' : '')
         });
-      } else {
-        // No encontrado ni en BD ni en Mock
-        setResult({
-          status: 'NOT_FOUND',
-          dni: cleanDni
-        });
+        return;
       }
+
+      // 2. Si no está en Fase 2, consultar en Fase 1 (voluntarios_general)
+      const { data: f1Data, error: f1Error } = await supabase
+        .from('voluntarios_general')
+        .select('*')
+        .eq('dni', cleanDni)
+        .maybeSingle();
+
+      if (f1Error && f1Error.code !== 'PGRST116') {
+        console.warn('Aviso en consulta Fase 1:', f1Error.message);
+      }
+
+      if (f1Data) {
+        setResult({
+          status: 'FASE1',
+          fase: '1',
+          name: f1Data.nombres_apellidos || 'Postulante',
+          dni: f1Data.dni,
+          codigo: f1Data.codigo,
+          comision: f1Data.servicio || 'Servicio Solicitado',
+          area: f1Data.departamento || 'Diócesis de Chiclayo y Santa Cruz',
+          observacion: 'Te encuentras registrado/a en el Padrón General inicial (Fase 1). Si completaste tu ficha o documentos de la Fase 2 recientemente, tu expediente está en proceso de validación.'
+        });
+        return;
+      }
+
+      // 3. No encontrado en ninguna base
+      setResult({
+        status: 'NOT_FOUND',
+        dni: cleanDni
+      });
+
     } catch (err) {
       console.error('Error durante la búsqueda:', err);
-      // Fallback amigable
       setResult({
         status: 'NOT_FOUND',
         dni: cleanDni
@@ -109,11 +128,6 @@ export default function ConsultaVoluntariado() {
   const handleSubmit = (e) => {
     e.preventDefault();
     performSearch(dniInput);
-  };
-
-  const setDemo = (demoDni) => {
-    setDniInput(demoDni);
-    performSearch(demoDni);
   };
 
   return (
@@ -268,44 +282,12 @@ export default function ConsultaVoluntariado() {
             </button>
           </form>
 
-          {/* PANEL DE CONTROL PARA DEMO / PRUEBAS RÁPIDAS */}
-          <div className="mt-8 pt-6 border-t border-stone-200 bg-diocesis-cream/90 rounded-2xl p-4 border border-diocesis-mustard/30">
-            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-              <span className="text-xs font-bold text-diocesis-redDark uppercase tracking-wider flex items-center gap-1.5 font-title">
-                <i className="fa-solid fa-flask text-diocesis-mustard"></i> Consola de Prueba (Simulador):
-              </span>
-              <span className="text-xs text-stone-500 font-medium">Haz clic en un botón para probar la respuesta</span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-              <button 
-                type="button" 
-                onClick={() => setDemo('72849102')} 
-                className="px-3 py-2 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-xl font-bold hover:bg-emerald-100 transition text-center shadow-sm cursor-pointer"
-              >
-                <i className="fa-solid fa-check-circle text-emerald-600 mr-1"></i> Seleccionado
-              </button>
-              <button 
-                type="button" 
-                onClick={() => setDemo('45102938')} 
-                className="px-3 py-2 bg-amber-50 text-amber-800 border border-amber-300 rounded-xl font-bold hover:bg-amber-100 transition text-center shadow-sm cursor-pointer"
-              >
-                <i className="fa-solid fa-exclamation-circle text-amber-600 mr-1"></i> Pendiente Doc.
-              </button>
-              <button 
-                type="button" 
-                onClick={() => setDemo('10928374')} 
-                className="px-3 py-2 bg-stone-200 text-stone-800 border border-stone-300 rounded-xl font-bold hover:bg-stone-300 transition text-center shadow-sm cursor-pointer"
-              >
-                <i className="fa-solid fa-circle-minus text-stone-600 mr-1"></i> No Seleccionado
-              </button>
-              <button 
-                type="button" 
-                onClick={() => setDemo('99999999')} 
-                className="px-3 py-2 bg-rose-50 text-rose-800 border border-rose-300 rounded-xl font-bold hover:bg-rose-100 transition text-center shadow-sm cursor-pointer"
-              >
-                <i className="fa-solid fa-circle-xmark text-rose-600 mr-1"></i> No Encontrado
-              </button>
-            </div>
+          {/* NOTA INSTITUCIONAL DE CONSULTA */}
+          <div className="mt-8 pt-4 border-t border-stone-200 text-center">
+            <p className="text-xs text-stone-500 font-medium flex items-center justify-center gap-1.5">
+              <i className="fa-solid fa-shield-halved text-emerald-600"></i>
+              <span>Sistema Oficial de Consulta • Diócesis de Chiclayo "Chiclayo y Santa Cruz"</span>
+            </p>
           </div>
         </div>
 
@@ -315,16 +297,16 @@ export default function ConsultaVoluntariado() {
         {result && (
           <div className="space-y-6 animate-fade-in">
             
-            {/* ESTADO 1: SELECCIONADO / APROBADO */}
+            {/* ESTADO 1: SELECCIONADO / PASA A FASE 3 */}
             {result.status === 'SELECTED' && (
               <div className="bg-white rounded-3xl border-2 border-emerald-500 card-shadow overflow-hidden">
                 <div className="bg-gradient-to-r from-emerald-700 to-teal-800 p-6 md:p-8 text-white text-center">
                   <div className="inline-flex items-center justify-center w-16 h-16 bg-white text-emerald-700 rounded-full text-3xl shadow-lg mb-3">
                     <i className="fa-solid fa-award"></i>
                   </div>
-                  <h3 className="text-2xl md:text-3xl font-title font-bold">¡Felicidades, Pasaste a la Siguiente Etapa!</h3>
+                  <h3 className="text-2xl md:text-3xl font-title font-bold">¡Felicidades, Pasaste a la Tercera Etapa!</h3>
                   <p className="text-emerald-100 text-sm md:text-base mt-1 font-medium">
-                    Has sido seleccionado/a para formar parte del equipo de voluntariado.
+                    Has sido seleccionado/a para formar parte del equipo oficial de voluntariado diocesano.
                   </p>
                 </div>
 
@@ -338,16 +320,16 @@ export default function ConsultaVoluntariado() {
                       <span className="text-xs text-stone-500 uppercase font-bold block">Documento</span>
                       <span className="text-stone-800 font-semibold text-base">DNI: {result.dni}</span>
                     </div>
-                    <div className="md:col-span-1">
+                    {result.codigo && (
+                      <div>
+                        <span className="text-xs text-stone-500 uppercase font-bold block">Código Oficial</span>
+                        <span className="text-emerald-800 font-mono font-bold text-base">{result.codigo}</span>
+                      </div>
+                    )}
+                    <div>
                       <span className="text-xs text-stone-500 uppercase font-bold block">Comisión Asignada</span>
                       <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-diocesis-red text-white rounded-lg text-xs md:text-sm font-bold mt-1 shadow-sm">
-                        <i className="fa-solid fa-users text-diocesis-mustard"></i> {result.comision || 'Logística y Protocolo'}
-                      </span>
-                    </div>
-                    <div className="md:col-span-1">
-                      <span className="text-xs text-stone-500 uppercase font-bold block">Área Diocesana</span>
-                      <span className="text-stone-800 font-bold text-sm block mt-1">
-                        {result.area || 'Pastoral Juvenil / Laicos'}
+                        <i className="fa-solid fa-users text-diocesis-mustard"></i> {result.comision || 'Servicio Diocesano'}
                       </span>
                     </div>
                   </div>
@@ -422,6 +404,70 @@ export default function ConsultaVoluntariado() {
                     >
                       <i className="fa-solid fa-cloud-arrow-up text-xl"></i>
                       <span>Subir Documento en Google Forms</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ESTADO 2.5: REGISTRADO EN PADRÓN GENERAL (FASE 1) */}
+            {result.status === 'FASE1' && (
+              <div className="bg-white rounded-3xl border-2 border-sky-500 card-shadow overflow-hidden">
+                <div className="bg-gradient-to-r from-sky-800 to-indigo-900 p-6 md:p-8 text-white text-center">
+                  <div className="inline-flex items-center justify-center w-16 h-16 bg-white text-sky-800 rounded-full text-3xl shadow-lg mb-3">
+                    <i className="fa-solid fa-clipboard-check"></i>
+                  </div>
+                  <h3 className="text-2xl md:text-3xl font-title font-bold">Inscrito en Padrón Inicial (Fase 1)</h3>
+                  <p className="text-sky-100 text-sm md:text-base mt-1 font-medium">
+                    Confirmamos que te encuentras registrado/a en el Padrón General de Voluntariado.
+                  </p>
+                </div>
+
+                <div className="p-6 md:p-8 space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-sky-50/70 rounded-2xl p-5 border border-sky-200">
+                    <div>
+                      <span className="text-xs text-stone-500 uppercase font-bold block">Postulante</span>
+                      <span className="text-stone-900 font-bold text-base md:text-lg">{result.name}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-stone-500 uppercase font-bold block">Documento</span>
+                      <span className="text-stone-800 font-semibold text-base">DNI: {result.dni}</span>
+                    </div>
+                    {result.codigo && (
+                      <div>
+                        <span className="text-xs text-stone-500 uppercase font-bold block">Código de Postulante</span>
+                        <span className="text-sky-900 font-mono font-bold text-base">{result.codigo}</span>
+                      </div>
+                    )}
+                    <div>
+                      <span className="text-xs text-stone-500 uppercase font-bold block">Servicio Solicitado</span>
+                      <span className="text-stone-900 font-bold text-sm block mt-0.5">
+                        {result.comision || 'Servicio General'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border-l-4 border-sky-600 p-4 rounded-r-2xl shadow-sm bg-stone-50">
+                    <h4 className="font-title font-bold text-sky-900 text-sm md:text-base flex items-center gap-2">
+                      <i className="fa-solid fa-circle-info text-sky-600"></i> Estado actual del expediente:
+                    </h4>
+                    <p className="mt-1 text-sm text-stone-700 font-medium">
+                      {result.observacion || 'Te encuentras registrado/a en el Padrón General inicial (Fase 1). Si ya completaste tu ficha o documentos de la Fase 2 recientemente, tu postulación se encuentra en cola de validación diocesana.'}
+                    </p>
+                  </div>
+
+                  <div className="text-center bg-stone-50 p-4 rounded-2xl border border-stone-200">
+                    <p className="text-xs text-stone-600 font-medium">
+                      ¿Tienes dudas sobre el estado de tu expediente? Escríbenos directamente por WhatsApp:
+                    </p>
+                    <a 
+                      href={`https://wa.me/51945854083?text=Hola,%20figuro%20en%20el%20Padrón%20Fase%201%20con%20DNI%20${result.dni}%20y%20quisiera%20consultar%20sobre%20mi%20evaluación`} 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 text-emerald-700 font-bold text-sm hover:underline mt-2"
+                    >
+                      <i className="fa-brands fa-whatsapp text-base"></i>
+                      <span>Consultar con el Equipo Diocesano (+51 945 854 083)</span>
                     </a>
                   </div>
                 </div>
