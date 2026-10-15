@@ -259,11 +259,13 @@ export default function ConsultaVoluntariado() {
               <input
                 type="text"
                 id="dniInput"
-                placeholder="Ingresa tu DNI (Ej: 72849102)"
-                maxLength="12"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="Ingresa tu DNI (Solo números)"
+                maxLength="9"
                 required
                 value={dniInput}
-                onChange={(e) => setDniInput(e.target.value)}
+                onChange={(e) => setDniInput(e.target.value.replace(/\D/g, ''))}
                 className="w-full pl-12 pr-4 py-4 bg-stone-50 border-2 border-stone-300 rounded-2xl text-stone-900 placeholder-stone-400 focus:outline-none focus:border-diocesis-red focus:bg-white transition text-base md:text-lg font-semibold shadow-inner"
               />
             </div>
