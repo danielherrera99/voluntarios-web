@@ -137,21 +137,21 @@ export default function ConsultaVoluntariado() {
 
   return (
     <div className="font-sans antialiased text-stone-800 min-h-screen flex flex-col justify-between bg-stone-100 selection:bg-diocesis-mustard selection:text-white">
-      
+
       {/* BARRA SUPERIOR INSTITUCIONAL */}
-      <div className="bg-diocesis-mustard text-white px-4 py-2 text-xs md:text-sm font-semibold text-center flex items-center justify-center gap-2 shadow-sm">
+      <div className="bg-diocesis-mustard text-white px-4 py-2 text-xs md:text-sm font-semibold text-center flex items-center justify-center gap-2 shadow-sm no-print">
         <i className="fa-solid fa-cross"></i>
         <span className="font-title tracking-wide text-sm md:text-base">DIÓCESIS DE CHICLAYO "CHICLAYO Y SANTA CRUZ"</span>
         <span className="hidden md:inline">• Portal Oficial de Consulta de Voluntariado</span>
       </div>
 
       {/* CABECERA CON LOGOS OFICIALES */}
-      <header className="header-gradient text-white border-b-4 border-diocesis-mustard shadow-lg relative overflow-hidden">
+      <header className="header-gradient text-white border-b-4 border-diocesis-mustard shadow-lg relative overflow-hidden no-print">
         <div className="max-w-5xl mx-auto px-4 py-6 md:py-8 relative z-10 space-y-6">
-          
+
           {/* BARRA DE LOGOTIPOS RECREADOS */}
           <div className="bg-white/95 backdrop-blur rounded-2xl p-3 md:p-4 shadow-xl border border-diocesis-mustard/30 flex flex-wrap items-center justify-between gap-4">
-            
+
             {/* Logo 1: Diócesis de Chiclayo */}
             <div className="flex items-center gap-2">
               <div className="w-10 h-10 bg-diocesis-red text-diocesis-mustard rounded-xl flex items-center justify-center font-bold text-xl shadow-md border border-diocesis-mustard">
@@ -218,9 +218,9 @@ export default function ConsultaVoluntariado() {
               </p>
             </div>
 
-            <a 
-              href="https://wa.me/51945854083?text=Hola,%20tengo%20una%20consulta%20sobre%20el%20voluntariado%20de%20la%20Diócesis%20de%20Chiclayo" 
-              target="_blank" 
+            <a
+              href="https://wa.me/51945854083?text=Hola,%20tengo%20una%20consulta%20sobre%20el%20voluntariado%20de%20la%20Diócesis%20de%20Chiclayo"
+              target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs md:text-sm font-bold px-5 py-3 rounded-xl transition shadow-md hover:shadow-lg border border-emerald-400/30 shrink-0"
             >
@@ -236,7 +236,7 @@ export default function ConsultaVoluntariado() {
       <main className="max-w-4xl w-full mx-auto px-4 py-8 md:py-12 flex-grow">
 
         {/* CUADRO DE BÚSQUEDA */}
-        <div className="bg-white rounded-3xl p-6 md:p-10 card-shadow border border-stone-200 mb-8 relative overflow-hidden">
+        <div className="bg-white rounded-3xl p-6 md:p-10 card-shadow border border-stone-200 mb-8 relative overflow-hidden no-print">
           <div className="absolute top-0 right-0 w-24 h-24 bg-diocesis-mustard/10 rounded-bl-full pointer-events-none"></div>
 
           <div className="text-center max-w-xl mx-auto mb-8">
@@ -256,20 +256,20 @@ export default function ConsultaVoluntariado() {
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-diocesis-red">
                 <i className="fa-solid fa-id-card text-lg"></i>
               </div>
-              <input 
-                type="text" 
-                id="dniInput" 
-                placeholder="Ingresa tu DNI (Ej: 72849102)" 
-                maxLength="12" 
-                required 
+              <input
+                type="text"
+                id="dniInput"
+                placeholder="Ingresa tu DNI (Ej: 72849102)"
+                maxLength="12"
+                required
                 value={dniInput}
                 onChange={(e) => setDniInput(e.target.value)}
                 className="w-full pl-12 pr-4 py-4 bg-stone-50 border-2 border-stone-300 rounded-2xl text-stone-900 placeholder-stone-400 focus:outline-none focus:border-diocesis-red focus:bg-white transition text-base md:text-lg font-semibold shadow-inner"
               />
             </div>
 
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               disabled={loading}
               className="w-full bg-diocesis-red hover:bg-diocesis-redDark disabled:opacity-75 text-white font-title font-bold py-4 px-6 rounded-2xl transition shadow-lg hover:shadow-xl flex items-center justify-center gap-2 text-base md:text-lg border-b-4 border-diocesis-redDark cursor-pointer"
             >
@@ -301,10 +301,24 @@ export default function ConsultaVoluntariado() {
         {/* RESULTADOS DINÁMICOS */}
         {result && (
           <div className="space-y-6 animate-fade-in">
-            
+
             {/* ESTADO 1: SELECCIONADO / PASA A FASE 3 */}
             {result.status === 'SELECTED' && (
-              <div className="bg-white rounded-3xl border-2 border-emerald-500 card-shadow overflow-hidden">
+              <div id="constanciaImprimible" className="bg-white rounded-3xl border-2 border-emerald-500 card-shadow overflow-hidden">
+
+                {/* CABECERA EXCLUSIVA PARA IMPRESIÓN OFICIAL */}
+                <div className="print-only p-6 border-b-2 border-emerald-600 bg-emerald-50 text-center">
+                  <p className="text-xs font-bold text-emerald-800 tracking-widest uppercase mb-1">
+                    ✞ DIÓCESIS DE CHICLAYO "CHICLAYO Y SANTA CRUZ" ✞
+                  </p>
+                  <h2 className="text-xl font-bold font-title text-stone-900 uppercase tracking-wide">
+                    CONSTANCIA OFICIAL DE SELECCIÓN
+                  </h2>
+                  <p className="text-xs text-stone-600 uppercase font-semibold tracking-wider mt-0.5">
+                    Comisión Diocesana de Voluntariado • Pastoral Juvenil • Laicos
+                  </p>
+                </div>
+
                 <div className="bg-gradient-to-r from-emerald-700 to-teal-800 p-6 md:p-8 text-white text-center">
                   <div className="inline-flex items-center justify-center w-16 h-16 bg-white text-emerald-700 rounded-full text-3xl shadow-lg mb-3">
                     <i className="fa-solid fa-award"></i>
@@ -355,9 +369,28 @@ export default function ConsultaVoluntariado() {
                     </ul>
                   </div>
 
-                  <div className="pt-4 border-t border-stone-200 flex justify-center">
-                    <button 
-                      onClick={() => window.print()} 
+                  {/* SELLO Y FIRMAS EXCLUSIVO PARA IMPRESIÓN */}
+                  <div className="print-only pt-8 mt-6 border-t-2 border-stone-200">
+                    <div className="grid grid-cols-2 gap-8 text-center text-xs text-stone-600">
+                      <div>
+                        <div className="border-b border-stone-400 w-44 mx-auto mb-1"></div>
+                        <p className="font-bold text-stone-800">Comisión Diocesana</p>
+                        <p>Diócesis de Chiclayo y Santa Cruz</p>
+                      </div>
+                      <div>
+                        <div className="border-b border-stone-400 w-44 mx-auto mb-1"></div>
+                        <p className="font-bold text-stone-800">Coordinación de Voluntariado</p>
+                        <p>Validación Oficial 2026</p>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-center text-stone-400 mt-6">
+                      Documento oficial de selección emitido a través del Portal Diocesano de Voluntariado.
+                    </p>
+                  </div>
+
+                  <div className="pt-4 border-t border-stone-200 flex justify-center no-print">
+                    <button
+                      onClick={() => window.print()}
                       className="px-6 py-3 bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold rounded-xl transition text-sm flex items-center gap-2 border border-stone-300 cursor-pointer"
                     >
                       <i className="fa-solid fa-print"></i> Imprimir Constancia de Selección
@@ -413,9 +446,9 @@ export default function ConsultaVoluntariado() {
                         {result.observacion}
                       </p>
                       <div className="pt-2">
-                        <a 
-                          href={GOOGLE_FORM_URL} 
-                          target="_blank" 
+                        <a
+                          href={GOOGLE_FORM_URL}
+                          target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-2 bg-diocesis-mustard hover:bg-diocesis-mustardDark text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow-sm"
                         >
@@ -439,9 +472,9 @@ export default function ConsultaVoluntariado() {
                     <p className="text-xs text-stone-600 font-medium">
                       ¿Tienes alguna consulta sobre tu evaluación?
                     </p>
-                    <a 
-                      href={`https://wa.me/51945854083?text=Hola,%20figuro%20en%20la%20Etapa%202%20con%20DNI%20${result.dni}%20y%20quisiera%20consultar%20sobre%20mi%20revisión`} 
-                      target="_blank" 
+                    <a
+                      href={`https://wa.me/51945854083?text=Hola,%20figuro%20en%20la%20Etapa%202%20con%20DNI%20${result.dni}%20y%20quisiera%20consultar%20sobre%20mi%20revisión`}
+                      target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-2 text-emerald-700 font-bold text-sm hover:underline mt-1"
                     >
@@ -513,9 +546,9 @@ export default function ConsultaVoluntariado() {
                       </p>
                     </div>
 
-                    <a 
-                      href={GOOGLE_FORM_URL} 
-                      target="_blank" 
+                    <a
+                      href={GOOGLE_FORM_URL}
+                      target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center justify-center gap-2.5 bg-diocesis-red hover:bg-diocesis-redDark text-white font-title font-bold px-8 py-4 rounded-2xl transition shadow-lg hover:shadow-xl text-base border-b-4 border-diocesis-redDark cursor-pointer"
                     >
@@ -528,9 +561,9 @@ export default function ConsultaVoluntariado() {
                     <p className="text-xs text-stone-600 font-medium">
                       ¿Tienes dudas sobre el proceso o tus documentos? Escríbenos directamente por WhatsApp:
                     </p>
-                    <a 
-                      href={`https://wa.me/51945854083?text=Hola,%20figuro%20en%20el%20Padrón%20Fase%201%20con%20DNI%20${result.dni}%20y%20quisiera%20consultar%20sobre%20mi%20evaluación`} 
-                      target="_blank" 
+                    <a
+                      href={`https://wa.me/51945854083?text=Hola,%20figuro%20en%20el%20Padrón%20Fase%201%20con%20DNI%20${result.dni}%20y%20quisiera%20consultar%20sobre%20mi%20evaluación`}
+                      target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-2 text-emerald-700 font-bold text-sm hover:underline mt-2"
                     >
@@ -595,7 +628,7 @@ export default function ConsultaVoluntariado() {
         )}
 
         {/* SECCIÓN DE PREGUNTAS FRECUENTES (FAQ) */}
-        <div className="mt-12 bg-white rounded-3xl p-6 md:p-8 card-shadow border border-stone-200 space-y-6">
+        <div className="mt-12 bg-white rounded-3xl p-6 md:p-8 card-shadow border border-stone-200 space-y-6 no-print">
           <div className="text-center">
             <h3 className="text-xl md:text-2xl font-title font-bold text-diocesis-redDark">
               Preguntas Frecuentes
@@ -629,7 +662,7 @@ export default function ConsultaVoluntariado() {
       </main>
 
       {/* PIE DE PÁGINA */}
-      <footer className="bg-diocesis-redDark text-stone-300 text-xs md:text-sm py-8 border-t-4 border-diocesis-mustard mt-12">
+      <footer className="bg-diocesis-redDark text-stone-300 text-xs md:text-sm py-8 border-t-4 border-diocesis-mustard mt-12 no-print">
         <div className="max-w-5xl mx-auto px-4 text-center space-y-3">
           <p className="font-title font-bold text-white text-base tracking-wide">
             DIÓCESIS DE CHICLAYO "CHICLAYO Y SANTA CRUZ"
@@ -638,7 +671,7 @@ export default function ConsultaVoluntariado() {
             Pastoral Juvenil • Comisión Diocesana de Juventud • Área Diocesana de Laicos
           </p>
           <p className="text-stone-400 text-xs">
-            © {new Date().getFullYear()} Diócesis de Chiclayo y Santa Cruz. Todos los derechos reservados.
+            © {new Date().getFullYear()} Diócesis de Chiclayo "Chiclayo y Santa Cruz". Todos los derechos reservados.
           </p>
         </div>
       </footer>

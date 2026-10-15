@@ -242,3 +242,58 @@ tr:hover {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+/* ==========================================================================
+   ESTILOS DE IMPRESIÓN EXCLUSIVA DE LA CONSTANCIA
+   ========================================================================== */
+.print-only {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 1.2cm;
+  }
+
+  body, html {
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    color: #111827 !important;
+    font-size: 11pt !important;
+  }
+
+  /* Ocultar elementos no imprimibles */
+  .no-print,
+  .no-print * {
+    display: none !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Mostrar exclusivamente la constancia */
+  #constanciaImprimible {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    border: 2px solid #059669 !important;
+    border-radius: 16px !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  #constanciaImprimible * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+}
