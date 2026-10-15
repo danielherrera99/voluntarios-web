@@ -25,6 +25,9 @@ const mockDatabase = {
   }
 };
 
+// Enlace al Formulario Oficial de Google Forms (Etapa 2)
+const GOOGLE_FORM_URL = "https://forms.google.com";
+
 export default function ConsultaVoluntariado() {
   const [dniInput, setDniInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -492,13 +495,38 @@ export default function ConsultaVoluntariado() {
                       <i className="fa-solid fa-circle-info text-sky-600"></i> Estado actual del expediente:
                     </h4>
                     <p className="mt-1 text-sm text-stone-700 font-medium">
-                      {result.observacion || 'Te encuentras registrado/a en el Padrón General inicial (Fase 1). Si ya completaste tu ficha o documentos de la Fase 2 recientemente, tu postulación se encuentra en cola de validación diocesana.'}
+                      Te encuentras registrado/a en el Padrón General inicial (Fase 1). Para completar tu evaluación y tener opción de pase a la <strong>Tercera Etapa</strong>, debes adjuntar tus documentos requeridos (DNI/Pasaporte, CUL y Carta de Recomendación).
                     </p>
+                  </div>
+
+                  {/* LLAMADO A SUBIR DOCUMENTACIÓN EN GOOGLE FORMS */}
+                  <div className="text-center bg-diocesis-cream p-6 rounded-2xl border-2 border-diocesis-mustard/40 shadow-sm space-y-4">
+                    <div>
+                      <span className="inline-block px-3 py-1 bg-diocesis-mustard text-white text-xs font-bold rounded-full uppercase tracking-wider mb-2 shadow-sm">
+                        Paso Requerido: Etapa 2
+                      </span>
+                      <h4 className="font-title font-bold text-diocesis-redDark text-lg md:text-xl">
+                        Sube tu Documentación para Continuar
+                      </h4>
+                      <p className="text-xs md:text-sm text-stone-700 font-medium max-w-lg mx-auto mt-1">
+                        Ingresa al formulario oficial de Google Forms para adjuntar tu copia de DNI, CUL y carta de recomendación.
+                      </p>
+                    </div>
+
+                    <a 
+                      href={GOOGLE_FORM_URL} 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center gap-2.5 bg-diocesis-red hover:bg-diocesis-redDark text-white font-title font-bold px-8 py-4 rounded-2xl transition shadow-lg hover:shadow-xl text-base border-b-4 border-diocesis-redDark cursor-pointer"
+                    >
+                      <i className="fa-solid fa-cloud-arrow-up text-xl text-diocesis-mustard"></i>
+                      <span>Subir Documentación en Google Forms</span>
+                    </a>
                   </div>
 
                   <div className="text-center bg-stone-50 p-4 rounded-2xl border border-stone-200">
                     <p className="text-xs text-stone-600 font-medium">
-                      ¿Tienes dudas sobre el estado de tu expediente? Escríbenos directamente por WhatsApp:
+                      ¿Tienes dudas sobre el proceso o tus documentos? Escríbenos directamente por WhatsApp:
                     </p>
                     <a 
                       href={`https://wa.me/51945854083?text=Hola,%20figuro%20en%20el%20Padrón%20Fase%201%20con%20DNI%20${result.dni}%20y%20quisiera%20consultar%20sobre%20mi%20evaluación`} 
