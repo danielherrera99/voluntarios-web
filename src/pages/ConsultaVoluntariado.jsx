@@ -632,30 +632,71 @@ export default function ConsultaVoluntariado() {
         {/* SECCIÓN DE PREGUNTAS FRECUENTES (FAQ) */}
         <div className="mt-12 bg-white rounded-3xl p-6 md:p-8 card-shadow border border-stone-200 space-y-6 no-print">
           <div className="text-center">
-            <h3 className="text-xl md:text-2xl font-title font-bold text-diocesis-redDark">
+            <span className="text-xs font-bold uppercase tracking-widest text-diocesis-mustard bg-stone-100 px-3 py-1 rounded-full border border-stone-200">
+              Centro de Ayuda
+            </span>
+            <h3 className="text-xl md:text-2xl font-title font-bold text-diocesis-redDark mt-2">
               Preguntas Frecuentes
             </h3>
-            <p className="text-xs md:text-sm text-stone-500 mt-1">Resuelve tus dudas sobre el proceso de selección</p>
+            <p className="text-xs md:text-sm text-stone-500 mt-1">
+              Todo lo que necesitas saber sobre las etapas de selección y tus documentos
+            </p>
           </div>
 
           <div className="space-y-4 text-sm">
-            <details className="group bg-stone-50 rounded-2xl p-4 border border-stone-200">
+            {/* FAQ 1 */}
+            <details className="group bg-stone-50 rounded-2xl p-4 border border-stone-200" open>
               <summary className="font-bold text-stone-800 cursor-pointer flex items-center justify-between">
-                <span>¿Cada cuánto tiempo se actualizan los datos?</span>
+                <span className="flex items-center gap-2">
+                  <i className="fa-solid fa-circle-question text-diocesis-red"></i>
+                  <span>Si ya envié mi documentación en la Etapa 2, ¿qué debo hacer? ¿Me van a llamar?</span>
+                </span>
                 <i className="fa-solid fa-chevron-down group-open:rotate-180 transition-transform text-diocesis-mustard"></i>
               </summary>
-              <p className="mt-2 text-stone-600 font-medium leading-relaxed">
-                La información se sincroniza automáticamente con la base de datos oficial del equipo diocesano. Cualquier cambio realizado por los coordinadores se refleja al instante.
+              <p className="mt-2 text-stone-600 font-medium leading-relaxed pl-6">
+                Una vez enviada tu documentación a través del formulario oficial de Google Forms, el comité diocesano se encuentra en pleno proceso de revisión y validación de tus archivos. <strong>No es necesario que vuelvas a enviar el formulario ni que te acerques a ninguna oficina; solo debes esperar.</strong> Los resultados se publicarán directamente en este portal oficial ingresando tu DNI y se notificará a tu correo electrónico registrado.
               </p>
             </details>
 
+            {/* FAQ 2 */}
             <details className="group bg-stone-50 rounded-2xl p-4 border border-stone-200">
               <summary className="font-bold text-stone-800 cursor-pointer flex items-center justify-between">
-                <span>¿Qué hago si mi documento aparece en revisión?</span>
+                <span className="flex items-center gap-2">
+                  <i className="fa-solid fa-circle-question text-diocesis-red"></i>
+                  <span>No me llegó el correo de confirmación, ¿qué debo hacer?</span>
+                </span>
                 <i className="fa-solid fa-chevron-down group-open:rotate-180 transition-transform text-diocesis-mustard"></i>
               </summary>
-              <p className="mt-2 text-stone-600 font-medium leading-relaxed">
-                Haz clic en el botón amarillo de "Subir Documento" que aparece en tu resultado para ingresar al formulario oficial y adjuntar el archivo faltante.
+              <p className="mt-2 text-stone-600 font-medium leading-relaxed pl-6">
+                En primer lugar, revisa tu carpeta de <em>Spam</em> o <em>Promociones</em>. Si estás inscrito/a en el Padrón General inicial (Fase 1) pero no recibiste el correo con el enlace, puedes hacer clic directamente en el botón <strong>"Subir Documentación en Google Forms"</strong> que aparece en tu resultado de consulta. Recuerda que es requisito indispensable ser mayor de edad; si cumples con ello y tienes alguna dificultad técnica, contáctanos a través del botón de <strong>Soporte Directo por WhatsApp (+51 945 854 083)</strong>.
+              </p>
+            </details>
+
+            {/* FAQ 3 */}
+            <details className="group bg-stone-50 rounded-2xl p-4 border border-stone-200">
+              <summary className="font-bold text-stone-800 cursor-pointer flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <i className="fa-solid fa-circle-question text-diocesis-red"></i>
+                  <span>¿Pueden participar menores de edad en este voluntariado?</span>
+                </span>
+                <i className="fa-solid fa-chevron-down group-open:rotate-180 transition-transform text-diocesis-mustard"></i>
+              </summary>
+              <p className="mt-2 text-stone-600 font-medium leading-relaxed pl-6">
+                Por disposiciones organizativas y protocolos de seguridad diocesana para la magnitud de los eventos, el voluntariado oficial está reservado <strong>únicamente para personas mayores de edad (18 años a más cumplidos)</strong>. Los postulantes menores de edad no ingresan al padrón oficial, pero los animamos fraternalmente a seguir sirviendo y participando en los grupos juveniles de su respectiva parroquia.
+              </p>
+            </details>
+
+            {/* FAQ 4 */}
+            <details className="group bg-stone-50 rounded-2xl p-4 border border-stone-200">
+              <summary className="font-bold text-stone-800 cursor-pointer flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <i className="fa-solid fa-circle-question text-diocesis-red"></i>
+                  <span>¿Cómo sé si fui seleccionado/a para la Tercera Etapa?</span>
+                </span>
+                <i className="fa-solid fa-chevron-down group-open:rotate-180 transition-transform text-diocesis-mustard"></i>
+              </summary>
+              <p className="mt-2 text-stone-600 font-medium leading-relaxed pl-6">
+                Al ingresar tu número de DNI en este portal, si tus documentos fueron validados satisfactoriamente aparecerá el mensaje <strong>"¡Felicidades, Pasaste a la Tercera Etapa!"</strong> (en tarjeta verde). Allí podrás descargar tu <strong>Constancia Oficial de Selección</strong>, conocer tu comisión asignada y las instrucciones para la jornada presencial de capacitación y tu integración al canal oficial de WhatsApp.
               </p>
             </details>
           </div>
