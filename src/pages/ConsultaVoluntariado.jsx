@@ -362,48 +362,86 @@ export default function ConsultaVoluntariado() {
               </div>
             )}
 
-            {/* ESTADO 2: EN REVISIÓN / PENDIENTE DE DOCUMENTO */}
+            {/* ESTADO 2: ETAPA 2 EN REVISIÓN */}
             {result.status === 'PENDING' && (
               <div className="bg-white rounded-3xl border-2 border-diocesis-mustard card-shadow overflow-hidden">
                 <div className="bg-gradient-to-r from-amber-600 to-diocesis-mustard p-6 md:p-8 text-white text-center">
                   <div className="inline-flex items-center justify-center w-16 h-16 bg-white text-diocesis-mustardDark rounded-full text-3xl shadow-lg mb-3">
-                    <i className="fa-solid fa-triangle-exclamation"></i>
+                    <i className="fa-solid fa-clock-rotate-left"></i>
                   </div>
-                  <h3 className="text-2xl md:text-3xl font-title font-bold">Documentos Pendientes</h3>
+                  <h3 className="text-2xl md:text-3xl font-title font-bold">Estás en la Etapa 2</h3>
                   <p className="text-amber-100 text-sm md:text-base mt-1 font-medium">
-                    Tu postulación está en revisión. Se requiere subsanar un documento.
+                    Tus documentos están siendo revisados por el equipo diocesano.
                   </p>
                 </div>
 
                 <div className="p-6 md:p-8 space-y-6">
-                  <div className="bg-amber-50 rounded-2xl p-5 border border-amber-200">
-                    <span className="text-xs text-amber-900 uppercase font-bold block">Postulante</span>
-                    <span className="text-stone-900 font-bold text-base md:text-lg">{result.name}</span>
-                    <span className="text-stone-600 text-sm block font-medium">DNI: {result.dni}</span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-amber-50/70 rounded-2xl p-5 border border-amber-200">
+                    <div>
+                      <span className="text-xs text-amber-900 uppercase font-bold block">Postulante</span>
+                      <span className="text-stone-900 font-bold text-base md:text-lg">{result.name}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-amber-900 uppercase font-bold block">Documento</span>
+                      <span className="text-stone-800 font-semibold text-base">DNI: {result.dni}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-amber-900 uppercase font-bold block">Estado de Etapa</span>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-200 text-amber-900 rounded-lg text-xs font-bold mt-1">
+                        <i className="fa-solid fa-file-circle-check"></i> Etapa 2: Documentos en Revisión
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-amber-900 uppercase font-bold block">Asignación de Comisión</span>
+                      <span className="text-stone-800 font-bold text-sm block mt-1">
+                        {result.comision || 'Aún sin asignación de comisión'}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="bg-white border-l-4 border-diocesis-mustard p-4 rounded-r-2xl shadow-sm bg-stone-50">
-                    <h4 className="font-title font-bold text-amber-900 text-sm md:text-base flex items-center gap-2">
-                      <i className="fa-solid fa-folder-open text-diocesis-mustard"></i> Observación registrada:
-                    </h4>
-                    <p className="mt-1 text-sm text-stone-700 font-medium">
-                      {result.observacion || "Falta adjuntar la fotocopia legible de tu DNI o la Ficha de Autorización firmada."}
-                    </p>
-                  </div>
+                  {result.observacion ? (
+                    <div className="bg-white border-l-4 border-amber-500 p-4 rounded-r-2xl shadow-sm bg-stone-50 space-y-2">
+                      <h4 className="font-title font-bold text-amber-900 text-sm md:text-base flex items-center gap-2">
+                        <i className="fa-solid fa-folder-open text-amber-600"></i> Observación registrada por la comisión:
+                      </h4>
+                      <p className="text-sm text-stone-700 font-medium">
+                        {result.observacion}
+                      </p>
+                      <div className="pt-2">
+                        <a 
+                          href="https://forms.google.com" 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 bg-diocesis-mustard hover:bg-diocesis-mustardDark text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow-sm"
+                        >
+                          <i className="fa-solid fa-cloud-arrow-up"></i>
+                          <span>Subsanar Documento en Google Forms</span>
+                        </a>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-stone-50 border-l-4 border-diocesis-mustard p-4 rounded-r-2xl shadow-sm">
+                      <h4 className="font-title font-bold text-diocesis-redDark text-sm md:text-base flex items-center gap-2">
+                        <i className="fa-solid fa-circle-info text-diocesis-mustard"></i> Información de tu proceso:
+                      </h4>
+                      <p className="mt-1 text-sm text-stone-700 font-medium leading-relaxed">
+                        Tu ficha de la Segunda Etapa ha sido recibida con éxito. El comité diocesano se encuentra verificando tu documentación para definir tu asignación oficial y el pase a la <strong>Tercera Etapa</strong>.
+                      </p>
+                    </div>
+                  )}
 
-                  <div className="text-center bg-diocesis-cream p-6 rounded-2xl border border-diocesis-mustard/30 space-y-4">
-                    <p className="text-sm text-stone-700 font-semibold">
-                      Sube el documento requerido mediante el formulario oficial de Google Drive:
+                  <div className="text-center bg-stone-50 p-4 rounded-2xl border border-stone-200">
+                    <p className="text-xs text-stone-600 font-medium">
+                      ¿Tienes alguna consulta sobre tu evaluación?
                     </p>
-                    
                     <a 
-                      href="https://forms.google.com" 
+                      href={`https://wa.me/51945854083?text=Hola,%20figuro%20en%20la%20Etapa%202%20con%20DNI%20${result.dni}%20y%20quisiera%20consultar%20sobre%20mi%20revisión`} 
                       target="_blank" 
                       rel="noreferrer"
-                      className="inline-flex items-center justify-center gap-2 bg-diocesis-mustard hover:bg-diocesis-mustardDark text-white font-title font-bold px-7 py-4 rounded-2xl transition shadow-lg hover:shadow-xl text-base border-b-4 border-diocesis-mustardDark"
+                      className="inline-flex items-center gap-2 text-emerald-700 font-bold text-sm hover:underline mt-1"
                     >
-                      <i className="fa-solid fa-cloud-arrow-up text-xl"></i>
-                      <span>Subir Documento en Google Forms</span>
+                      <i className="fa-brands fa-whatsapp text-base"></i>
+                      <span>Escribir al Soporte Diocesano (+51 945 854 083)</span>
                     </a>
                   </div>
                 </div>
