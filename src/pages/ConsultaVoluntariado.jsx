@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { supabase } from '../supabase';
 
 // Base de datos de prueba / demo institucional
@@ -121,20 +120,10 @@ export default function ConsultaVoluntariado() {
     <div className="font-sans antialiased text-stone-800 min-h-screen flex flex-col justify-between bg-stone-100 selection:bg-diocesis-mustard selection:text-white">
       
       {/* BARRA SUPERIOR INSTITUCIONAL */}
-      <div className="bg-diocesis-mustard text-white px-4 py-2 text-xs md:text-sm font-semibold text-center flex items-center justify-center gap-2 shadow-sm relative">
+      <div className="bg-diocesis-mustard text-white px-4 py-2 text-xs md:text-sm font-semibold text-center flex items-center justify-center gap-2 shadow-sm">
         <i className="fa-solid fa-cross"></i>
         <span className="font-title tracking-wide text-sm md:text-base">DIÓCESIS DE CHICLAYO "CHICLAYO Y SANTA CRUZ"</span>
         <span className="hidden md:inline">• Portal Oficial de Consulta de Voluntariado</span>
-
-        {/* Acceso discreto a Administradores */}
-        <Link 
-          to="/login" 
-          title="Acceso administrativo"
-          className="absolute right-4 text-white/80 hover:text-white transition flex items-center gap-1 text-xs"
-        >
-          <i className="fa-solid fa-lock text-[10px]"></i>
-          <span className="hidden sm:inline">Admin</span>
-        </Link>
       </div>
 
       {/* CABECERA CON LOGOS OFICIALES */}
@@ -534,11 +523,9 @@ export default function ConsultaVoluntariado() {
           <p className="text-stone-300 font-medium">
             Pastoral Juvenil • Comisión Diocesana de Juventud • Área Diocesana de Laicos
           </p>
-          <div className="flex items-center justify-center gap-4 text-stone-400 text-xs">
-            <span>© {new Date().getFullYear()} Diócesis de Chiclayo y Santa Cruz. Todos los derechos reservados.</span>
-            <span>•</span>
-            <Link to="/login" className="hover:text-diocesis-mustard transition underline">Panel Administrativo</Link>
-          </div>
+          <p className="text-stone-400 text-xs">
+            © {new Date().getFullYear()} Diócesis de Chiclayo y Santa Cruz. Todos los derechos reservados.
+          </p>
         </div>
       </footer>
 
