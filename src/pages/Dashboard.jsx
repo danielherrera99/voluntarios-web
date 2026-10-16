@@ -23,7 +23,12 @@ import {
   MessageCircle,
   PhoneCall,
   AlertCircle,
-  Phone
+  Phone,
+  UserCheck,
+  PieChart,
+  Key,
+  Copy,
+  Check
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -40,10 +45,20 @@ export default function Dashboard() {
   const [statusFilter, setStatusFilter] = useState('ALL'); // Para Fase 2: 'ALL', 'SELECCIONADO', 'EN REVISIÓN', 'NO SELECCIONADO', 'PENDIENTE'
   const [fase1Filter, setFase1Filter] = useState('ALL'); // Para Fase 1: 'ALL', 'SIN_FASE2', 'CON_FASE2'
   const [contactFilter, setContactFilter] = useState('ALL'); // Para Sin Fase 2: 'ALL', 'NO_CONTACTADOS', 'CONTACTADOS'
+  const [collaboratorFilter, setCollaboratorFilter] = useState('ALL'); // 'ALL', 'UNASSIGNED', o nombre del colaborador
   const [updatingId, setUpdatingId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [totalRecords, setTotalRecords] = useState(0);
+
+  // Modal de Reparto y Colaboradores
+  const [showDistributeModal, setShowDistributeModal] = useState(false);
+  const [collaboratorNamesInput, setCollaboratorNamesInput] = useState('');
+  const [distributing, setDistributing] = useState(false);
+  const [distributeMsg, setDistributeMsg] = useState(null);
+  const [collaboratorsStats, setCollaboratorsStats] = useState([]);
+  const [loadingCollabStats, setLoadingCollabStats] = useState(false);
+  const [copiedCreds, setCopiedCreds] = useState(false);
 
   // Estadísticas globales (KPIs)
   const [stats, setStats] = useState({
@@ -78,7 +93,7 @@ export default function Dashboard() {
   // Reset de página al cambiar de pestaña o filtro
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, statusFilter, fase1Filter, contactFilter]);
+  }, [activeTab, statusFilter, fase1Filter, contactFilter, collaboratorFilter]);
 
   // Cargar estadísticas globales una sola vez o al sincronizar
   const fetchGlobalStats = useCallback(async () => {
@@ -180,6 +195,15 @@ export default function Dashboard() {
         }
       }
 
+      // Filtro por colaborador asignado (solo para Fase 1 y Sin Fase 2)
+      if (activeTab !== 'fase2' && collaboratorFilter !== 'ALL') {
+        if (collaboratorFilter === 'UNASSIGNED') {
+          query = query.or('fase.eq.1,fase.is.null');
+        } else {
+          query = query.eq('fase', collaboratorFilter);
+        }
+      }
+
       // Orden y rango de paginación
       query = query.order('nombres_apellidos', { ascending: true }).range(from, to);
 
@@ -193,7 +217,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, currentPage, pageSize, debouncedSearch, statusFilter, fase1Filter, contactFilter]);
+  }, [activeTab, currentPage, pageSize, debouncedSearch, statusFilter, fase1Filter, contactFilter, collaboratorFilter]);
 
   // Cambiar estado de Contactado / No Contactado con el switch
   const handleToggleContactado = async (voluntario) => {
@@ -261,6 +285,76 @@ export default function Dashboard() {
     } finally {
       setSyncing(false);
       setTimeout(() => setSyncMsg(null), 5000);
+    }
+  };
+
+  // Cargar estadísticas de avance de cada colaborador
+  const fetchCollaboratorsStats = useCallback(async () => {
+    setLoadingCollabStats(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const res = await fetch(`${apiUrl}/api/collaborators-stats`);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setCollaboratorsStats(data.stats || []);
+      }
+    } catch (err) {
+      console.error('Error fetching collaborator stats:', err);
+    } finally {
+      setLoadingCollabStats(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCollaboratorsStats();
+  }, [fetchCollaboratorsStats]);
+
+  // Ejecutar reparto equitativo
+  const handleDistribute = async () => {
+    const rawNames = collaboratorNamesInput
+      .split(/[\n,]+/)
+      .map(n => n.trim())
+      .filter(n => n.length > 0);
+
+    const names = [...new Set(rawNames)];
+
+    if (names.length === 0) {
+      alert('Por favor ingresa al menos un nombre de colaborador.');
+      return;
+    }
+
+    setDistributing(true);
+    setDistributeMsg({ type: 'info', text: `Repartiendo equitativamente entre ${names.length} colaboradores...` });
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const res = await fetch(`${apiUrl}/api/distribute-voluntarios`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ collaborators: names })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setDistributeMsg({ 
+          type: 'success', 
+          text: `¡Reparto completado con éxito! Se asignaron ${data.totalDistributed?.toLocaleString()} postulantes entre ${data.collaboratorCount} personas (~${data.perCollaborator?.toLocaleString()} cada uno).` 
+        });
+        await fetchCollaboratorsStats();
+        await fetchRecords();
+        await fetchGlobalStats();
+      } else {
+        setDistributeMsg({ 
+          type: 'error', 
+          text: `Error: ${data.error || 'No se pudo completar el reparto.'}` 
+        });
+      }
+    } catch (err) {
+      console.error('Error al repartir:', err);
+      setDistributeMsg({ 
+        type: 'error', 
+        text: `Error de conexión: ${err.message}` 
+      });
+    } finally {
+      setDistributing(false);
     }
   };
 
@@ -502,12 +596,26 @@ export default function Dashboard() {
             </div>
 
             {/* Acciones Rápidas */}
-            <div className="flex items-center gap-2 self-end lg:self-auto">
+            <div className="flex items-center gap-2 self-end lg:self-auto flex-wrap">
               {syncMsg && (
                 <span className="text-xs font-semibold text-diocesis-mustardDark animate-pulse">
                   {syncMsg}
                 </span>
               )}
+
+              {/* Botón para abrir modal de reparto de equipo */}
+              <button
+                onClick={() => {
+                  setShowDistributeModal(true);
+                  fetchCollaboratorsStats();
+                }}
+                className="inline-flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-diocesis-redDark to-diocesis-red hover:from-diocesis-red hover:to-diocesis-redLight text-white rounded-xl text-xs font-bold shadow-sm transition"
+                title="Repartir postulantes sin Fase 2 entre los miembros del equipo"
+              >
+                <Users className="w-3.5 h-3.5 text-diocesis-mustard" />
+                <span>Repartir Postulantes</span>
+              </button>
+
               <button
                 onClick={handleSyncNow}
                 disabled={syncing}
@@ -524,13 +632,17 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-2 border-t border-stone-100">
             
             {/* Buscador por DNI / Nombres */}
-            <div className="md:col-span-6 lg:col-span-7 relative">
+            <div className={`relative ${
+              activeTab !== 'fase2' && collaboratorsStats.length > 0 
+                ? 'md:col-span-4 lg:col-span-4' 
+                : 'md:col-span-6 lg:col-span-7'
+            }`}>
               <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar por DNI o Nombres y Apellidos..."
+                placeholder="Buscar por DNI o Nombres..."
                 className="w-full pl-10 pr-9 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-diocesis-mustard focus:bg-white transition"
               />
               {searchTerm && (
@@ -543,7 +655,7 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* Filtro según la pestaña activa */}
+            {/* Filtro de estado según la pestaña activa */}
             {activeTab === 'fase2' ? (
               <div className="md:col-span-4 lg:col-span-3">
                 <select
@@ -559,7 +671,7 @@ export default function Dashboard() {
                 </select>
               </div>
             ) : activeTab === 'fase1' ? (
-              <div className="md:col-span-4 lg:col-span-3">
+              <div className={collaboratorsStats.length > 0 ? "md:col-span-3 lg:col-span-3" : "md:col-span-4 lg:col-span-3"}>
                 <select
                   value={fase1Filter}
                   onChange={(e) => setFase1Filter(e.target.value)}
@@ -571,7 +683,7 @@ export default function Dashboard() {
                 </select>
               </div>
             ) : (
-              <div className="md:col-span-4 lg:col-span-3">
+              <div className={collaboratorsStats.length > 0 ? "md:col-span-3 lg:col-span-3" : "md:col-span-4 lg:col-span-3"}>
                 <select
                   value={contactFilter}
                   onChange={(e) => setContactFilter(e.target.value)}
@@ -580,6 +692,28 @@ export default function Dashboard() {
                   <option value="ALL">📋 Todos sin Fase 2 ({stats.sinFase2})</option>
                   <option value="NO_CONTACTADOS">⏳ Pendientes de Contactar ({stats.sinContactar})</option>
                   <option value="CONTACTADOS">📞 Ya Contactados ({stats.contactados})</option>
+                </select>
+              </div>
+            )}
+
+            {/* Filtro por Colaborador Asignado (solo para Fase 1 y Sin Fase 2) */}
+            {activeTab !== 'fase2' && collaboratorsStats.length > 0 && (
+              <div className="md:col-span-3 lg:col-span-3">
+                <select
+                  value={collaboratorFilter}
+                  onChange={(e) => {
+                    setCollaboratorFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full py-2.5 px-3 bg-purple-50/70 border border-purple-300 rounded-xl text-sm font-bold text-purple-900 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                >
+                  <option value="ALL">👥 Todos los colaboradores</option>
+                  <option value="UNASSIGNED">⚪ Sin Asignar</option>
+                  {collaboratorsStats.map(c => (
+                    <option key={c.name} value={c.name}>
+                      👤 {c.name} ({c.contactados}/{c.total} • {c.porcentaje}%)
+                    </option>
+                  ))}
                 </select>
               </div>
             )}
@@ -633,6 +767,7 @@ export default function Dashboard() {
                     </>
                   ) : (
                     <>
+                      <th className="py-3 px-4 text-center">Asignado a</th>
                       <th className="py-3 px-4 text-center">¿Contactado?</th>
                       <th className="py-3 px-4 text-center">Estado Fase 2</th>
                       <th className="py-3 px-4">Distrito / Parroquia</th>
@@ -645,14 +780,14 @@ export default function Dashboard() {
               <tbody className="divide-y divide-stone-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={activeTab === 'fase2' ? 7 : 9} className="py-12 text-center text-stone-400">
+                    <td colSpan={activeTab === 'fase2' ? 7 : 10} className="py-12 text-center text-stone-400">
                       <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-diocesis-mustard" />
                       <span className="font-semibold text-sm">Cargando registros...</span>
                     </td>
                   </tr>
                 ) : records.length === 0 ? (
                   <tr>
-                    <td colSpan={activeTab === 'fase2' ? 7 : 9} className="py-12 text-center text-stone-500">
+                    <td colSpan={activeTab === 'fase2' ? 7 : 10} className="py-12 text-center text-stone-500">
                       <Users className="w-8 h-8 mx-auto mb-2 text-stone-300" />
                       <p className="font-bold text-stone-700">No se encontraron registros</p>
                       <p className="text-xs text-stone-400 mt-1">Prueba cambiando los términos de búsqueda o el filtro.</p>
@@ -795,6 +930,20 @@ export default function Dashboard() {
                           </>
                         ) : (
                           <>
+                            {/* Colaborador asignado */}
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                              {r.fase && r.fase !== '1' && r.fase !== '2' ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-900 border border-purple-200">
+                                  <Users className="w-3 h-3 text-purple-700" />
+                                  {r.fase}
+                                </span>
+                              ) : (
+                                <span className="text-stone-400 italic text-[11px]">
+                                  Sin asignar
+                                </span>
+                              )}
+                            </td>
+
                             {/* Switch ¿Contactado? */}
                             <td className="py-3 px-4 text-center whitespace-nowrap">
                               {r.estado === 'CON_FASE2' || r.fase === '2' ? (
@@ -1153,6 +1302,238 @@ export default function Dashboard() {
             <div className="pt-2 flex justify-end">
               <button
                 onClick={() => setSelectedVoluntario(null)}
+                className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold rounded-xl transition"
+              >
+                Cerrar
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE REPARTO DE POSTULANTES */}
+      {showDistributeModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-stone-200 space-y-5 animate-in fade-in zoom-in-95 duration-150 my-8">
+            
+            {/* Cabecera del modal */}
+            <div className="flex items-start justify-between border-b border-stone-100 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-diocesis-red/10 flex items-center justify-center text-diocesis-redDark">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg md:text-xl font-bold font-title text-stone-900 leading-tight">
+                    Repartir Postulantes entre el Equipo
+                  </h3>
+                  <p className="text-xs text-stone-500 font-medium">
+                    Distribuye equitativamente a los {stats.sinFase2?.toLocaleString()} postulantes de Fase 1 para contacto telefónico o WhatsApp.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowDistributeModal(false);
+                  setDistributeMsg(null);
+                }}
+                className="text-stone-400 hover:text-stone-600 p-1.5 rounded-lg bg-stone-100 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Credenciales de Acceso para el Equipo */}
+            <div className="p-3.5 bg-gradient-to-r from-amber-50 to-orange-50/60 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-1.5 text-xs font-extrabold text-amber-900">
+                  <Key className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Usuario Exclusivo para el Equipo de Contacto:</span>
+                </div>
+                <div className="text-xs text-stone-700 font-mono font-bold flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span>Correo: <strong className="text-diocesis-redDark">equipo@amigosdelpapa.pe</strong></span>
+                  <span>Contraseña: <strong className="text-diocesis-redDark">Voluntarios2026*</strong></span>
+                </div>
+                <p className="text-[11px] text-amber-800">
+                  Comparte este acceso con tu equipo para que puedan ingresar y filtrar sus postulantes asignados.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText('Correo: equipo@amigosdelpapa.pe\nContraseña: Voluntarios2026*\nEnlace: https://voluntarios-web.onrender.com/login');
+                  setCopiedCreds(true);
+                  setTimeout(() => setCopiedCreds(false), 2500);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-100/70 text-amber-900 rounded-xl text-xs font-bold transition shadow-2xs shrink-0"
+              >
+                {copiedCreds ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiedCreds ? '¡Copiado!' : 'Copiar Acceso'}
+              </button>
+            </div>
+
+            {/* Input Box para nombres de colaboradores */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider">
+                Ingresa los nombres de los colaboradores:
+              </label>
+              <textarea
+                value={collaboratorNamesInput}
+                onChange={(e) => setCollaboratorNamesInput(e.target.value)}
+                placeholder="Ejemplo: Carlos, María, Juan Pérez, Sofía Gómez (puedes pegarlos o separarlos por comas o saltos de línea)"
+                rows={3}
+                className="w-full p-3 bg-stone-50 border border-stone-300 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-diocesis-mustard focus:bg-white transition resize-none"
+              />
+              
+              {/* Cálculo en vivo */}
+              {(() => {
+                const names = collaboratorNamesInput
+                  .split(/[\n,]+/)
+                  .map(n => n.trim())
+                  .filter(n => n.length > 0);
+                const uniqueCount = new Set(names).size;
+                const totalPorRepartir = stats.sinFase2 || 5214;
+                const perPerson = uniqueCount > 0 ? Math.ceil(totalPorRepartir / uniqueCount) : 0;
+
+                return (
+                  <div className="flex items-center justify-between text-xs text-stone-500 px-1">
+                    <span>
+                      {uniqueCount > 0 ? (
+                        <span className="font-semibold text-stone-700">
+                          👥 {uniqueCount} colaborador{uniqueCount > 1 ? 'es' : ''} ingresado{uniqueCount > 1 ? 's' : ''} • ~
+                          <strong className="text-diocesis-redDark">{perPerson.toLocaleString()}</strong> postulantes c/u
+                        </span>
+                      ) : (
+                        'Escribe o pega los nombres para calcular el reparto automático.'
+                      )}
+                    </span>
+                    <span className="text-[11px] text-stone-400">Total a repartir: {totalPorRepartir.toLocaleString()}</span>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Botón de acción para repartir */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleDistribute}
+                disabled={distributing || !collaboratorNamesInput.trim()}
+                className="flex-1 py-3 px-4 bg-gradient-to-r from-diocesis-redDark to-diocesis-red hover:from-diocesis-red hover:to-diocesis-redLight text-white font-bold rounded-2xl text-sm shadow-md transition disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <Users className={`w-4 h-4 ${distributing ? 'animate-spin' : ''}`} />
+                {distributing ? 'Repartiendo equitativamente en la base de datos...' : '⚡ Iniciar Reparto Equitativo'}
+              </button>
+            </div>
+
+            {/* Mensaje de estado de la operación */}
+            {distributeMsg && (
+              <div className={`p-3 rounded-2xl text-xs font-semibold flex items-center gap-2 ${
+                distributeMsg.type === 'success' ? 'bg-emerald-50 text-emerald-900 border border-emerald-200' :
+                distributeMsg.type === 'error' ? 'bg-rose-50 text-rose-900 border border-rose-200' :
+                'bg-amber-50 text-amber-900 border border-amber-200 animate-pulse'
+              }`}>
+                {distributeMsg.type === 'success' ? <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" /> :
+                 distributeMsg.type === 'error' ? <XCircle className="w-4 h-4 text-rose-600 shrink-0" /> :
+                 <RefreshCw className="w-4 h-4 text-amber-600 shrink-0 animate-spin" />}
+                <span>{distributeMsg.text}</span>
+              </div>
+            )}
+
+            {/* Tabla de Avance y Estado del Equipo */}
+            <div className="space-y-2 pt-2 border-t border-stone-100">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <PieChart className="w-3.5 h-3.5 text-stone-500" />
+                  Avance en Vivo por Colaborador:
+                </span>
+                <button
+                  type="button"
+                  onClick={fetchCollaboratorsStats}
+                  disabled={loadingCollabStats}
+                  className="text-[11px] font-bold text-diocesis-redDark hover:underline inline-flex items-center gap-1"
+                >
+                  <RefreshCw className={`w-3 h-3 ${loadingCollabStats ? 'animate-spin' : ''}`} />
+                  Actualizar tabla
+                </button>
+              </div>
+
+              {collaboratorsStats.length === 0 ? (
+                <div className="p-4 bg-stone-50 rounded-2xl text-center text-xs text-stone-400">
+                  Aún no se ha realizado ningún reparto. Ingresa los nombres arriba y presiona "Iniciar Reparto Equitativo".
+                </div>
+              ) : (
+                <div className="max-h-56 overflow-y-auto border border-stone-200 rounded-2xl">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-stone-100/90 sticky top-0 border-b border-stone-200 text-stone-600 font-bold">
+                      <tr>
+                        <th className="py-2 px-3">Colaborador</th>
+                        <th className="py-2 px-3 text-center">Asignados</th>
+                        <th className="py-2 px-3 text-center">Contactados</th>
+                        <th className="py-2 px-3 text-center">Pendientes</th>
+                        <th className="py-2 px-3 text-center">% Avance</th>
+                        <th className="py-2 px-3 text-center">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-100">
+                      {collaboratorsStats.map((c) => (
+                        <tr key={c.name} className="hover:bg-amber-50/40">
+                          <td className="py-2 px-3 font-bold text-stone-900 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0"></span>
+                            {c.name}
+                          </td>
+                          <td className="py-2 px-3 text-center font-mono font-bold text-stone-700">
+                            {c.total?.toLocaleString()}
+                          </td>
+                          <td className="py-2 px-3 text-center font-mono font-bold text-emerald-700">
+                            {c.contactados?.toLocaleString()}
+                          </td>
+                          <td className="py-2 px-3 text-center font-mono text-stone-500">
+                            {c.pendientes?.toLocaleString()}
+                          </td>
+                          <td className="py-2 px-3 text-center">
+                            <div className="flex items-center gap-2 justify-center">
+                              <div className="w-16 bg-stone-200 rounded-full h-2 overflow-hidden">
+                                <div 
+                                  className="bg-emerald-500 h-2 rounded-full transition-all"
+                                  style={{ width: `${Math.min(100, c.porcentaje)}%` }}
+                                />
+                              </div>
+                              <span className="font-bold text-stone-700 text-[11px] w-8 text-right">
+                                {c.porcentaje}%
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-2 px-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCollaboratorFilter(c.name);
+                                setActiveTab('sin_fase2');
+                                setShowDistributeModal(false);
+                              }}
+                              className="text-[11px] font-bold text-diocesis-redDark hover:bg-diocesis-red/10 px-2 py-1 rounded-lg transition"
+                              title={`Filtrar tabla por ${c.name}`}
+                            >
+                              Ver mis asignados →
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Footer del Modal */}
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDistributeModal(false);
+                  setDistributeMsg(null);
+                }}
                 className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold rounded-xl transition"
               >
                 Cerrar
