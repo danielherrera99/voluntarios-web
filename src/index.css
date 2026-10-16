@@ -1,4 +1,31 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Fredoka:wght@600;700&family=Montserrat:wght@600;700;800&family=Quicksand:wght@600;700&display=swap');
+
+/* Soporte oficial para Neulis cuando se cargue el archivo en /fonts/ */
+@font-face {
+  font-family: 'Neulis';
+  src: url('/fonts/Neulis.woff2') format('woff2'),
+       url('/fonts/Neulis.otf') format('opentype'),
+       url('/fonts/Neulis.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Neulis Cursive';
+  src: url('/fonts/Neulis-Cursive.woff2') format('woff2'),
+       url('/fonts/Neulis-Cursive.otf') format('opentype'),
+       url('/fonts/Neulis-Cursive.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Tipografía de títulos estilo Neulis */
+.font-title {
+  font-family: 'Neulis', 'Neulis Cursive', 'Fredoka', 'Quicksand', 'Outfit', sans-serif !important;
+  letter-spacing: 0.015em;
+}
 
 :root {
   /* Premium Color Palette (Vatican/Church inspired with modern touch) */
