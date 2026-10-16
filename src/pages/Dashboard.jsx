@@ -18,7 +18,8 @@ import {
   X, 
   FileCheck,
   ShieldCheck,
-  FolderOpen
+  FolderOpen,
+  XCircle
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -32,7 +33,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL', 'SELECCIONADO', 'EN REVISIÓN', 'PENDIENTE'
+  const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL', 'SELECCIONADO', 'EN REVISIÓN', 'NO SELECCIONADO', 'PENDIENTE'
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -43,6 +44,7 @@ export default function Dashboard() {
     fase2Total: 0,
     seleccionados: 0,
     enRevision: 0,
+    noSeleccionados: 0,
     pendientes: 0
   });
 
@@ -75,12 +77,14 @@ export default function Dashboard() {
         { count: f2Total },
         { count: selCount },
         { count: revCount },
+        { count: noSelCount },
         { count: pendCount }
       ] = await Promise.all([
         supabase.from('voluntarios_general').select('*', { count: 'exact', head: true }),
         supabase.from('voluntarios').select('*', { count: 'exact', head: true }),
         supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('estado', 'SELECCIONADO'),
         supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('estado', 'EN REVISIÓN'),
+        supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('estado', 'NO SELECCIONADO'),
         supabase.from('voluntarios').select('*', { count: 'exact', head: true }).or('estado.eq.PENDIENTE,estado.is.null')
       ]);
 
@@ -89,6 +93,7 @@ export default function Dashboard() {
         fase2Total: f2Total || 0,
         seleccionados: selCount || 0,
         enRevision: revCount || 0,
+        noSeleccionados: noSelCount || 0,
         pendientes: pendCount || 0
       });
     } catch (err) {
@@ -236,12 +241,12 @@ export default function Dashboard() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
         {/* TARJETAS DE ESTADÍSTICAS (KPIS) */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
           
           {/* Total Fase 1 General */}
           <div className="bg-white rounded-2xl p-4 border border-stone-200 shadow-sm flex flex-col justify-between">
             <div className="flex items-center justify-between text-stone-500 mb-1">
-              <span className="text-xs font-semibold uppercase tracking-wider">Padrón Fase 1</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wider">Padrón Fase 1</span>
               <Database className="w-4 h-4 text-stone-400" />
             </div>
             <div className="text-2xl md:text-3xl font-extrabold text-stone-800">
@@ -253,7 +258,7 @@ export default function Dashboard() {
           {/* Total Fase 2 Forms */}
           <div className="bg-white rounded-2xl p-4 border-2 border-diocesis-mustard shadow-sm flex flex-col justify-between">
             <div className="flex items-center justify-between text-diocesis-mustardDark mb-1">
-              <span className="text-xs font-bold uppercase tracking-wider">Fase 2 (Google Forms)</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider">Fase 2 (Google Forms)</span>
               <FolderOpen className="w-4 h-4 text-diocesis-mustard" />
             </div>
             <div className="text-2xl md:text-3xl font-extrabold text-diocesis-redDark">
@@ -265,7 +270,7 @@ export default function Dashboard() {
           {/* Seleccionados / Validados */}
           <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-200 shadow-sm flex flex-col justify-between">
             <div className="flex items-center justify-between text-emerald-700 mb-1">
-              <span className="text-xs font-bold uppercase tracking-wider">Seleccionados</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider">Seleccionados</span>
               <CheckCircle className="w-4 h-4 text-emerald-600" />
             </div>
             <div className="text-2xl md:text-3xl font-extrabold text-emerald-700">
@@ -277,7 +282,7 @@ export default function Dashboard() {
           {/* En Revisión / Observados */}
           <div className="bg-amber-50 rounded-2xl p-4 border border-amber-200 shadow-sm flex flex-col justify-between">
             <div className="flex items-center justify-between text-amber-800 mb-1">
-              <span className="text-xs font-bold uppercase tracking-wider">En Revisión</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider">En Revisión</span>
               <AlertTriangle className="w-4 h-4 text-amber-600" />
             </div>
             <div className="text-2xl md:text-3xl font-extrabold text-amber-800">
@@ -286,10 +291,22 @@ export default function Dashboard() {
             <span className="text-[11px] text-amber-700 font-semibold mt-1">Con Observación</span>
           </div>
 
+          {/* No Seleccionados */}
+          <div className="bg-rose-50 rounded-2xl p-4 border border-rose-200 shadow-sm flex flex-col justify-between">
+            <div className="flex items-center justify-between text-rose-800 mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider">No Seleccionados</span>
+              <XCircle className="w-4 h-4 text-rose-600" />
+            </div>
+            <div className="text-2xl md:text-3xl font-extrabold text-rose-700">
+              {stats.noSeleccionados.toLocaleString()}
+            </div>
+            <span className="text-[11px] text-rose-600 font-semibold mt-1">No admitidos</span>
+          </div>
+
           {/* Pendientes */}
-          <div className="bg-stone-50 rounded-2xl p-4 border border-stone-200 shadow-sm flex flex-col justify-between col-span-2 md:col-span-1">
+          <div className="bg-stone-50 rounded-2xl p-4 border border-stone-200 shadow-sm flex flex-col justify-between">
             <div className="flex items-center justify-between text-stone-600 mb-1">
-              <span className="text-xs font-bold uppercase tracking-wider">Pendientes</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider">Pendientes</span>
               <Clock className="w-4 h-4 text-stone-500" />
             </div>
             <div className="text-2xl md:text-3xl font-extrabold text-stone-700">
@@ -394,6 +411,7 @@ export default function Dashboard() {
                   <option value="ALL">Todos los Estados</option>
                   <option value="SELECCIONADO">✅ Solo Seleccionados</option>
                   <option value="EN REVISIÓN">⚠️ En Revisión / Observados</option>
+                  <option value="NO SELECCIONADO">❌ No Seleccionados</option>
                   <option value="PENDIENTE">⏳ Pendientes</option>
                 </select>
               </div>
@@ -477,8 +495,9 @@ export default function Dashboard() {
                   </tr>
                 ) : (
                   records.map((r, idx) => {
-                    const isApproved = r.estado === 'SELECCIONADO' || r.info_validada;
-                    const isRevision = r.estado === 'EN REVISIÓN';
+                    const isRejected = r.estado === 'NO SELECCIONADO' || (r.estado && r.estado.toUpperCase().includes('NO'));
+                    const isApproved = !isRejected && (r.estado === 'SELECCIONADO' || r.info_validada);
+                    const isRevision = !isRejected && r.estado === 'EN REVISIÓN';
 
                     return (
                       <tr key={r.id || r.dni || idx} className="hover:bg-amber-50/40 transition">
@@ -520,6 +539,14 @@ export default function Dashboard() {
                                 >
                                   <AlertTriangle className="w-3.5 h-3.5 text-amber-700" />
                                   En Revisión
+                                </span>
+                              ) : isRejected ? (
+                                <span 
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300"
+                                  title={r.observacion || 'No admitido'}
+                                >
+                                  <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                                  No Seleccionado
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-stone-100 text-stone-600 border border-stone-200">
@@ -690,7 +717,8 @@ export default function Dashboard() {
                 <span className="text-stone-400 block text-[10px] font-semibold uppercase">Estado Actual</span>
                 <span className={`font-bold ${
                   selectedVoluntario.estado === 'SELECCIONADO' ? 'text-emerald-700' :
-                  selectedVoluntario.estado === 'EN REVISIÓN' ? 'text-amber-700' : 'text-stone-700'
+                  selectedVoluntario.estado === 'EN REVISIÓN' ? 'text-amber-700' :
+                  (selectedVoluntario.estado === 'NO SELECCIONADO' || (selectedVoluntario.estado && selectedVoluntario.estado.includes('NO'))) ? 'text-rose-700' : 'text-stone-700'
                 }`}>
                   {selectedVoluntario.estado || 'PENDIENTE'}
                 </span>
