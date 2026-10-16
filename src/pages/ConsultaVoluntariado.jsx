@@ -209,7 +209,7 @@ export default function ConsultaVoluntariado() {
                 DIÓCESIS DE CHICLAYO "CHICLAYO Y SANTA CRUZ"
               </h1>
               <p className="text-xs md:text-sm text-stone-100 mt-1 font-semibold" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
-                Sistema de Validación de Postulantes al Voluntariado Diocesano
+                Visita del Santo Padre a nuestra Diócesis
               </p>
             </div>
 
