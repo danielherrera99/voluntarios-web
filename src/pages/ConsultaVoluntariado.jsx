@@ -242,7 +242,7 @@ export default function ConsultaVoluntariado() {
               Revisa el Estado de tu Postulación
             </h2>
             <p className="text-sm md:text-base text-stone-600 mt-2 font-medium">
-              Ingresa tu número de DNI o Documento de Identidad registrado para verificar si pasaste a la siguiente etapa.
+              Ingresa tu número de Documento de Identidad (DNI) o Pasaporte registrado para verificar si pasaste a la siguiente etapa.
             </p>
           </div>
 
@@ -254,13 +254,11 @@ export default function ConsultaVoluntariado() {
               <input
                 type="text"
                 id="dniInput"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                placeholder="Ingresa tu DNI (Solo números)"
-                maxLength="9"
+                placeholder="Ingresa tu DNI o Pasaporte"
+                maxLength="12"
                 required
                 value={dniInput}
-                onChange={(e) => setDniInput(e.target.value.replace(/\D/g, ''))}
+                onChange={(e) => setDniInput(e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase())}
                 className="w-full pl-12 pr-4 py-4 bg-stone-50 border-2 border-stone-300 rounded-2xl text-stone-900 placeholder-stone-400 focus:outline-none focus:border-diocesis-red focus:bg-white transition text-base md:text-lg font-semibold shadow-inner"
               />
             </div>
