@@ -39,6 +39,8 @@ export default function Dashboard() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL'); // Para Fase 2: 'ALL', 'SELECCIONADO', 'EN REVISIÓN', 'NO SELECCIONADO', 'PENDIENTE'
   const [fase1Filter, setFase1Filter] = useState('ALL'); // Para Fase 1: 'ALL', 'SIN_FASE2', 'CON_FASE2'
+  const [contactFilter, setContactFilter] = useState('ALL'); // Para Sin Fase 2: 'ALL', 'NO_CONTACTADOS', 'CONTACTADOS'
+  const [updatingId, setUpdatingId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -52,7 +54,9 @@ export default function Dashboard() {
     noSeleccionados: 0,
     pendientes: 0,
     sinFase2: 5214,
-    conFase2: 2027
+    conFase2: 2027,
+    contactados: 0,
+    sinContactar: 5214
   });
 
   // Estado de sincronización en vivo
@@ -74,7 +78,7 @@ export default function Dashboard() {
   // Reset de página al cambiar de pestaña o filtro
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, statusFilter, fase1Filter]);
+  }, [activeTab, statusFilter, fase1Filter, contactFilter]);
 
   // Cargar estadísticas globales una sola vez o al sincronizar
   const fetchGlobalStats = useCallback(async () => {
@@ -86,7 +90,8 @@ export default function Dashboard() {
         { count: revCount },
         { count: noSelCount },
         { count: pendCount },
-        { count: sinF2Count }
+        { count: sinF2Count },
+        { count: contactadosCount }
       ] = await Promise.all([
         supabase.from('voluntarios_general').select('*', { count: 'exact', head: true }),
         supabase.from('voluntarios').select('*', { count: 'exact', head: true }),
@@ -94,11 +99,14 @@ export default function Dashboard() {
         supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('estado', 'EN REVISIÓN'),
         supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('estado', 'NO SELECCIONADO'),
         supabase.from('voluntarios').select('*', { count: 'exact', head: true }).or('estado.eq.PENDIENTE,estado.is.null'),
-        supabase.from('voluntarios_general').select('*', { count: 'exact', head: true }).eq('estado', 'SIN_FASE2')
+        supabase.from('voluntarios_general').select('*', { count: 'exact', head: true }).or('estado.eq.SIN_FASE2,estado.eq.CONTACTADO'),
+        supabase.from('voluntarios_general').select('*', { count: 'exact', head: true }).eq('estado', 'CONTACTADO')
       ]);
 
       const gTotal = generalCount || 7241;
       const sinF2 = sinF2Count ?? 5214;
+      const contactados = contactadosCount || 0;
+      const sinContactar = Math.max(0, sinF2 - contactados);
       const conF2 = gTotal - sinF2;
 
       setStats({
@@ -109,7 +117,9 @@ export default function Dashboard() {
         noSeleccionados: noSelCount || 0,
         pendientes: pendCount || 0,
         sinFase2: sinF2,
-        conFase2: conF2
+        conFase2: conF2,
+        contactados: contactados,
+        sinContactar: sinContactar
       });
     } catch (err) {
       console.error('Error cargando estadísticas:', err);
@@ -152,12 +162,22 @@ export default function Dashboard() {
 
       // Filtro para pestaña exclusiva 'sin_fase2'
       if (activeTab === 'sin_fase2') {
-        query = query.eq('estado', 'SIN_FASE2');
+        if (contactFilter === 'CONTACTADOS') {
+          query = query.eq('estado', 'CONTACTADO');
+        } else if (contactFilter === 'NO_CONTACTADOS') {
+          query = query.eq('estado', 'SIN_FASE2');
+        } else {
+          query = query.or('estado.eq.SIN_FASE2,estado.eq.CONTACTADO');
+        }
       }
 
       // Filtro desplegable dentro de pestaña 'fase1'
       if (activeTab === 'fase1' && fase1Filter !== 'ALL') {
-        query = query.eq('estado', fase1Filter);
+        if (fase1Filter === 'SIN_FASE2') {
+          query = query.or('estado.eq.SIN_FASE2,estado.eq.CONTACTADO');
+        } else {
+          query = query.eq('estado', fase1Filter);
+        }
       }
 
       // Orden y rango de paginación
@@ -173,7 +193,45 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, currentPage, pageSize, debouncedSearch, statusFilter, fase1Filter]);
+  }, [activeTab, currentPage, pageSize, debouncedSearch, statusFilter, fase1Filter, contactFilter]);
+
+  // Cambiar estado de Contactado / No Contactado con el switch
+  const handleToggleContactado = async (voluntario) => {
+    if (voluntario.estado === 'CON_FASE2') return;
+
+    const isCurrentlyContacted = voluntario.estado === 'CONTACTADO';
+    const newEstado = isCurrentlyContacted ? 'SIN_FASE2' : 'CONTACTADO';
+
+    setUpdatingId(voluntario.id);
+
+    // Actualización optimista inmediata en la UI
+    setRecords(prev => prev.map(r => r.id === voluntario.id ? { ...r, estado: newEstado } : r));
+    if (selectedVoluntario && selectedVoluntario.id === voluntario.id) {
+      setSelectedVoluntario(prev => ({ ...prev, estado: newEstado }));
+    }
+
+    try {
+      const { error } = await supabase
+        .from('voluntarios_general')
+        .update({ estado: newEstado })
+        .eq('id', voluntario.id);
+
+      if (error) throw error;
+
+      // Actualizar contadores globales
+      setStats(prev => ({
+        ...prev,
+        contactados: isCurrentlyContacted ? Math.max(0, prev.contactados - 1) : prev.contactados + 1,
+        sinContactar: isCurrentlyContacted ? prev.sinContactar + 1 : Math.max(0, prev.sinContactar - 1)
+      }));
+    } catch (err) {
+      console.error('Error al actualizar estado de contacto:', err);
+      // Revertir en caso de error
+      setRecords(prev => prev.map(r => r.id === voluntario.id ? { ...r, estado: voluntario.estado } : r));
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   useEffect(() => {
     fetchRecords();
@@ -513,9 +571,16 @@ export default function Dashboard() {
                 </select>
               </div>
             ) : (
-              <div className="md:col-span-4 lg:col-span-3 flex items-center bg-amber-50 px-3 py-2 rounded-xl border border-amber-200 text-xs text-amber-900 font-bold">
-                <PhoneCall className="w-4 h-4 mr-1.5 text-amber-600 shrink-0" />
-                Filtro activo: Solo postulantes sin Fase 2 ({stats.sinFase2})
+              <div className="md:col-span-4 lg:col-span-3">
+                <select
+                  value={contactFilter}
+                  onChange={(e) => setContactFilter(e.target.value)}
+                  className="w-full py-2.5 px-3 bg-amber-50/70 border border-amber-300 rounded-xl text-sm font-semibold text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value="ALL">📋 Todos sin Fase 2 ({stats.sinFase2})</option>
+                  <option value="NO_CONTACTADOS">⏳ Pendientes de Contactar ({stats.sinContactar})</option>
+                  <option value="CONTACTADOS">📞 Ya Contactados ({stats.contactados})</option>
+                </select>
               </div>
             )}
 
@@ -568,6 +633,7 @@ export default function Dashboard() {
                     </>
                   ) : (
                     <>
+                      <th className="py-3 px-4 text-center">¿Contactado?</th>
                       <th className="py-3 px-4 text-center">Estado Fase 2</th>
                       <th className="py-3 px-4">Distrito / Parroquia</th>
                       <th className="py-3 px-4 text-center">Talla</th>
@@ -579,14 +645,14 @@ export default function Dashboard() {
               <tbody className="divide-y divide-stone-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={activeTab === 'fase2' ? 7 : 8} className="py-12 text-center text-stone-400">
+                    <td colSpan={activeTab === 'fase2' ? 7 : 9} className="py-12 text-center text-stone-400">
                       <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-diocesis-mustard" />
                       <span className="font-semibold text-sm">Cargando registros...</span>
                     </td>
                   </tr>
                 ) : records.length === 0 ? (
                   <tr>
-                    <td colSpan={activeTab === 'fase2' ? 7 : 8} className="py-12 text-center text-stone-500">
+                    <td colSpan={activeTab === 'fase2' ? 7 : 9} className="py-12 text-center text-stone-500">
                       <Users className="w-8 h-8 mx-auto mb-2 text-stone-300" />
                       <p className="font-bold text-stone-700">No se encontraron registros</p>
                       <p className="text-xs text-stone-400 mt-1">Prueba cambiando los términos de búsqueda o el filtro.</p>
@@ -729,6 +795,38 @@ export default function Dashboard() {
                           </>
                         ) : (
                           <>
+                            {/* Switch ¿Contactado? */}
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                              {r.estado === 'CON_FASE2' || r.fase === '2' ? (
+                                <span className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                  Doc. Enviado
+                                </span>
+                              ) : (
+                                <div className="inline-flex items-center gap-1.5 justify-center">
+                                  <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={r.estado === 'CONTACTADO'}
+                                    disabled={updatingId === r.id}
+                                    onClick={() => handleToggleContactado(r)}
+                                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+                                      r.estado === 'CONTACTADO' ? 'bg-emerald-600' : 'bg-stone-300'
+                                    } ${updatingId === r.id ? 'opacity-40 cursor-wait' : ''}`}
+                                    title={r.estado === 'CONTACTADO' ? 'Marcar como NO contactado' : 'Marcar como CONTACTADO'}
+                                  >
+                                    <span
+                                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                        r.estado === 'CONTACTADO' ? 'translate-x-4' : 'translate-x-0'
+                                      }`}
+                                    />
+                                  </button>
+                                  <span className={`text-[11px] font-bold ${r.estado === 'CONTACTADO' ? 'text-emerald-700' : 'text-stone-400'}`}>
+                                    {r.estado === 'CONTACTADO' ? 'Sí' : 'No'}
+                                  </span>
+                                </div>
+                              )}
+                            </td>
+
                             {/* Estado de envío a Fase 2 */}
                             <td className="py-3 px-4 text-center whitespace-nowrap">
                               {r.estado === 'CON_FASE2' || r.fase === '2' ? (
@@ -916,6 +1014,41 @@ export default function Dashboard() {
                   {selectedVoluntario.contacto_emergencia ? `${selectedVoluntario.contacto_emergencia} (${selectedVoluntario.telefono_emergencia || ''})` : '-'}
                 </span>
               </div>
+
+              {/* Control de Contacto en Modal */}
+              {selectedVoluntario.estado !== 'CON_FASE2' && (
+                <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl flex items-center justify-between col-span-2">
+                  <div>
+                    <span className="text-amber-800 block text-[10px] font-bold uppercase tracking-wider">
+                      Control de Contacto Telefónico / WhatsApp
+                    </span>
+                    <span className={`font-bold text-xs ${selectedVoluntario.estado === 'CONTACTADO' ? 'text-emerald-700' : 'text-stone-600'}`}>
+                      {selectedVoluntario.estado === 'CONTACTADO' ? '✅ Ya fue contactado/a por el equipo' : '⏳ Aún no ha sido contactado/a'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={selectedVoluntario.estado === 'CONTACTADO'}
+                      disabled={updatingId === selectedVoluntario.id}
+                      onClick={() => handleToggleContactado(selectedVoluntario)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        selectedVoluntario.estado === 'CONTACTADO' ? 'bg-emerald-600' : 'bg-stone-300'
+                      } ${updatingId === selectedVoluntario.id ? 'opacity-50 cursor-wait' : ''}`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          selectedVoluntario.estado === 'CONTACTADO' ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                    <span className="text-xs font-bold text-stone-700">
+                      {selectedVoluntario.estado === 'CONTACTADO' ? 'Contactado' : 'No'}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Observación si existe */}
