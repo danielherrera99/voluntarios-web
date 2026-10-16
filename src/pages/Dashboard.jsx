@@ -19,13 +19,17 @@ import {
   FileCheck,
   ShieldCheck,
   FolderOpen,
-  XCircle
+  XCircle,
+  MessageCircle,
+  PhoneCall,
+  AlertCircle,
+  Phone
 } from 'lucide-react';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
   
-  // Pestaña activa: 'fase2' (Google Forms) o 'fase1' (Padrón General)
+  // Pestaña activa: 'fase2' (Google Forms), 'fase1' (Padrón General), o 'sin_fase2' (Pendientes de enviar Fase 2)
   const [activeTab, setActiveTab] = useState('fase2');
 
   // Datos y paginación
@@ -33,7 +37,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL', 'SELECCIONADO', 'EN REVISIÓN', 'NO SELECCIONADO', 'PENDIENTE'
+  const [statusFilter, setStatusFilter] = useState('ALL'); // Para Fase 2: 'ALL', 'SELECCIONADO', 'EN REVISIÓN', 'NO SELECCIONADO', 'PENDIENTE'
+  const [fase1Filter, setFase1Filter] = useState('ALL'); // Para Fase 1: 'ALL', 'SIN_FASE2', 'CON_FASE2'
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -45,7 +50,9 @@ export default function Dashboard() {
     seleccionados: 0,
     enRevision: 0,
     noSeleccionados: 0,
-    pendientes: 0
+    pendientes: 0,
+    sinFase2: 5214,
+    conFase2: 2027
   });
 
   // Estado de sincronización en vivo
@@ -67,7 +74,7 @@ export default function Dashboard() {
   // Reset de página al cambiar de pestaña o filtro
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, statusFilter]);
+  }, [activeTab, statusFilter, fase1Filter]);
 
   // Cargar estadísticas globales una sola vez o al sincronizar
   const fetchGlobalStats = useCallback(async () => {
@@ -78,23 +85,31 @@ export default function Dashboard() {
         { count: selCount },
         { count: revCount },
         { count: noSelCount },
-        { count: pendCount }
+        { count: pendCount },
+        { count: sinF2Count }
       ] = await Promise.all([
         supabase.from('voluntarios_general').select('*', { count: 'exact', head: true }),
         supabase.from('voluntarios').select('*', { count: 'exact', head: true }),
         supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('estado', 'SELECCIONADO'),
         supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('estado', 'EN REVISIÓN'),
         supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('estado', 'NO SELECCIONADO'),
-        supabase.from('voluntarios').select('*', { count: 'exact', head: true }).or('estado.eq.PENDIENTE,estado.is.null')
+        supabase.from('voluntarios').select('*', { count: 'exact', head: true }).or('estado.eq.PENDIENTE,estado.is.null'),
+        supabase.from('voluntarios_general').select('*', { count: 'exact', head: true }).eq('estado', 'SIN_FASE2')
       ]);
 
+      const gTotal = generalCount || 7241;
+      const sinF2 = sinF2Count ?? 5214;
+      const conF2 = gTotal - sinF2;
+
       setStats({
-        generalTotal: generalCount || 7241,
+        generalTotal: gTotal,
         fase2Total: f2Total || 0,
         seleccionados: selCount || 0,
         enRevision: revCount || 0,
         noSeleccionados: noSelCount || 0,
-        pendientes: pendCount || 0
+        pendientes: pendCount || 0,
+        sinFase2: sinF2,
+        conFase2: conF2
       });
     } catch (err) {
       console.error('Error cargando estadísticas:', err);
@@ -109,7 +124,8 @@ export default function Dashboard() {
   const fetchRecords = useCallback(async () => {
     setLoading(true);
     try {
-      const tableName = activeTab === 'fase2' ? 'voluntarios' : 'voluntarios_general';
+      const isFase2 = activeTab === 'fase2';
+      const tableName = isFase2 ? 'voluntarios' : 'voluntarios_general';
       const from = (currentPage - 1) * pageSize;
       const to = from + pageSize - 1;
 
@@ -126,7 +142,7 @@ export default function Dashboard() {
       }
 
       // Filtro de estado para Fase 2
-      if (activeTab === 'fase2' && statusFilter !== 'ALL') {
+      if (isFase2 && statusFilter !== 'ALL') {
         if (statusFilter === 'PENDIENTE') {
           query = query.or('estado.eq.PENDIENTE,estado.is.null');
         } else {
@@ -134,12 +150,18 @@ export default function Dashboard() {
         }
       }
 
-      // Orden y rango de paginación
-      if (activeTab === 'fase2') {
-        query = query.order('nombres_apellidos', { ascending: true }).range(from, to);
-      } else {
-        query = query.order('nombres_apellidos', { ascending: true }).range(from, to);
+      // Filtro para pestaña exclusiva 'sin_fase2'
+      if (activeTab === 'sin_fase2') {
+        query = query.eq('estado', 'SIN_FASE2');
       }
+
+      // Filtro desplegable dentro de pestaña 'fase1'
+      if (activeTab === 'fase1' && fase1Filter !== 'ALL') {
+        query = query.eq('estado', fase1Filter);
+      }
+
+      // Orden y rango de paginación
+      query = query.order('nombres_apellidos', { ascending: true }).range(from, to);
 
       const { data, count, error } = await query;
       if (error) throw error;
@@ -151,7 +173,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, currentPage, pageSize, debouncedSearch, statusFilter]);
+  }, [activeTab, currentPage, pageSize, debouncedSearch, statusFilter, fase1Filter]);
 
   useEffect(() => {
     fetchRecords();
@@ -241,79 +263,124 @@ export default function Dashboard() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
         {/* TARJETAS DE ESTADÍSTICAS (KPIS) */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 sm:gap-4">
           
           {/* Total Fase 1 General */}
-          <div className="bg-white rounded-2xl p-4 border border-stone-200 shadow-sm flex flex-col justify-between">
+          <button
+            onClick={() => { setActiveTab('fase1'); setFase1Filter('ALL'); }}
+            className={`text-left rounded-2xl p-3.5 border transition flex flex-col justify-between ${
+              activeTab === 'fase1' && fase1Filter === 'ALL'
+                ? 'bg-stone-50 border-diocesis-mustard ring-2 ring-diocesis-mustard/30 shadow-sm'
+                : 'bg-white border-stone-200 shadow-sm hover:border-stone-300'
+            }`}
+          >
             <div className="flex items-center justify-between text-stone-500 mb-1">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Padrón Fase 1</span>
-              <Database className="w-4 h-4 text-stone-400" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider">Padrón Fase 1</span>
+              <Database className="w-3.5 h-3.5 text-stone-400" />
             </div>
-            <div className="text-2xl md:text-3xl font-extrabold text-stone-800">
+            <div className="text-xl md:text-2xl font-extrabold text-stone-800">
               {stats.generalTotal.toLocaleString()}
             </div>
-            <span className="text-[11px] text-stone-500 mt-1">Inscritos Iniciales</span>
-          </div>
+            <span className="text-[10px] text-stone-500 mt-1">Inscritos Iniciales</span>
+          </button>
+
+          {/* Sin Enviar Fase 2 (Por Contactar) */}
+          <button
+            onClick={() => { setActiveTab('sin_fase2'); }}
+            className={`text-left rounded-2xl p-3.5 border transition flex flex-col justify-between ${
+              activeTab === 'sin_fase2' || (activeTab === 'fase1' && fase1Filter === 'SIN_FASE2')
+                ? 'bg-amber-100/80 border-amber-500 ring-2 ring-amber-400/40 shadow-sm'
+                : 'bg-amber-50/70 border-amber-200 shadow-sm hover:border-amber-400'
+            }`}
+          >
+            <div className="flex items-center justify-between text-amber-800 mb-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider">Sin Enviar F2</span>
+              <PhoneCall className="w-3.5 h-3.5 text-amber-600" />
+            </div>
+            <div className="text-xl md:text-2xl font-extrabold text-amber-800">
+              {stats.sinFase2.toLocaleString()}
+            </div>
+            <span className="text-[10px] text-amber-700 font-bold mt-1">⚠️ Por contactar</span>
+          </button>
 
           {/* Total Fase 2 Forms */}
-          <div className="bg-white rounded-2xl p-4 border-2 border-diocesis-mustard shadow-sm flex flex-col justify-between">
+          <button
+            onClick={() => { setActiveTab('fase2'); setStatusFilter('ALL'); }}
+            className={`text-left rounded-2xl p-3.5 border transition flex flex-col justify-between ${
+              activeTab === 'fase2'
+                ? 'bg-stone-50 border-diocesis-redDark ring-2 ring-diocesis-red/30 shadow-sm'
+                : 'bg-white border-diocesis-mustard/60 shadow-sm hover:border-diocesis-mustard'
+            }`}
+          >
             <div className="flex items-center justify-between text-diocesis-mustardDark mb-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider">Fase 2 (Google Forms)</span>
-              <FolderOpen className="w-4 h-4 text-diocesis-mustard" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Fase 2 Forms</span>
+              <FolderOpen className="w-3.5 h-3.5 text-diocesis-mustard" />
             </div>
-            <div className="text-2xl md:text-3xl font-extrabold text-diocesis-redDark">
+            <div className="text-xl md:text-2xl font-extrabold text-diocesis-redDark">
               {stats.fase2Total.toLocaleString()}
             </div>
-            <span className="text-[11px] text-diocesis-mustardDark font-medium mt-1">Expedientes Únicos</span>
-          </div>
+            <span className="text-[10px] text-diocesis-mustardDark font-medium mt-1">Expedientes Únicos</span>
+          </button>
 
           {/* Seleccionados / Validados */}
-          <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-200 shadow-sm flex flex-col justify-between">
+          <button
+            onClick={() => { setActiveTab('fase2'); setStatusFilter('SELECCIONADO'); }}
+            className="text-left bg-emerald-50 rounded-2xl p-3.5 border border-emerald-200 shadow-sm hover:border-emerald-400 transition flex flex-col justify-between"
+          >
             <div className="flex items-center justify-between text-emerald-700 mb-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider">Seleccionados</span>
-              <CheckCircle className="w-4 h-4 text-emerald-600" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Seleccionados</span>
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
             </div>
-            <div className="text-2xl md:text-3xl font-extrabold text-emerald-700">
+            <div className="text-xl md:text-2xl font-extrabold text-emerald-700">
               {stats.seleccionados.toLocaleString()}
             </div>
-            <span className="text-[11px] text-emerald-600 font-semibold mt-1">Pase a Etapa 3</span>
-          </div>
+            <span className="text-[10px] text-emerald-600 font-semibold mt-1">Pase a Etapa 3</span>
+          </button>
 
           {/* En Revisión / Observados */}
-          <div className="bg-amber-50 rounded-2xl p-4 border border-amber-200 shadow-sm flex flex-col justify-between">
+          <button
+            onClick={() => { setActiveTab('fase2'); setStatusFilter('EN REVISIÓN'); }}
+            className="text-left bg-amber-50 rounded-2xl p-3.5 border border-amber-200 shadow-sm hover:border-amber-400 transition flex flex-col justify-between"
+          >
             <div className="flex items-center justify-between text-amber-800 mb-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider">En Revisión</span>
-              <AlertTriangle className="w-4 h-4 text-amber-600" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">En Revisión</span>
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
             </div>
-            <div className="text-2xl md:text-3xl font-extrabold text-amber-800">
+            <div className="text-xl md:text-2xl font-extrabold text-amber-800">
               {stats.enRevision.toLocaleString()}
             </div>
-            <span className="text-[11px] text-amber-700 font-semibold mt-1">Con Observación</span>
-          </div>
+            <span className="text-[10px] text-amber-700 font-semibold mt-1">Con Observación</span>
+          </button>
 
           {/* No Seleccionados */}
-          <div className="bg-rose-50 rounded-2xl p-4 border border-rose-200 shadow-sm flex flex-col justify-between">
+          <button
+            onClick={() => { setActiveTab('fase2'); setStatusFilter('NO SELECCIONADO'); }}
+            className="text-left bg-rose-50 rounded-2xl p-3.5 border border-rose-200 shadow-sm hover:border-rose-400 transition flex flex-col justify-between"
+          >
             <div className="flex items-center justify-between text-rose-800 mb-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider">No Seleccionados</span>
-              <XCircle className="w-4 h-4 text-rose-600" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">No Selecc.</span>
+              <XCircle className="w-3.5 h-3.5 text-rose-600" />
             </div>
-            <div className="text-2xl md:text-3xl font-extrabold text-rose-700">
+            <div className="text-xl md:text-2xl font-extrabold text-rose-700">
               {stats.noSeleccionados.toLocaleString()}
             </div>
-            <span className="text-[11px] text-rose-600 font-semibold mt-1">No admitidos</span>
-          </div>
+            <span className="text-[10px] text-rose-600 font-semibold mt-1">No admitidos</span>
+          </button>
 
-          {/* Pendientes */}
-          <div className="bg-stone-50 rounded-2xl p-4 border border-stone-200 shadow-sm flex flex-col justify-between">
+          {/* Pendientes Fase 2 */}
+          <button
+            onClick={() => { setActiveTab('fase2'); setStatusFilter('PENDIENTE'); }}
+            className="text-left bg-stone-50 rounded-2xl p-3.5 border border-stone-200 shadow-sm hover:border-stone-400 transition flex flex-col justify-between"
+          >
             <div className="flex items-center justify-between text-stone-600 mb-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider">Pendientes</span>
-              <Clock className="w-4 h-4 text-stone-500" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Pendientes F2</span>
+              <Clock className="w-3.5 h-3.5 text-stone-500" />
             </div>
-            <div className="text-2xl md:text-3xl font-extrabold text-stone-700">
+            <div className="text-xl md:text-2xl font-extrabold text-stone-700">
               {stats.pendientes.toLocaleString()}
             </div>
-            <span className="text-[11px] text-stone-500 font-semibold mt-1">Por evaluar</span>
-          </div>
+            <span className="text-[10px] text-stone-500 font-semibold mt-1">Por evaluar</span>
+          </button>
         </div>
 
         {/* BARRA DE CONTROL: PESTAÑAS, BUSCADOR Y ACCIONES */}
@@ -322,10 +389,10 @@ export default function Dashboard() {
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             
             {/* Pestañas de Navegación */}
-            <div className="inline-flex p-1 bg-stone-100 rounded-2xl border border-stone-200 self-start">
+            <div className="inline-flex flex-wrap p-1 bg-stone-100 rounded-2xl border border-stone-200 self-start gap-1">
               <button
                 onClick={() => setActiveTab('fase2')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs md:text-sm font-bold transition ${
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs md:text-sm font-bold transition ${
                   activeTab === 'fase2'
                     ? 'bg-diocesis-redDark text-white shadow'
                     : 'text-stone-600 hover:text-stone-900'
@@ -341,8 +408,8 @@ export default function Dashboard() {
               </button>
 
               <button
-                onClick={() => setActiveTab('fase1')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs md:text-sm font-bold transition ${
+                onClick={() => { setActiveTab('fase1'); setFase1Filter('ALL'); }}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs md:text-sm font-bold transition ${
                   activeTab === 'fase1'
                     ? 'bg-diocesis-redDark text-white shadow'
                     : 'text-stone-600 hover:text-stone-900'
@@ -354,6 +421,24 @@ export default function Dashboard() {
                   activeTab === 'fase1' ? 'bg-diocesis-mustard text-diocesis-redDark' : 'bg-stone-200 text-stone-700'
                 }`}>
                   {stats.generalTotal}
+                </span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab('sin_fase2'); }}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs md:text-sm font-bold transition ${
+                  activeTab === 'sin_fase2'
+                    ? 'bg-amber-600 text-white shadow'
+                    : 'text-amber-800 hover:text-amber-950 bg-amber-50 hover:bg-amber-100/80 border border-amber-200/60'
+                }`}
+                title="Postulantes de Fase 1 que aún no envían documentación para Fase 2"
+              >
+                <PhoneCall className="w-4 h-4 text-amber-500" />
+                ⚠️ Sin Enviar Fase 2
+                <span className={`text-[11px] px-2 py-0.5 rounded-full font-extrabold ${
+                  activeTab === 'sin_fase2' ? 'bg-white text-amber-800' : 'bg-amber-200 text-amber-900'
+                }`}>
+                  {stats.sinFase2}
                 </span>
               </button>
             </div>
@@ -400,7 +485,7 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* Filtro por Estado (Solo para Fase 2) */}
+            {/* Filtro según la pestaña activa */}
             {activeTab === 'fase2' ? (
               <div className="md:col-span-4 lg:col-span-3">
                 <select
@@ -408,16 +493,29 @@ export default function Dashboard() {
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="w-full py-2.5 px-3 bg-stone-50 border border-stone-300 rounded-xl text-sm font-semibold text-stone-700 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
                 >
-                  <option value="ALL">Todos los Estados</option>
-                  <option value="SELECCIONADO">✅ Solo Seleccionados</option>
-                  <option value="EN REVISIÓN">⚠️ En Revisión / Observados</option>
-                  <option value="NO SELECCIONADO">❌ No Seleccionados</option>
-                  <option value="PENDIENTE">⏳ Pendientes</option>
+                  <option value="ALL">Todos los Estados (Fase 2)</option>
+                  <option value="SELECCIONADO">✅ Solo Seleccionados ({stats.seleccionados})</option>
+                  <option value="EN REVISIÓN">⚠️ En Revisión / Observados ({stats.enRevision})</option>
+                  <option value="NO SELECCIONADO">❌ No Seleccionados ({stats.noSeleccionados})</option>
+                  <option value="PENDIENTE">⏳ Pendientes ({stats.pendientes})</option>
+                </select>
+              </div>
+            ) : activeTab === 'fase1' ? (
+              <div className="md:col-span-4 lg:col-span-3">
+                <select
+                  value={fase1Filter}
+                  onChange={(e) => setFase1Filter(e.target.value)}
+                  className="w-full py-2.5 px-3 bg-stone-50 border border-stone-300 rounded-xl text-sm font-semibold text-stone-700 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
+                >
+                  <option value="ALL">Todos en Fase 1 ({stats.generalTotal})</option>
+                  <option value="SIN_FASE2">⚠️ Sin enviar Fase 2 / Por contactar ({stats.sinFase2})</option>
+                  <option value="CON_FASE2">✅ Ya enviaron Fase 2 ({stats.conFase2})</option>
                 </select>
               </div>
             ) : (
-              <div className="md:col-span-4 lg:col-span-3 flex items-center text-xs text-stone-500 font-medium px-2">
-                Mostrando Padrón Diocesano Completo
+              <div className="md:col-span-4 lg:col-span-3 flex items-center bg-amber-50 px-3 py-2 rounded-xl border border-amber-200 text-xs text-amber-900 font-bold">
+                <PhoneCall className="w-4 h-4 mr-1.5 text-amber-600 shrink-0" />
+                Filtro activo: Solo postulantes sin Fase 2 ({stats.sinFase2})
               </div>
             )}
 
@@ -470,9 +568,10 @@ export default function Dashboard() {
                     </>
                   ) : (
                     <>
-                      <th className="py-3 px-4">Código</th>
+                      <th className="py-3 px-4 text-center">Estado Fase 2</th>
                       <th className="py-3 px-4">Distrito / Parroquia</th>
                       <th className="py-3 px-4 text-center">Talla</th>
+                      <th className="py-3 px-4 text-center">Acción</th>
                     </>
                   )}
                 </tr>
@@ -480,14 +579,14 @@ export default function Dashboard() {
               <tbody className="divide-y divide-stone-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={activeTab === 'fase2' ? 7 : 7} className="py-12 text-center text-stone-400">
+                    <td colSpan={activeTab === 'fase2' ? 7 : 8} className="py-12 text-center text-stone-400">
                       <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-diocesis-mustard" />
                       <span className="font-semibold text-sm">Cargando registros...</span>
                     </td>
                   </tr>
                 ) : records.length === 0 ? (
                   <tr>
-                    <td colSpan={activeTab === 'fase2' ? 7 : 7} className="py-12 text-center text-stone-500">
+                    <td colSpan={activeTab === 'fase2' ? 7 : 8} className="py-12 text-center text-stone-500">
                       <Users className="w-8 h-8 mx-auto mb-2 text-stone-300" />
                       <p className="font-bold text-stone-700">No se encontraron registros</p>
                       <p className="text-xs text-stone-400 mt-1">Prueba cambiando los términos de búsqueda o el filtro.</p>
@@ -498,6 +597,8 @@ export default function Dashboard() {
                     const isRejected = r.estado === 'NO SELECCIONADO' || (r.estado && r.estado.toUpperCase().includes('NO'));
                     const isApproved = !isRejected && (r.estado === 'SELECCIONADO' || r.info_validada);
                     const isRevision = !isRejected && r.estado === 'EN REVISIÓN';
+
+                    const cleanPhone = r.telefono ? String(r.telefono).replace(/\D/g, '') : '';
 
                     return (
                       <tr key={r.id || r.dni || idx} className="hover:bg-amber-50/40 transition">
@@ -516,13 +617,30 @@ export default function Dashboard() {
                           {r.servicio || r.grupo_integra || <span className="text-stone-400 italic">No asignado</span>}
                         </td>
 
-                        {/* Contacto */}
-                        <td className="py-3 px-4 text-xs">
-                          <div className="font-medium text-stone-800">{r.telefono || '-'}</div>
-                          <div className="text-stone-400 text-[11px] truncate max-w-[150px]">{r.correo || '-'}</div>
+                        {/* Contacto con WhatsApp directo */}
+                        <td className="py-3 px-4 text-xs whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <div>
+                              <div className="font-semibold text-stone-800">{r.telefono || '-'}</div>
+                              <div className="text-stone-400 text-[11px] truncate max-w-[140px]">{r.correo || '-'}</div>
+                            </div>
+                            {cleanPhone && (
+                              <a
+                                href={`https://wa.me/51${cleanPhone}?text=${encodeURIComponent(
+                                  `Hola ${r.nombres_apellidos}, te saludamos del equipo de Voluntariado de la Diócesis de Chiclayo para la Visita del Santo Padre. Notamos que estás registrado/a en el Padrón General pero aún no registramos tus documentos de la Fase 2. ¿Podrías enviarlos para continuar con tu postulación?`
+                                )}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition flex items-center justify-center shrink-0 shadow-xs"
+                                title="Escribir por WhatsApp a este voluntario"
+                              >
+                                <MessageCircle className="w-4 h-4 text-emerald-700" />
+                              </a>
+                            )}
+                          </div>
                         </td>
 
-                        {/* Columnas específicas de Fase 2 */}
+                        {/* Columnas según Fase activa */}
                         {activeTab === 'fase2' ? (
                           <>
                             {/* Estado Badge */}
@@ -611,15 +729,44 @@ export default function Dashboard() {
                           </>
                         ) : (
                           <>
-                            {/* Columnas específicas de Fase 1 */}
-                            <td className="py-3 px-4 font-mono text-xs font-semibold text-stone-600">
-                              {r.codigo || '-'}
+                            {/* Estado de envío a Fase 2 */}
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                              {r.estado === 'CON_FASE2' || r.fase === '2' ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                  Envió Fase 2
+                                </span>
+                              ) : (
+                                <span 
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300"
+                                  title="No ha enviado los documentos en el formulario de Fase 2"
+                                >
+                                  <AlertCircle className="w-3.5 h-3.5 text-amber-700" />
+                                  Sin enviar Fase 2
+                                </span>
+                              )}
                             </td>
+
+                            {/* Distrito y Código */}
                             <td className="py-3 px-4 text-xs text-stone-600">
-                              {r.distrito || r.jurisdiccion || '-'}
+                              <div>{r.distrito || r.jurisdiccion || '-'}</div>
+                              {r.codigo && <span className="text-[10px] text-stone-400 font-mono">Cód: {r.codigo}</span>}
                             </td>
+
+                            {/* Talla */}
                             <td className="py-3 px-4 text-center font-bold text-xs text-stone-700">
                               {r.talla || '-'}
+                            </td>
+
+                            {/* Acción: Ver Ficha Completa */}
+                            <td className="py-3 px-4 text-center">
+                              <button
+                                onClick={() => setSelectedVoluntario(r)}
+                                className="p-1.5 rounded-lg bg-diocesis-red/10 hover:bg-diocesis-red/20 text-diocesis-redDark font-semibold transition"
+                                title="Ver Ficha Completa"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
                             </td>
                           </>
                         )}
@@ -718,15 +865,37 @@ export default function Dashboard() {
                 <span className={`font-bold ${
                   selectedVoluntario.estado === 'SELECCIONADO' ? 'text-emerald-700' :
                   selectedVoluntario.estado === 'EN REVISIÓN' ? 'text-amber-700' :
+                  selectedVoluntario.estado === 'SIN_FASE2' ? 'text-amber-700' :
+                  selectedVoluntario.estado === 'CON_FASE2' ? 'text-emerald-700' :
                   (selectedVoluntario.estado === 'NO SELECCIONADO' || (selectedVoluntario.estado && selectedVoluntario.estado.includes('NO'))) ? 'text-rose-700' : 'text-stone-700'
                 }`}>
-                  {selectedVoluntario.estado || 'PENDIENTE'}
+                  {selectedVoluntario.estado === 'SIN_FASE2' ? '⚠️ Sin enviar Fase 2' :
+                   selectedVoluntario.estado === 'CON_FASE2' ? '✅ Envió Fase 2' :
+                   (selectedVoluntario.estado || 'PENDIENTE')}
                 </span>
               </div>
 
-              <div className="p-3 bg-stone-50 rounded-xl">
-                <span className="text-stone-400 block text-[10px] font-semibold uppercase">Teléfono</span>
-                <span className="font-bold text-stone-800">{selectedVoluntario.telefono || '-'}</span>
+              <div className="p-3 bg-stone-50 rounded-xl flex items-center justify-between">
+                <div>
+                  <span className="text-stone-400 block text-[10px] font-semibold uppercase">Teléfono</span>
+                  <span className="font-bold text-stone-800">{selectedVoluntario.telefono || '-'}</span>
+                </div>
+                {selectedVoluntario.telefono && (
+                  <div className="flex items-center gap-1.5">
+                    <a
+                      href={`https://wa.me/51${String(selectedVoluntario.telefono).replace(/\D/g, '')}?text=${encodeURIComponent(
+                        `Hola ${selectedVoluntario.nombres_apellidos}, te saludamos del equipo de Voluntariado de la Diócesis de Chiclayo para la Visita del Santo Padre. Notamos que estás registrado/a en el Padrón General pero aún no registramos tus documentos de la Fase 2. ¿Podrías enviarlos para continuar con tu postulación?`
+                      )}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 transition shadow-xs"
+                      title="Escribir por WhatsApp"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      <span>WhatsApp</span>
+                    </a>
+                  </div>
+                )}
               </div>
 
               <div className="p-3 bg-stone-50 rounded-xl">
@@ -764,56 +933,88 @@ export default function Dashboard() {
 
             {/* Documentos Adjuntos */}
             <div className="space-y-2 pt-2 border-t border-stone-100">
-              <span className="text-xs font-bold text-stone-700 block">Documentos Subidos en Google Forms:</span>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {selectedVoluntario.archivo_compromiso_url ? (
-                  <a
-                    href={selectedVoluntario.archivo_compromiso_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center justify-between p-2.5 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl text-xs font-semibold text-stone-800 transition"
-                  >
-                    <span className="truncate">DNI / Pasaporte</span>
-                    <ExternalLink className="w-3.5 h-3.5 text-diocesis-red" />
-                  </a>
-                ) : (
-                  <div className="p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-400 italic text-center">
-                    Sin DNI
-                  </div>
-                )}
+              <span className="text-xs font-bold text-stone-700 block">
+                {selectedVoluntario.archivo_compromiso_url || selectedVoluntario.archivo_cul_url || selectedVoluntario.archivo_carta_url
+                  ? 'Documentos Subidos en Google Forms:'
+                  : 'Estado de Documentación en Fase 2:'}
+              </span>
+              
+              {selectedVoluntario.archivo_compromiso_url || selectedVoluntario.archivo_cul_url || selectedVoluntario.archivo_carta_url ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {selectedVoluntario.archivo_compromiso_url ? (
+                    <a
+                      href={selectedVoluntario.archivo_compromiso_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-between p-2.5 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl text-xs font-semibold text-stone-800 transition"
+                    >
+                      <span className="truncate">DNI / Pasaporte</span>
+                      <ExternalLink className="w-3.5 h-3.5 text-diocesis-red" />
+                    </a>
+                  ) : (
+                    <div className="p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-400 italic text-center">
+                      Sin DNI
+                    </div>
+                  )}
 
-                {selectedVoluntario.archivo_cul_url ? (
-                  <a
-                    href={selectedVoluntario.archivo_cul_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center justify-between p-2.5 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl text-xs font-semibold text-stone-800 transition"
-                  >
-                    <span className="truncate">CertiAdulto</span>
-                    <ExternalLink className="w-3.5 h-3.5 text-diocesis-mustard" />
-                  </a>
-                ) : (
-                  <div className="p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-400 italic text-center">
-                    Sin CUL
-                  </div>
-                )}
+                  {selectedVoluntario.archivo_cul_url ? (
+                    <a
+                      href={selectedVoluntario.archivo_cul_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-between p-2.5 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl text-xs font-semibold text-stone-800 transition"
+                    >
+                      <span className="truncate">CertiAdulto</span>
+                      <ExternalLink className="w-3.5 h-3.5 text-diocesis-mustard" />
+                    </a>
+                  ) : (
+                    <div className="p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-400 italic text-center">
+                      Sin CUL
+                    </div>
+                  )}
 
-                {selectedVoluntario.archivo_carta_url ? (
-                  <a
-                    href={selectedVoluntario.archivo_carta_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center justify-between p-2.5 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl text-xs font-semibold text-stone-800 transition"
-                  >
-                    <span className="truncate">Carta Compromiso</span>
-                    <ExternalLink className="w-3.5 h-3.5 text-blue-600" />
-                  </a>
-                ) : (
-                  <div className="p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-400 italic text-center">
-                    Sin Carta
+                  {selectedVoluntario.archivo_carta_url ? (
+                    <a
+                      href={selectedVoluntario.archivo_carta_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-between p-2.5 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl text-xs font-semibold text-stone-800 transition"
+                    >
+                      <span className="truncate">Carta Compromiso</span>
+                      <ExternalLink className="w-3.5 h-3.5 text-blue-600" />
+                    </a>
+                  ) : (
+                    <div className="p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-400 italic text-center">
+                      Sin Carta
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-xl text-xs text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <p className="font-bold flex items-center gap-1.5 text-amber-900">
+                      <AlertCircle className="w-4 h-4 text-amber-600" />
+                      Sin expediente enviado en Fase 2
+                    </p>
+                    <p className="text-amber-800 text-[11px]">
+                      Este postulante completó la inscripción inicial pero aún no envía sus documentos.
+                    </p>
                   </div>
-                )}
-              </div>
+                  {selectedVoluntario.telefono && (
+                    <a
+                      href={`https://wa.me/51${String(selectedVoluntario.telefono).replace(/\D/g, '')}?text=${encodeURIComponent(
+                        `Hola ${selectedVoluntario.nombres_apellidos}, te saludamos del equipo de Voluntariado de la Diócesis de Chiclayo para la Visita del Santo Padre. Notamos que estás registrado/a en el Padrón General pero aún no registramos tus documentos de la Fase 2. ¿Podrías enviarlos para continuar con tu postulación?`
+                      )}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition shadow-xs shrink-0"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      Contactar por WhatsApp
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="pt-2 flex justify-end">
