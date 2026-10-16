@@ -53,15 +53,17 @@ export default function ConsultaVoluntariado() {
 
       if (f2Data) {
         const valStr = String(f2Data.estado || '').toUpperCase();
-        let mappedStatus = 'PENDING';
-        const isVerificar = valStr.includes('REVISI') || valStr.includes('OBSERV') || valStr.includes('VERIFICAR');
+        const isRejected = valStr.includes('NO') || valStr.includes('RECHAZ');
+        const isApproved = !isRejected && (f2Data.info_validada || valStr.includes('SELECCIONAD') || valStr.includes('APROBAD'));
+        const isVerificar = !isRejected && (valStr.includes('REVISI') || valStr.includes('OBSERV') || valStr.includes('VERIFICAR'));
 
-        if (f2Data.info_validada || valStr.includes('SELECCIONAD') || valStr.includes('APROBAD')) {
+        let mappedStatus = 'PENDING';
+        if (isRejected) {
+          mappedStatus = 'NOT_SELECTED';
+        } else if (isApproved) {
           mappedStatus = 'SELECTED';
         } else if (isVerificar) {
           mappedStatus = 'PENDING';
-        } else if (valStr.includes('NO') || valStr.includes('RECHAZ')) {
-          mappedStatus = 'NOT_SELECTED';
         }
 
         setResult({
@@ -598,6 +600,12 @@ export default function ConsultaVoluntariado() {
                     <p>
                       En esta oportunidad, debido a la capacidad máxima de aforo alcanzada en los equipos, no ha sido posible incluirte en este grupo. Te animamos a continuar participando activamente en las comisiones de tu parroquia.
                     </p>
+                    {result.observacion && (
+                      <div className="mt-4 p-4 bg-rose-50 border border-rose-200 rounded-2xl text-left text-xs md:text-sm text-rose-900">
+                        <span className="font-bold block mb-1">Observación del comité:</span>
+                        <p className="text-rose-800">{result.observacion}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
