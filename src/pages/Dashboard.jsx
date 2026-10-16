@@ -31,6 +31,25 @@ import {
   Check
 } from 'lucide-react';
 
+// Formulario Oficial de Google Forms (Fase 2)
+const GOOGLE_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfO_z7lnEDjQR37y7V7uh9gEsFs5ZNlznvM6_GyeKiAljmlmA/viewform";
+
+// Limpiar fecha de nacimiento u otros prefijos que puedan estar en el nombre (ej. "19/07/1981 ROSA GARCÍA GALLEGOS")
+const cleanVolunteerName = (name) => {
+  if (!name) return '';
+  return name.replace(/^\d{1,2}\/\d{1,2}\/\d{2,4}\s*[-–—:]*\s*/, '').trim();
+};
+
+// Generar enlace directo a WhatsApp con mensaje personalizado incluyendo el enlace al formulario oficial
+const getWhatsAppContactUrl = (telefono, nombres) => {
+  if (!telefono) return null;
+  const cleanPhone = String(telefono).replace(/\D/g, '');
+  if (!cleanPhone) return null;
+  const name = cleanVolunteerName(nombres);
+  const msg = `Hola ${name}, te saludamos del equipo de Voluntariado de la Diócesis de Chiclayo para la Visita del Santo Padre. Notamos que estás registrado/a en el Padrón General pero aún no registramos tus documentos de la Fase 2. Por favor, sube tu documentación en el siguiente formulario oficial para continuar con tu postulación:\n\n${GOOGLE_FORM_URL}`;
+  return `https://wa.me/51${cleanPhone}?text=${encodeURIComponent(msg)}`;
+};
+
 export default function Dashboard() {
   const { user, logout } = useAuth();
   
@@ -810,7 +829,7 @@ export default function Dashboard() {
 
                         {/* Nombres y Apellidos */}
                         <td className="py-3 px-4 font-semibold text-stone-900">
-                          {r.nombres_apellidos}
+                          {cleanVolunteerName(r.nombres_apellidos)}
                         </td>
 
                         {/* Servicio */}
@@ -827,13 +846,11 @@ export default function Dashboard() {
                             </div>
                             {cleanPhone && (
                               <a
-                                href={`https://wa.me/51${cleanPhone}?text=${encodeURIComponent(
-                                  `Hola ${r.nombres_apellidos}, te saludamos del equipo de Voluntariado de la Diócesis de Chiclayo para la Visita del Santo Padre. Notamos que estás registrado/a en el Padrón General pero aún no registramos tus documentos de la Fase 2. ¿Podrías enviarlos para continuar con tu postulación?`
-                                )}`}
+                                href={getWhatsAppContactUrl(r.telefono, r.nombres_apellidos)}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="p-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition flex items-center justify-center shrink-0 shadow-xs"
-                                title="Escribir por WhatsApp a este voluntario"
+                                title="Escribir por WhatsApp con enlace al formulario Fase 2"
                               >
                                 <MessageCircle className="w-4 h-4 text-emerald-700" />
                               </a>
@@ -1086,7 +1103,7 @@ export default function Dashboard() {
                   Ficha de Postulante
                 </span>
                 <h3 className="text-lg md:text-xl font-bold font-title text-diocesis-redDark mt-1">
-                  {selectedVoluntario.nombres_apellidos}
+                  {cleanVolunteerName(selectedVoluntario.nombres_apellidos)}
                 </h3>
                 <p className="text-xs font-mono font-bold text-stone-500">
                   DNI: {selectedVoluntario.dni} {selectedVoluntario.codigo ? `• Código: ${selectedVoluntario.codigo}` : ''}
@@ -1130,13 +1147,11 @@ export default function Dashboard() {
                 {selectedVoluntario.telefono && (
                   <div className="flex items-center gap-1.5">
                     <a
-                      href={`https://wa.me/51${String(selectedVoluntario.telefono).replace(/\D/g, '')}?text=${encodeURIComponent(
-                        `Hola ${selectedVoluntario.nombres_apellidos}, te saludamos del equipo de Voluntariado de la Diócesis de Chiclayo para la Visita del Santo Padre. Notamos que estás registrado/a en el Padrón General pero aún no registramos tus documentos de la Fase 2. ¿Podrías enviarlos para continuar con tu postulación?`
-                      )}`}
+                      href={getWhatsAppContactUrl(selectedVoluntario.telefono, selectedVoluntario.nombres_apellidos)}
                       target="_blank"
                       rel="noreferrer"
                       className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 transition shadow-xs"
-                      title="Escribir por WhatsApp"
+                      title="Escribir por WhatsApp con formulario"
                     >
                       <MessageCircle className="w-3.5 h-3.5" />
                       <span>WhatsApp</span>
@@ -1284,9 +1299,7 @@ export default function Dashboard() {
                   </div>
                   {selectedVoluntario.telefono && (
                     <a
-                      href={`https://wa.me/51${String(selectedVoluntario.telefono).replace(/\D/g, '')}?text=${encodeURIComponent(
-                        `Hola ${selectedVoluntario.nombres_apellidos}, te saludamos del equipo de Voluntariado de la Diócesis de Chiclayo para la Visita del Santo Padre. Notamos que estás registrado/a en el Padrón General pero aún no registramos tus documentos de la Fase 2. ¿Podrías enviarlos para continuar con tu postulación?`
-                      )}`}
+                      href={getWhatsAppContactUrl(selectedVoluntario.telefono, selectedVoluntario.nombres_apellidos)}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition shadow-xs shrink-0"
