@@ -314,8 +314,9 @@ export default function Dashboard() {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
       const res = await fetch(`${apiUrl}/api/collaborators-stats`);
       const data = await res.json();
-      if (res.ok && data.success) {
-        setCollaboratorsStats(data.stats || []);
+      if (res.ok) {
+        const statsList = Array.isArray(data) ? data : (data.stats || []);
+        setCollaboratorsStats(statsList.filter(s => s.name && s.name !== 'Sin asignar'));
       }
     } catch (err) {
       console.error('Error fetching collaborator stats:', err);
@@ -352,10 +353,10 @@ export default function Dashboard() {
         body: JSON.stringify({ collaborators: names })
       });
       const data = await res.json();
-      if (res.ok && data.success) {
+      if (res.ok && (data.success || Array.isArray(data))) {
         setDistributeMsg({ 
           type: 'success', 
-          text: `¡Reparto completado con éxito! Se asignaron ${data.totalDistributed?.toLocaleString()} postulantes entre ${data.collaboratorCount} personas (~${data.perCollaborator?.toLocaleString()} cada uno).` 
+          text: `¡Reparto completado con éxito! Se asignaron ${(data.total || data.totalDistributed)?.toLocaleString() || 'los'} postulantes entre ${data.collaborators?.length || names.length} personas.` 
         });
         await fetchCollaboratorsStats();
         await fetchRecords();
@@ -690,7 +691,7 @@ export default function Dashboard() {
                 </select>
               </div>
             ) : activeTab === 'fase1' ? (
-              <div className={collaboratorsStats.length > 0 ? "md:col-span-3 lg:col-span-3" : "md:col-span-4 lg:col-span-3"}>
+              <div className="md:col-span-3 lg:col-span-3">
                 <select
                   value={fase1Filter}
                   onChange={(e) => setFase1Filter(e.target.value)}
@@ -702,7 +703,7 @@ export default function Dashboard() {
                 </select>
               </div>
             ) : (
-              <div className={collaboratorsStats.length > 0 ? "md:col-span-3 lg:col-span-3" : "md:col-span-4 lg:col-span-3"}>
+              <div className="md:col-span-3 lg:col-span-3">
                 <select
                   value={contactFilter}
                   onChange={(e) => setContactFilter(e.target.value)}
@@ -716,7 +717,7 @@ export default function Dashboard() {
             )}
 
             {/* Filtro por Colaborador Asignado (solo para Fase 1 y Sin Fase 2) */}
-            {activeTab !== 'fase2' && collaboratorsStats.length > 0 && (
+            {activeTab !== 'fase2' && (
               <div className="md:col-span-3 lg:col-span-3">
                 <select
                   value={collaboratorFilter}
@@ -730,7 +731,7 @@ export default function Dashboard() {
                   <option value="UNASSIGNED">⚪ Sin Asignar</option>
                   {collaboratorsStats.map(c => (
                     <option key={c.name} value={c.name}>
-                      👤 {c.name} ({c.contactados}/{c.total} • {c.porcentaje}%)
+                      👤 {c.name} ({c.contactados || 0}/{c.total || 0} • {c.porcentaje || 0}%)
                     </option>
                   ))}
                 </select>
