@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabase';
+import FloatingChat from '../components/FloatingChat';
 
 // Base de datos de prueba / demo institucional
 const mockDatabase = {
@@ -712,6 +713,9 @@ export default function ConsultaVoluntariado() {
           </p>
         </div>
       </footer>
+      
+      {/* Asistente Virtual Flotante */}
+      <FloatingChat />
 
     </div>
   );
