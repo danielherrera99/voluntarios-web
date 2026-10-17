@@ -49,8 +49,9 @@ const getWhatsAppContactUrl = (telefono, nombres) => {
   const cleanPhone = String(telefono).replace(/\D/g, '');
   if (!cleanPhone) return null;
   const name = cleanVolunteerName(nombres);
-  const msg = `¡Hola *${name}*! 👋\n\nTe saludamos con alegría del equipo de Voluntariado de la *Diócesis de Chiclayo* para la Visita del Santo Padre 🕊️🇻🇦.\n\nNotamos que estás registrado/a en el Padrón General, pero aún no registramos tus documentos de la *Fase 2*.\n\n📄 *Sube tu documentación en el siguiente formulario oficial:*\n${GOOGLE_FORM_URL}\n\n🔍 *Si ya enviaste tu documentación o deseas dar seguimiento a tu postulación, valida tu estado aquí:*\n${PORTAL_CONSULTA_URL}\n\n¡Muchas gracias por tu compromiso y vocación de servicio! 🙏✨`;
-  return `https://wa.me/51${cleanPhone}?text=${encodeURIComponent(msg)}`;
+  const msg = `¡Hola *${name}*! 👋\n\nTe saludamos con alegría del equipo de Voluntariado de la *Diócesis de Chiclayo* para la Visita del Santo Padre 🕊️✨.\n\nNotamos que estás registrado/a en el Padrón General, pero aún no registramos tus documentos de la *Fase 2*.\n\n📄 *Sube tu documentación en el siguiente formulario oficial:*\n${GOOGLE_FORM_URL}\n\n🔍 *Si ya enviaste tu documentación o deseas dar seguimiento a tu postulación, valida tu estado aquí:*\n${PORTAL_CONSULTA_URL}\n\n¡Muchas gracias por tu compromiso y vocación de servicio! 🙏✨`;
+  // Usamos directamente api.whatsapp.com/send para evitar que el redireccionador wa.me corrompa los emojis UTF-8 en rombos
+  return `https://api.whatsapp.com/send/?phone=51${cleanPhone}&text=${encodeURIComponent(msg)}`;
 };
 
 export default function Dashboard() {
