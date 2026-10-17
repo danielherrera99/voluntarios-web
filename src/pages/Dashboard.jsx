@@ -37,19 +37,22 @@ const PORTAL_CONSULTA_URL = "https://amigosdeleoncix.onrender.com/";
 // Formulario Oficial de Google Forms (Fase 2)
 const GOOGLE_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfO_z7lnEDjQR37y7V7uh9gEsFs5ZNlznvM6_GyeKiAljmlmA/viewform";
 
+// Formato Oficial de la Carta de Recomendación (Google Drive)
+const CARTA_RECOMENDACION_URL = "https://drive.google.com/file/d/1SvOr6zyyG2al2vVhZH3ryfgFVaR04Uyz/view?usp=sharing";
+
 // Limpiar fecha de nacimiento u otros prefijos que puedan estar en el nombre (ej. "19/07/1981 ROSA GARCÍA GALLEGOS")
 const cleanVolunteerName = (name) => {
   if (!name) return '';
   return name.replace(/^\d{1,2}\/\d{1,2}\/\d{2,4}\s*[-–—:]*\s*/, '').trim();
 };
 
-// Generar enlace directo a WhatsApp con mensaje personalizado incluyendo el enlace al formulario oficial y al portal de consulta
+// Generar enlace directo a WhatsApp con mensaje personalizado incluyendo el enlace al formulario oficial, carta de recomendación y portal de consulta
 const getWhatsAppContactUrl = (telefono, nombres) => {
   if (!telefono) return null;
   const cleanPhone = String(telefono).replace(/\D/g, '');
   if (!cleanPhone) return null;
   const name = cleanVolunteerName(nombres);
-  const msg = `¡Hola *${name}*! 👋\n\nTe saludamos con alegría del equipo de Voluntariado de la *Diócesis de Chiclayo* para la Visita del Santo Padre 🕊️✨.\n\nNotamos que estás registrado/a en el Padrón General, pero aún no registramos tus documentos de la *Fase 2*.\n\n📄 *Sube tu documentación en el siguiente formulario oficial:*\n${GOOGLE_FORM_URL}\n\n🔍 *Si ya enviaste tu documentación o deseas dar seguimiento a tu postulación, valida tu estado aquí:*\n${PORTAL_CONSULTA_URL}\n\n¡Muchas gracias por tu compromiso y vocación de servicio! 🙏✨`;
+  const msg = `¡Hola *${name}*! 👋\n\nTe saludamos con alegría del equipo de Voluntariado de la *Diócesis de Chiclayo* para la Visita del Santo Padre 🕊️✨.\n\nNotamos que estás registrado/a en el Padrón General, pero aún no registramos tus documentos de la *Fase 2*.\n\n📄 *Sube tu documentación en el siguiente formulario oficial:*\n${GOOGLE_FORM_URL}\n\n📥 *Descarga aquí el formato oficial de la Carta de Recomendación:*\n${CARTA_RECOMENDACION_URL}\n\n🔍 *Si ya enviaste tu documentación o deseas dar seguimiento a tu postulación, valida tu estado aquí:*\n${PORTAL_CONSULTA_URL}\n\n¡Muchas gracias por tu compromiso y vocación de servicio! 🙏✨`;
   // Usamos directamente api.whatsapp.com/send para evitar que el redireccionador wa.me corrompa los emojis UTF-8 en rombos
   return `https://api.whatsapp.com/send/?phone=51${cleanPhone}&text=${encodeURIComponent(msg)}`;
 };
