@@ -358,37 +358,25 @@ export default function ConsultaVoluntariado() {
                     </div>
                   </div>
 
-                  <div>
-                    <h4 className="font-title font-bold text-stone-900 text-base mb-3 flex items-center gap-2">
-                      <i className="fa-solid fa-list-check text-emerald-600"></i> Pasos a seguir:
+                  {/* COMUNICADO PARA TERCERA FASE */}
+                  <div className="bg-emerald-50/80 rounded-2xl p-5 border border-emerald-200 text-stone-800 space-y-2">
+                    <h4 className="font-title font-bold text-emerald-900 text-base flex items-center gap-2">
+                      <i className="fa-solid fa-bullhorn text-emerald-700"></i> Información Importante:
                     </h4>
-                    <ul className="space-y-2 text-sm text-stone-700 font-medium">
-                      <li className="flex items-start gap-2">
-                        <i className="fa-solid fa-check text-emerald-600 mt-1"></i>
-                        <span><strong>Grupo Oficial de WhatsApp:</strong> Revisa tu correo electrónico para unirte al canal de comunicación interna.</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <i className="fa-solid fa-check text-emerald-600 mt-1"></i>
-                        <span><strong>Jornada de Capacitación:</strong> Asiste a la reunión presencial portando tu DNI físico.</span>
-                      </li>
-                    </ul>
+                    <p className="text-sm text-stone-700 font-medium leading-relaxed">
+                      Para las personas que han pasado a tercera fase, nos comunicaremos oportunamente con cada una de ellas para brindarles información sobre los procesos que se deben realizar.
+                    </p>
+                    <p className="text-sm text-emerald-900 font-semibold leading-relaxed">
+                      Les pedimos que tengan paciencia, mantengan la calma y sobre todo que recen mucho. 🙏✨
+                    </p>
                   </div>
 
-                  {/* SELLO Y FIRMAS EXCLUSIVO PARA IMPRESIÓN */}
-                  <div className="print-only pt-8 mt-6 border-t-2 border-stone-200">
-                    <div className="grid grid-cols-2 gap-8 text-center text-xs text-stone-600">
-                      <div>
-                        <div className="border-b border-stone-400 w-44 mx-auto mb-1"></div>
-                        <p className="font-bold text-stone-800">Comisión Diocesana</p>
-                        <p>Diócesis de Chiclayo y Santa Cruz</p>
-                      </div>
-                      <div>
-                        <div className="border-b border-stone-400 w-44 mx-auto mb-1"></div>
-                        <p className="font-bold text-stone-800">Coordinación de Voluntariado</p>
-                        <p>Validación Oficial 2026</p>
-                      </div>
-                    </div>
-                    <p className="text-[10px] text-center text-stone-400 mt-6">
+                  {/* NOTA INSTITUCIONAL EXCLUSIVA PARA IMPRESIÓN (SIN FIRMAS) */}
+                  <div className="print-only pt-6 mt-6 border-t border-stone-200 text-center">
+                    <p className="text-xs text-stone-700 font-bold uppercase tracking-wider">
+                      Comisión Diocesana de Voluntariado • Diócesis de Chiclayo "Chiclayo y Santa Cruz"
+                    </p>
+                    <p className="text-[10px] text-stone-500 mt-1">
                       Documento oficial de selección emitido a través del Portal Diocesano de Voluntariado.
                     </p>
                   </div>
