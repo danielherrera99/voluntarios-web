@@ -28,7 +28,10 @@ import {
   PieChart,
   Key,
   Copy,
-  Check
+  Check,
+  Trash2,
+  Mail,
+  Shield
 } from 'lucide-react';
 
 // Portal Oficial de Consulta Pública
@@ -85,6 +88,14 @@ export default function Dashboard() {
   const [collaboratorsStats, setCollaboratorsStats] = useState([]);
   const [loadingCollabStats, setLoadingCollabStats] = useState(false);
   const [copiedCreds, setCopiedCreds] = useState(false);
+
+  // Modal de Solicitudes de Acceso (Exclusivo Administrador - Estilo Jufra)
+  const [showSolicitudesModal, setShowSolicitudesModal] = useState(false);
+  const [solicitudesData, setSolicitudesData] = useState({ pendientes: [], aprobados: [], totalPendientes: 0 });
+  const [loadingSolicitudes, setLoadingSolicitudes] = useState(false);
+  const [solicitudActionMsg, setSolicitudActionMsg] = useState(null);
+  const [solicitudesTab, setSolicitudesTab] = useState('pendientes'); // 'pendientes' | 'activos'
+  const [selectedUserRoles, setSelectedUserRoles] = useState({});
 
   // Estadísticas globales (KPIs)
   const [stats, setStats] = useState({
@@ -385,6 +396,107 @@ export default function Dashboard() {
     }
   };
 
+  // Cargar solicitudes de usuarios si el perfil conectado es Administrador
+  const fetchSolicitudes = useCallback(async () => {
+    if (user?.rol !== 'admin') return;
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const res = await fetch(`${apiUrl}/api/auth/solicitudes`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSolicitudesData(data);
+      }
+    } catch (err) {
+      console.error('Error cargando solicitudes:', err);
+    }
+  }, [user?.rol]);
+
+  useEffect(() => {
+    if (user?.rol === 'admin') {
+      fetchSolicitudes();
+    }
+  }, [user?.rol, fetchSolicitudes]);
+
+  // Aprobar solicitud de acceso
+  const handleAprobarSolicitud = async (id, nombre, rol = 'comision') => {
+    try {
+      setLoadingSolicitudes(true);
+      setSolicitudActionMsg(null);
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const res = await fetch(`${apiUrl}/api/auth/solicitudes/${id}/aprobar`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ rol })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSolicitudActionMsg({ type: 'success', text: `¡Acceso concedido a ${nombre}! Ya puede iniciar sesión.` });
+        await fetchSolicitudes();
+      } else {
+        setSolicitudActionMsg({ type: 'error', text: data.msg || 'Error al aprobar usuario' });
+      }
+    } catch (err) {
+      setSolicitudActionMsg({ type: 'error', text: err.message });
+    } finally {
+      setLoadingSolicitudes(false);
+    }
+  };
+
+  // Rechazar solicitud de acceso
+  const handleRechazarSolicitud = async (id, nombre) => {
+    if (!window.confirm(`¿Estás seguro de que deseas rechazar la solicitud de ${nombre}?`)) return;
+    try {
+      setLoadingSolicitudes(true);
+      setSolicitudActionMsg(null);
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const res = await fetch(`${apiUrl}/api/auth/solicitudes/${id}/rechazar`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSolicitudActionMsg({ type: 'info', text: `Solicitud de ${nombre} rechazada.` });
+        await fetchSolicitudes();
+      } else {
+        setSolicitudActionMsg({ type: 'error', text: data.msg || 'Error al rechazar' });
+      }
+    } catch (err) {
+      setSolicitudActionMsg({ type: 'error', text: err.message });
+    } finally {
+      setLoadingSolicitudes(false);
+    }
+  };
+
+  // Eliminar usuario
+  const handleEliminarUsuario = async (id, nombre) => {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar permanentemente a ${nombre}?`)) return;
+    try {
+      setLoadingSolicitudes(true);
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const res = await fetch(`${apiUrl}/api/auth/usuarios/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        await fetchSolicitudes();
+      }
+    } catch (err) {
+      console.error('Error eliminando usuario:', err);
+    } finally {
+      setLoadingSolicitudes(false);
+    }
+  };
+
   const totalPages = Math.ceil(totalRecords / pageSize) || 1;
 
   return (
@@ -421,14 +533,37 @@ export default function Dashboard() {
               Ver Portal Público
             </a>
 
+            {/* BOTÓN EXCLUSIVO ADMINISTRADOR: GESTIÓN DE SOLICITUDES DE ACCESO */}
+            {user?.rol === 'admin' && (
+              <button
+                onClick={() => {
+                  setShowSolicitudesModal(true);
+                  setSolicitudActionMsg(null);
+                  fetchSolicitudes();
+                }}
+                className="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-stone-950 shadow transition cursor-pointer"
+                title="Gestión de Solicitudes y Cuentas de Acceso (Exclusivo Administrador)"
+              >
+                <Users className="w-4 h-4 text-stone-950" />
+                <span className="hidden sm:inline">Solicitudes</span>
+                {solicitudesData.totalPendientes > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full shadow border-2 border-diocesis-redDark animate-pulse">
+                    {solicitudesData.totalPendientes}
+                  </span>
+                )}
+              </button>
+            )}
+
             <div className="hidden md:flex flex-col text-right">
-              <span className="text-xs font-bold text-stone-200">{user?.email}</span>
-              <span className="text-[10px] text-diocesis-mustard uppercase font-semibold">Administrador</span>
+              <span className="text-xs font-bold text-stone-200">{user?.nombre || user?.correo || user?.email}</span>
+              <span className="text-[10px] text-diocesis-mustard uppercase font-semibold">
+                {user?.rol === 'admin' ? 'Administrador' : 'Comisión'}
+              </span>
             </div>
 
             <button
               onClick={logout}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-diocesis-red hover:bg-diocesis-redLight text-white shadow transition"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-diocesis-red hover:bg-diocesis-redLight text-white shadow transition cursor-pointer"
               title="Cerrar Sesión"
             >
               <LogOut className="w-4 h-4" />
@@ -1556,6 +1691,260 @@ export default function Dashboard() {
                   setDistributeMsg(null);
                 }}
                 className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold rounded-xl transition"
+              >
+                Cerrar
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE GESTIÓN DE SOLICITUDES Y USUARIOS (EXCLUSIVO ADMINISTRADOR - ESTILO JUFRA) */}
+      {showSolicitudesModal && user?.rol === 'admin' && (
+        <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-stone-200 max-h-[90vh] flex flex-col space-y-4 animate-in fade-in zoom-in-95">
+            
+            {/* Header del Modal */}
+            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center border border-amber-200 shadow-inner">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base sm:text-lg text-stone-900 leading-tight">
+                    Aprobación de Cuentas y Accesos
+                  </h3>
+                  <p className="text-xs text-stone-500">
+                    Control exclusivo del Administrador • Solicitudes del equipo
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSolicitudesModal(false);
+                  setSolicitudActionMsg(null);
+                }}
+                className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded-xl transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Pestañas de Solicitudes */}
+            <div className="grid grid-cols-2 p-1 bg-stone-100 rounded-2xl border border-stone-200">
+              <button
+                type="button"
+                onClick={() => setSolicitudesTab('pendientes')}
+                className={`py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer ${
+                  solicitudesTab === 'pendientes'
+                    ? 'bg-white text-stone-900 shadow-sm'
+                    : 'text-stone-500 hover:text-stone-800'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5 text-amber-600" />
+                <span>Pendientes por Aprobar</span>
+                {solicitudesData.totalPendientes > 0 && (
+                  <span className="bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                    {solicitudesData.totalPendientes}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSolicitudesTab('activos')}
+                className={`py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer ${
+                  solicitudesTab === 'activos'
+                    ? 'bg-white text-stone-900 shadow-sm'
+                    : 'text-stone-500 hover:text-stone-800'
+                }`}
+              >
+                <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Usuarios Activos ({solicitudesData.aprobados?.length || 0})</span>
+              </button>
+            </div>
+
+            {/* Mensajes de feedback */}
+            {solicitudActionMsg && (
+              <div className={`p-3 rounded-2xl text-xs font-medium flex items-center gap-2 border ${
+                solicitudActionMsg.type === 'success' 
+                  ? 'bg-emerald-50 text-emerald-900 border-emerald-200' 
+                  : solicitudActionMsg.type === 'error'
+                  ? 'bg-rose-50 text-rose-900 border-rose-200'
+                  : 'bg-amber-50 text-amber-900 border-amber-200'
+              }`}>
+                {solicitudActionMsg.type === 'success' ? <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
+                <span>{solicitudActionMsg.text}</span>
+              </div>
+            )}
+
+            {/* Contenido scrolleable */}
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1 max-h-[50vh]">
+              {solicitudesTab === 'pendientes' ? (
+                solicitudesData.pendientes?.length === 0 ? (
+                  <div className="text-center py-12 bg-stone-50 rounded-2xl border border-dashed border-stone-200 space-y-2">
+                    <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto" />
+                    <p className="text-sm font-bold text-stone-700">¡Al día! No hay solicitudes pendientes</p>
+                    <p className="text-xs text-stone-400 max-w-sm mx-auto">
+                      Cuando un colaborador cree su cuenta desde la pantalla de inicio, aparecerá aquí para que autorices su acceso.
+                    </p>
+                  </div>
+                ) : (
+                  solicitudesData.pendientes.map((s) => {
+                    const cleanPhone = s.telefono ? String(s.telefono).replace(/\D/g, '') : null;
+                    const selectedRole = selectedUserRoles[s.id] || 'comision';
+                    return (
+                      <div 
+                        key={s.id} 
+                        className="p-4 bg-stone-50 hover:bg-stone-100/70 rounded-2xl border border-stone-200 space-y-3 transition"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-900 font-black text-sm flex items-center justify-center border border-amber-300">
+                              {s.nombre?.charAt(0)?.toUpperCase() || 'U'}
+                            </div>
+                            <div>
+                              <div className="text-sm font-black text-stone-900">{s.nombre}</div>
+                              <div className="text-xs text-stone-500 flex items-center gap-2 flex-wrap">
+                                <span className="flex items-center gap-1">
+                                  <Mail className="w-3 h-3 text-stone-400" />
+                                  {s.correo}
+                                </span>
+                                {cleanPhone && (
+                                  <a
+                                    href={`https://api.whatsapp.com/send/?phone=51${cleanPhone}&text=${encodeURIComponent(`Hola ${s.nombre}, te saluda Daniel Herrera sobre tu solicitud de acceso al sistema de voluntariado.`)}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex items-center gap-1 text-emerald-700 font-bold hover:underline bg-emerald-50 px-1.5 py-0.5 rounded-lg border border-emerald-200"
+                                    title="Escribir por WhatsApp"
+                                  >
+                                    <MessageCircle className="w-3 h-3 text-emerald-600" />
+                                    {s.telefono}
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <span className="text-[10px] text-stone-400 font-medium self-start sm:self-center">
+                            {new Date(s.created_at).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+
+                        {/* Asignación de Rol y Botones de Aprobación */}
+                        <div className="pt-2 border-t border-stone-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-bold text-stone-600">Asignar Rol:</span>
+                            <select
+                              value={selectedRole}
+                              onChange={(e) => setSelectedUserRoles(prev => ({ ...prev, [s.id]: e.target.value }))}
+                              className="text-xs py-1 px-2.5 bg-white border border-stone-300 rounded-xl font-semibold text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            >
+                              <option value="comision">Comisión (Colaborador)</option>
+                              <option value="admin">Administrador General</option>
+                            </select>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-end sm:self-auto">
+                            <button
+                              type="button"
+                              onClick={() => handleRechazarSolicitud(s.id, s.nombre)}
+                              disabled={loadingSolicitudes}
+                              className="px-3 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl border border-rose-200 transition cursor-pointer"
+                            >
+                              Rechazar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleAprobarSolicitud(s.id, s.nombre, selectedRole)}
+                              disabled={loadingSolicitudes}
+                              className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              Aprobar Acceso
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )
+              ) : (
+                /* LISTA DE USUARIOS ACTIVOS */
+                solicitudesData.aprobados?.length === 0 ? (
+                  <div className="text-center py-8 text-stone-400 text-xs">No hay usuarios registrados</div>
+                ) : (
+                  solicitudesData.aprobados.map((u) => {
+                    const isCurrentUser = (user?.correo === u.correo || user?.email === u.correo);
+                    return (
+                      <div 
+                        key={u.id} 
+                        className="p-3 bg-stone-50 rounded-2xl border border-stone-200 flex items-center justify-between gap-2"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-full font-bold text-xs flex items-center justify-center ${
+                            u.rol === 'admin' 
+                              ? 'bg-amber-100 text-amber-900 border border-amber-300' 
+                              : 'bg-blue-100 text-blue-900 border border-blue-200'
+                          }`}>
+                            {u.nombre?.charAt(0)?.toUpperCase() || 'U'}
+                          </div>
+                          <div>
+                            <div className="text-xs font-black text-stone-900 flex items-center gap-1.5">
+                              {u.nombre}
+                              {isCurrentUser && (
+                                <span className="text-[10px] bg-stone-200 text-stone-700 px-1.5 py-0.2 rounded-md font-bold">
+                                  Tú
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-stone-500">
+                              {u.correo} {u.telefono ? `• ${u.telefono}` : ''}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border uppercase tracking-wider ${
+                            u.rol === 'admin'
+                              ? 'bg-amber-50 text-amber-900 border-amber-300 font-extrabold'
+                              : 'bg-blue-50 text-blue-800 border-blue-200'
+                          }`}>
+                            {u.rol === 'admin' ? 'Administrador' : 'Comisión'}
+                          </span>
+
+                          {!isCurrentUser && (
+                            <button
+                              type="button"
+                              onClick={() => handleEliminarUsuario(u.id, u.nombre)}
+                              disabled={loadingSolicitudes}
+                              className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                              title={`Eliminar usuario ${u.nombre}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="pt-2 border-t border-stone-100 flex items-center justify-between">
+              <span className="text-[11px] text-stone-400">
+                Total activos: {solicitudesData.totalAprobados || solicitudesData.aprobados?.length || 0}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSolicitudesModal(false);
+                  setSolicitudActionMsg(null);
+                }}
+                className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold rounded-xl transition cursor-pointer"
               >
                 Cerrar
               </button>

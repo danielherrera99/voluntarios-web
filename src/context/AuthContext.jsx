@@ -14,7 +14,11 @@ export const AuthProvider = ({ children }) => {
     const savedUser = localStorage.getItem('user');
 
     if (token && savedUser) {
-      setUser(JSON.parse(savedUser));
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch (e) {
+        console.error('Error parseando usuario guardado:', e);
+      }
     }
     setLoading(false);
   }, []);
@@ -46,6 +50,28 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const register = async ({ nombre, email, password, telefono }) => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const response = await fetch(`${apiUrl}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre, email, password, telefono })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { error: data.msg || 'Error al enviar solicitud de registro' };
+      }
+
+      return { success: true, msg: data.msg };
+    } catch (err) {
+      console.error(err);
+      return { error: 'Error de conexión con el servidor' };
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -53,7 +79,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
       {!loading ? children : <div className="loader-container"><div className="loader"></div></div>}
     </AuthContext.Provider>
   );
