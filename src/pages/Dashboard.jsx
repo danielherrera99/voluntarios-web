@@ -28,7 +28,10 @@ import {
   PieChart,
   Key,
   Copy,
-  Check
+  Check,
+  Shield,
+  Shuffle,
+  Layers
 } from 'lucide-react';
 
 // Portal Oficial de Consulta Pública
@@ -59,6 +62,12 @@ const getWhatsAppContactUrl = (telefono, nombres) => {
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
+
+  // Roles y permisos
+  const isAdmin = user?.rol === 'admin';
+  const isComision = user?.rol === 'comision' || user?.rol === 'colaborador' || isAdmin;
+  const isLider = user?.rol === 'lider';
+  const isCoordinador = user?.rol === 'coordinador';
   
   // Pestaña activa: 'fase2' (Google Forms), 'fase1' (Padrón General), o 'sin_fase2' (Pendientes de enviar Fase 2)
   const [activeTab, setActiveTab] = useState('fase2');
@@ -72,19 +81,40 @@ export default function Dashboard() {
   const [fase1Filter, setFase1Filter] = useState('ALL'); // Para Fase 1: 'ALL', 'SIN_FASE2', 'CON_FASE2'
   const [contactFilter, setContactFilter] = useState('ALL'); // Para Sin Fase 2: 'ALL', 'NO_CONTACTADOS', 'CONTACTADOS'
   const [collaboratorFilter, setCollaboratorFilter] = useState('ALL'); // 'ALL', 'UNASSIGNED', o nombre del colaborador
+
+  // Filtros de jerarquía y cuadrillas
+  const [liderFilter, setLiderFilter] = useState(isLider ? (user?.lider_nombre || 'ALL') : 'ALL');
+  const [coordinadorFilter, setCoordinadorFilter] = useState(isCoordinador ? (user?.coordinador_nombre || 'ALL') : 'ALL');
+  const [hierarchyData, setHierarchyData] = useState({ lideres: [], coordinadoresPorLider: {} });
+
   const [updatingId, setUpdatingId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [totalRecords, setTotalRecords] = useState(0);
 
-  // Modal de Reparto y Colaboradores
+  // Modal Unificado de Reparto, Cuadrillas y Colaboradores
   const [showDistributeModal, setShowDistributeModal] = useState(false);
+  const [modalTab, setModalTab] = useState('cuadrillas'); // 'cuadrillas', 'organigrama', 'colaboradores', 'cuentas'
   const [collaboratorNamesInput, setCollaboratorNamesInput] = useState('');
   const [distributing, setDistributing] = useState(false);
   const [distributeMsg, setDistributeMsg] = useState(null);
   const [collaboratorsStats, setCollaboratorsStats] = useState([]);
   const [loadingCollabStats, setLoadingCollabStats] = useState(false);
   const [copiedCreds, setCopiedCreds] = useState(false);
+
+  // Estados específicos para Chocoloteo de Cuadrillas
+  const [cuadrillasHierarchyInput, setCuadrillasHierarchyInput] = useState('');
+  const [cuadrillasShuffle, setCuadrillasShuffle] = useState(true);
+  const [cuadrillasTarget, setCuadrillasTarget] = useState('sin_fase2');
+  const [cuadrillasStats, setCuadrillasStats] = useState([]);
+  const [loadingCuadrillasStats, setLoadingCuadrillasStats] = useState(false);
+
+  // Edición manual de asignación en ficha de voluntario
+  const [editLider, setEditLider] = useState('');
+  const [editCoordinador, setEditCoordinador] = useState('');
+  const [editCuadrilla, setEditCuadrilla] = useState('');
+  const [savingAssignment, setSavingAssignment] = useState(false);
+  const [assignSuccessMsg, setAssignSuccessMsg] = useState(null);
 
   // Estadísticas globales (KPIs)
   const [stats, setStats] = useState({
@@ -107,6 +137,16 @@ export default function Dashboard() {
   // Modal de detalle
   const [selectedVoluntario, setSelectedVoluntario] = useState(null);
 
+  // Sincronizar campos de edición cuando se selecciona un voluntario
+  useEffect(() => {
+    if (selectedVoluntario) {
+      setEditLider(selectedVoluntario.lider_nombre || '');
+      setEditCoordinador(selectedVoluntario.coordinador_nombre || '');
+      setEditCuadrilla(selectedVoluntario.cuadrilla_codigo || '');
+      setAssignSuccessMsg(null);
+    }
+  }, [selectedVoluntario]);
+
   // Debounce para búsqueda
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -119,7 +159,7 @@ export default function Dashboard() {
   // Reset de página al cambiar de pestaña o filtro
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, statusFilter, fase1Filter, contactFilter, collaboratorFilter]);
+  }, [activeTab, statusFilter, fase1Filter, contactFilter, collaboratorFilter, liderFilter, coordinadorFilter]);
 
   // Cargar estadísticas globales una sola vez o al sincronizar
   const fetchGlobalStats = useCallback(async () => {
@@ -230,6 +270,26 @@ export default function Dashboard() {
         }
       }
 
+      // Filtro por Líder General (Nivel 1)
+      const effectiveLider = isLider ? (user?.lider_nombre || '') : liderFilter;
+      if (effectiveLider && effectiveLider !== 'ALL') {
+        if (effectiveLider === 'UNASSIGNED') {
+          query = query.is('lider_nombre', null);
+        } else {
+          query = query.eq('lider_nombre', effectiveLider);
+        }
+      }
+
+      // Filtro por Coordinador de Cuadrilla (Nivel 2)
+      const effectiveCoordinador = isCoordinador ? (user?.coordinador_nombre || '') : coordinadorFilter;
+      if (effectiveCoordinador && effectiveCoordinador !== 'ALL') {
+        if (effectiveCoordinador === 'UNASSIGNED') {
+          query = query.is('coordinador_nombre', null);
+        } else {
+          query = query.eq('coordinador_nombre', effectiveCoordinador);
+        }
+      }
+
       // Orden y rango de paginación
       query = query.order('nombres_apellidos', { ascending: true }).range(from, to);
 
@@ -243,7 +303,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, currentPage, pageSize, debouncedSearch, statusFilter, fase1Filter, contactFilter, collaboratorFilter]);
+  }, [activeTab, currentPage, pageSize, debouncedSearch, statusFilter, fase1Filter, contactFilter, collaboratorFilter, liderFilter, coordinadorFilter, isLider, isCoordinador, user]);
 
   // Cambiar estado de Contactado / No Contactado con el switch
   const handleToggleContactado = async (voluntario) => {
@@ -385,7 +445,149 @@ export default function Dashboard() {
     }
   };
 
+  // Cargar estadísticas y jerarquía de cuadrillas y líderes
+  const fetchCuadrillasStats = useCallback(async () => {
+    setLoadingCuadrillasStats(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const [statsRes, optionsRes] = await Promise.all([
+        fetch(`${apiUrl}/api/cuadrillas-stats`),
+        fetch(`${apiUrl}/api/lideres-coordinadores`)
+      ]);
+      if (statsRes.ok) {
+        const statsData = await statsRes.json();
+        setCuadrillasStats(Array.isArray(statsData) ? statsData : []);
+      }
+      if (optionsRes.ok) {
+        const optionsData = await optionsRes.json();
+        setHierarchyData(optionsData || { lideres: [], coordinadoresPorLider: {} });
+      }
+    } catch (err) {
+      console.error('Error fetching cuadrillas stats:', err);
+    } finally {
+      setLoadingCuadrillasStats(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCuadrillasStats();
+  }, [fetchCuadrillasStats]);
+
+  // Ejecutar reparto y chocoloteo de cuadrillas
+  const handleDistributeCuadrillas = async () => {
+    const rawLines = cuadrillasHierarchyInput
+      .split('\n')
+      .map(l => l.trim())
+      .filter(Boolean);
+
+    if (rawLines.length === 0) {
+      alert('Por favor ingresa los nombres de los líderes o la estructura de cuadrillas.');
+      return;
+    }
+
+    // Parsear líneas tipo:
+    // "Carlos Morales: Juan Pérez, María Silva"
+    // O si solo ponen el nombre del líder: "Carlos Morales" (se crean cuadrillas 01 a 10)
+    const hierarchy = rawLines.map((line, idx) => {
+      if (line.includes(':')) {
+        const [liderPart, coordsPart] = line.split(':');
+        const coords = coordsPart
+          .split(/[\n,]+/)
+          .map(c => c.trim())
+          .filter(Boolean);
+        return {
+          nombre: liderPart.trim(),
+          coordinadores: coords.length > 0 ? coords : [`Cuadrilla ${String(idx + 1).padStart(2, '0')}`]
+        };
+      } else {
+        return {
+          nombre: line.trim(),
+          coordinadores: Array.from({ length: 10 }, (_, i) => `${line.trim()} - Cuadrilla ${String(i + 1).padStart(2, '0')}`)
+        };
+      }
+    });
+
+    setDistributing(true);
+    setDistributeMsg({ type: 'info', text: `🎲 Chocoloteando y repartiendo equitativamente entre ${hierarchy.length} líderes...` });
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const res = await fetch(`${apiUrl}/api/distribute-cuadrillas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hierarchy,
+          shuffle: cuadrillasShuffle,
+          targetFase: cuadrillasTarget
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setDistributeMsg({
+          type: 'success',
+          text: `🎉 ¡Chocoloteo exitoso! Se repartieron ${data.total?.toLocaleString()} postulantes entre ${data.summary?.length} líderes y sus coordinadores.`
+        });
+        await fetchCuadrillasStats();
+        await fetchRecords();
+        await fetchGlobalStats();
+      } else {
+        setDistributeMsg({
+          type: 'error',
+          text: `Error: ${data.error || 'No se pudo completar el reparto de cuadrillas.'}`
+        });
+      }
+    } catch (err) {
+      console.error('Error al repartir cuadrillas:', err);
+      setDistributeMsg({ type: 'error', text: `Error de conexión: ${err.message}` });
+    } finally {
+      setDistributing(false);
+    }
+  };
+
+  // Guardar asignación individual en ficha de voluntario
+  const handleSaveSingleAssignment = async () => {
+    if (!selectedVoluntario) return;
+    setSavingAssignment(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const res = await fetch(`${apiUrl}/api/asignar-cuadrilla`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ids: [selectedVoluntario.id],
+          lider_nombre: editLider.trim() || null,
+          coordinador_nombre: editCoordinador.trim() || null,
+          cuadrilla_codigo: editCuadrilla.trim() || null
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAssignSuccessMsg('✅ Asignación guardada con éxito.');
+        setSelectedVoluntario(prev => ({
+          ...prev,
+          lider_nombre: editLider.trim() || null,
+          coordinador_nombre: editCoordinador.trim() || null,
+          cuadrilla_codigo: editCuadrilla.trim() || null
+        }));
+        await fetchRecords();
+        await fetchCuadrillasStats();
+      } else {
+        alert(data.error || 'No se pudo guardar la asignación.');
+      }
+    } catch (err) {
+      alert('Error de conexión: ' + err.message);
+    } finally {
+      setSavingAssignment(false);
+      setTimeout(() => setAssignSuccessMsg(null), 3000);
+    }
+  };
+
   const totalPages = Math.ceil(totalRecords / pageSize) || 1;
+
+  // Lista de coordinadores disponibles según el filtro o rol de líder actual
+  const effectiveLeaderSelected = isLider ? (user?.lider_nombre || '') : liderFilter;
+  const availableCoordinators = (effectiveLeaderSelected && effectiveLeaderSelected !== 'ALL' && effectiveLeaderSelected !== 'UNASSIGNED')
+    ? (hierarchyData.coordinadoresPorLider?.[effectiveLeaderSelected] || [])
+    : [...new Set(Object.values(hierarchyData.coordinadoresPorLider || {}).flat())];
 
   return (
     <div className="min-h-screen bg-stone-100 flex flex-col font-sans text-stone-800">
@@ -422,8 +624,14 @@ export default function Dashboard() {
             </a>
 
             <div className="hidden md:flex flex-col text-right">
-              <span className="text-xs font-bold text-stone-200">{user?.email}</span>
-              <span className="text-[10px] text-diocesis-mustard uppercase font-semibold">Administrador</span>
+              <span className="text-xs font-bold text-stone-200">{user?.correo || user?.email}</span>
+              <span className="text-[10px] text-diocesis-mustard uppercase font-bold tracking-wider">
+                {isAdmin ? 'Super Administrador' :
+                 isComision ? 'Comisión de Inscripciones' :
+                 isLider ? `👑 Líder General: ${user?.lider_nombre || user?.nombre}` :
+                 isCoordinador ? `🎖️ Coordinador: ${user?.coordinador_nombre || user?.nombre}` :
+                 'Colaborador'}
+              </span>
             </div>
 
             <button
@@ -440,6 +648,51 @@ export default function Dashboard() {
 
       {/* CONTENIDO PRINCIPAL */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        {/* BANNERS INFORMATIVOS DE ROL Y ALCANCE */}
+        {isLider && (
+          <div className="p-4 bg-gradient-to-r from-purple-900 to-indigo-900 text-white rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-purple-800">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-diocesis-mustard shrink-0">
+                <Shield className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-sm md:text-base font-bold font-title">
+                  Sector a Cargo: {user?.lider_nombre || user?.nombre}
+                </h2>
+                <p className="text-xs text-purple-200">
+                  Estás visualizando a todos los coordinadores y voluntarios asignados a tu cadena de mando.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setShowDistributeModal(true);
+                setModalTab('organigrama');
+                fetchCuadrillasStats();
+              }}
+              className="px-3.5 py-1.5 bg-diocesis-mustard hover:bg-amber-400 text-stone-900 font-bold rounded-xl text-xs transition shrink-0"
+            >
+              Ver Avance de mis Cuadrillas →
+            </button>
+          </div>
+        )}
+
+        {isCoordinador && (
+          <div className="p-4 bg-gradient-to-r from-emerald-800 to-teal-900 text-white rounded-2xl shadow-sm flex items-center gap-3 border border-emerald-700">
+            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-emerald-200 shrink-0">
+              <Users className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-sm md:text-base font-bold font-title">
+                Cuadrilla Asignada: {user?.coordinador_nombre || user?.nombre}
+              </h2>
+              <p className="text-xs text-emerald-200">
+                Aquí tienes la lista exclusiva de tus voluntarios asignados para contactar por WhatsApp y validar su participación.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* TARJETAS DE ESTADÍSTICAS (KPIS) */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 sm:gap-4">
@@ -630,135 +883,218 @@ export default function Dashboard() {
                 </span>
               )}
 
-              {/* Botón para abrir modal de reparto de equipo */}
+              {/* Botón Chocolotear Cuadrillas */}
+              {isComision && (
+                <button
+                  onClick={() => {
+                    setShowDistributeModal(true);
+                    setModalTab('cuadrillas');
+                    fetchCuadrillasStats();
+                  }}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white rounded-xl text-xs font-bold shadow-sm transition"
+                  title="Chocolotear y repartir equitativamente entre los 20 líderes y sus cuadrillas"
+                >
+                  <Shuffle className="w-3.5 h-3.5 text-white" />
+                  <span>🎲 Chocolotear Cuadrillas</span>
+                </button>
+              )}
+
+              {/* Botón Ver Avance y Organigrama de Cuadrillas */}
               <button
                 onClick={() => {
                   setShowDistributeModal(true);
-                  fetchCollaboratorsStats();
+                  setModalTab('organigrama');
+                  fetchCuadrillasStats();
                 }}
-                className="inline-flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-diocesis-redDark to-diocesis-red hover:from-diocesis-red hover:to-diocesis-redLight text-white rounded-xl text-xs font-bold shadow-sm transition"
-                title="Repartir postulantes sin Fase 2 entre los miembros del equipo"
+                className="inline-flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-purple-800 to-indigo-900 hover:from-purple-900 hover:to-indigo-950 text-white rounded-xl text-xs font-bold shadow-sm transition"
+                title="Ver organigrama y avance en vivo por líder y cuadrilla"
               >
-                <Users className="w-3.5 h-3.5 text-diocesis-mustard" />
-                <span>Repartir Postulantes</span>
+                <Shield className="w-3.5 h-3.5 text-diocesis-mustard" />
+                <span>Avance de Cuadrillas</span>
               </button>
 
-              <button
-                onClick={handleSyncNow}
-                disabled={syncing}
-                className="inline-flex items-center gap-2 px-3.5 py-2 bg-stone-50 hover:bg-stone-100 border border-stone-300 rounded-xl text-xs font-bold text-stone-700 transition disabled:opacity-50"
-                title="Sincronizar ahora con la hoja de Google Sheets"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin text-diocesis-red' : ''}`} />
-                {syncing ? 'Sincronizando...' : 'Sincronizar Sheets'}
-              </button>
+              {/* Botón para abrir modal de reparto de equipo simple */}
+              {isComision && (
+                <button
+                  onClick={() => {
+                    setShowDistributeModal(true);
+                    setModalTab('colaboradores');
+                    fetchCollaboratorsStats();
+                  }}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 bg-stone-100 hover:bg-stone-200 border border-stone-300 text-stone-700 rounded-xl text-xs font-bold transition"
+                  title="Repartir postulantes sin Fase 2 entre los miembros del equipo"
+                >
+                  <Users className="w-3.5 h-3.5 text-stone-600" />
+                  <span>Reparto Simple</span>
+                </button>
+              )}
+
+              {isComision && (
+                <button
+                  onClick={handleSyncNow}
+                  disabled={syncing}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 bg-stone-50 hover:bg-stone-100 border border-stone-300 rounded-xl text-xs font-bold text-stone-700 transition disabled:opacity-50"
+                  title="Sincronizar ahora con la hoja de Google Sheets"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin text-diocesis-red' : ''}`} />
+                  {syncing ? 'Sincronizando...' : 'Sincronizar Sheets'}
+                </button>
+              )}
             </div>
           </div>
 
           {/* Filtros y Buscador */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-2 border-t border-stone-100">
-            
-            {/* Buscador por DNI / Nombres */}
-            <div className={`relative ${
-              activeTab !== 'fase2' && collaboratorsStats.length > 0 
-                ? 'md:col-span-4 lg:col-span-4' 
-                : 'md:col-span-6 lg:col-span-7'
-            }`}>
-              <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar por DNI o Nombres..."
-                className="w-full pl-10 pr-9 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-diocesis-mustard focus:bg-white transition"
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+          <div className="space-y-2.5 pt-2 border-t border-stone-100">
+            {/* Fila 1: Búsqueda, Estado de Fase, Cantidad */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+              {/* Buscador por DNI / Nombres */}
+              <div className="md:col-span-6 lg:col-span-5 relative">
+                <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Buscar por DNI o Nombres..."
+                  className="w-full pl-10 pr-9 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-diocesis-mustard focus:bg-white transition"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Filtro de estado según la pestaña activa */}
+              {activeTab === 'fase2' ? (
+                <div className="md:col-span-4 lg:col-span-4">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="w-full py-2.5 px-3 bg-stone-50 border border-stone-300 rounded-xl text-sm font-semibold text-stone-700 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
+                  >
+                    <option value="ALL">Todos los Estados (Fase 2)</option>
+                    <option value="SELECCIONADO">✅ Solo Seleccionados ({stats.seleccionados})</option>
+                    <option value="EN REVISIÓN">⚠️ En Revisión / Observados ({stats.enRevision})</option>
+                    <option value="NO SELECCIONADO">❌ No Seleccionados ({stats.noSeleccionados})</option>
+                    <option value="PENDIENTE">⏳ Pendientes ({stats.pendientes})</option>
+                  </select>
+                </div>
+              ) : activeTab === 'fase1' ? (
+                <div className="md:col-span-4 lg:col-span-4">
+                  <select
+                    value={fase1Filter}
+                    onChange={(e) => setFase1Filter(e.target.value)}
+                    className="w-full py-2.5 px-3 bg-stone-50 border border-stone-300 rounded-xl text-sm font-semibold text-stone-700 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
+                  >
+                    <option value="ALL">Todos en Fase 1 ({stats.generalTotal})</option>
+                    <option value="SIN_FASE2">⚠️ Sin enviar Fase 2 / Por contactar ({stats.sinFase2})</option>
+                    <option value="CON_FASE2">✅ Ya enviaron Fase 2 ({stats.conFase2})</option>
+                  </select>
+                </div>
+              ) : (
+                <div className="md:col-span-4 lg:col-span-4">
+                  <select
+                    value={contactFilter}
+                    onChange={(e) => setContactFilter(e.target.value)}
+                    className="w-full py-2.5 px-3 bg-amber-50/70 border border-amber-300 rounded-xl text-sm font-semibold text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value="ALL">📋 Todos sin Fase 2 ({stats.sinFase2})</option>
+                    <option value="NO_CONTACTADOS">⏳ Pendientes de Contactar ({stats.sinContactar})</option>
+                    <option value="CONTACTADOS">📞 Ya Contactados ({stats.contactados})</option>
+                  </select>
+                </div>
               )}
-            </div>
 
-            {/* Filtro de estado según la pestaña activa */}
-            {activeTab === 'fase2' ? (
-              <div className="md:col-span-4 lg:col-span-3">
+              {/* Selector de cantidad por página */}
+              <div className="md:col-span-2 lg:col-span-3">
                 <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full py-2.5 px-3 bg-stone-50 border border-stone-300 rounded-xl text-sm font-semibold text-stone-700 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
-                >
-                  <option value="ALL">Todos los Estados (Fase 2)</option>
-                  <option value="SELECCIONADO">✅ Solo Seleccionados ({stats.seleccionados})</option>
-                  <option value="EN REVISIÓN">⚠️ En Revisión / Observados ({stats.enRevision})</option>
-                  <option value="NO SELECCIONADO">❌ No Seleccionados ({stats.noSeleccionados})</option>
-                  <option value="PENDIENTE">⏳ Pendientes ({stats.pendientes})</option>
-                </select>
-              </div>
-            ) : activeTab === 'fase1' ? (
-              <div className="md:col-span-3 lg:col-span-3">
-                <select
-                  value={fase1Filter}
-                  onChange={(e) => setFase1Filter(e.target.value)}
-                  className="w-full py-2.5 px-3 bg-stone-50 border border-stone-300 rounded-xl text-sm font-semibold text-stone-700 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
-                >
-                  <option value="ALL">Todos en Fase 1 ({stats.generalTotal})</option>
-                  <option value="SIN_FASE2">⚠️ Sin enviar Fase 2 / Por contactar ({stats.sinFase2})</option>
-                  <option value="CON_FASE2">✅ Ya enviaron Fase 2 ({stats.conFase2})</option>
-                </select>
-              </div>
-            ) : (
-              <div className="md:col-span-3 lg:col-span-3">
-                <select
-                  value={contactFilter}
-                  onChange={(e) => setContactFilter(e.target.value)}
-                  className="w-full py-2.5 px-3 bg-amber-50/70 border border-amber-300 rounded-xl text-sm font-semibold text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                >
-                  <option value="ALL">📋 Todos sin Fase 2 ({stats.sinFase2})</option>
-                  <option value="NO_CONTACTADOS">⏳ Pendientes de Contactar ({stats.sinContactar})</option>
-                  <option value="CONTACTADOS">📞 Ya Contactados ({stats.contactados})</option>
-                </select>
-              </div>
-            )}
-
-            {/* Filtro por Colaborador Asignado (solo para Fase 1 y Sin Fase 2) */}
-            {activeTab !== 'fase2' && (
-              <div className="md:col-span-3 lg:col-span-3">
-                <select
-                  value={collaboratorFilter}
+                  value={pageSize}
                   onChange={(e) => {
-                    setCollaboratorFilter(e.target.value);
+                    setPageSize(Number(e.target.value));
                     setCurrentPage(1);
                   }}
-                  className="w-full py-2.5 px-3 bg-purple-50/70 border border-purple-300 rounded-xl text-sm font-bold text-purple-900 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  className="w-full py-2.5 px-3 bg-stone-50 border border-stone-300 rounded-xl text-sm font-semibold text-stone-700 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
                 >
-                  <option value="ALL">👥 Todos los colaboradores</option>
-                  <option value="UNASSIGNED">⚪ Sin Asignar</option>
-                  {collaboratorsStats.map(c => (
-                    <option key={c.name} value={c.name}>
-                      👤 {c.name} ({c.contactados || 0}/{c.total || 0} • {c.porcentaje || 0}%)
-                    </option>
+                  <option value={25}>25 por página</option>
+                  <option value={50}>50 por página</option>
+                  <option value={100}>100 por página</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Fila 2: Filtros de Cadena de Mando (Líder y Coordinador) */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-1 border-t border-dashed border-stone-200">
+              {/* Filtro por Líder General */}
+              <div className="md:col-span-6 lg:col-span-4">
+                <select
+                  value={liderFilter}
+                  disabled={isLider}
+                  onChange={(e) => {
+                    setLiderFilter(e.target.value);
+                    setCoordinadorFilter('ALL');
+                    setCurrentPage(1);
+                  }}
+                  className={`w-full py-2 px-3 rounded-xl text-xs font-bold border transition ${
+                    liderFilter !== 'ALL'
+                      ? 'bg-purple-100/90 text-purple-950 border-purple-400 ring-1 ring-purple-300'
+                      : 'bg-purple-50/60 text-purple-900 border-purple-200 hover:border-purple-300'
+                  }`}
+                >
+                  <option value="ALL">👑 Todos los Líderes ({hierarchyData.lideres?.length || 0})</option>
+                  <option value="UNASSIGNED">⚪ Sin Líder Asignado</option>
+                  {hierarchyData.lideres?.map(l => (
+                    <option key={l} value={l}>👑 {l}</option>
                   ))}
                 </select>
               </div>
-            )}
 
-            {/* Selector de cantidad por página */}
-            <div className="md:col-span-2 lg:col-span-2">
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setCurrentPage(1);
-                }}
-                className="w-full py-2.5 px-3 bg-stone-50 border border-stone-300 rounded-xl text-sm font-semibold text-stone-700 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
-              >
-                <option value={25}>25 por pág.</option>
-                <option value={50}>50 por pág.</option>
-                <option value={100}>100 por pág.</option>
-              </select>
+              {/* Filtro por Coordinador de Cuadrilla (Dependiente) */}
+              <div className="md:col-span-6 lg:col-span-4">
+                <select
+                  value={coordinadorFilter}
+                  disabled={isCoordinador}
+                  onChange={(e) => {
+                    setCoordinadorFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className={`w-full py-2 px-3 rounded-xl text-xs font-bold border transition ${
+                    coordinadorFilter !== 'ALL'
+                      ? 'bg-indigo-100/90 text-indigo-950 border-indigo-400 ring-1 ring-indigo-300'
+                      : 'bg-indigo-50/60 text-indigo-900 border-indigo-200 hover:border-indigo-300'
+                  }`}
+                >
+                  <option value="ALL">🎖️ Todos los Coordinadores ({availableCoordinators.length})</option>
+                  <option value="UNASSIGNED">⚪ Sin Coordinador</option>
+                  {availableCoordinators.map(c => (
+                    <option key={c} value={c}>🎖️ {c}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Filtro por Colaborador de Contacto Previo (Fase 1) */}
+              {activeTab !== 'fase2' && (
+                <div className="md:col-span-12 lg:col-span-4">
+                  <select
+                    value={collaboratorFilter}
+                    onChange={(e) => {
+                      setCollaboratorFilter(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="w-full py-2 px-3 bg-stone-50 border border-stone-300 rounded-xl text-xs font-semibold text-stone-700"
+                  >
+                    <option value="ALL">👥 Contacto Simple: Todos</option>
+                    <option value="UNASSIGNED">⚪ Sin Asignar</option>
+                    {collaboratorsStats.map(c => (
+                      <option key={c.name} value={c.name}>
+                        👤 {c.name} ({c.contactados || 0}/{c.total || 0})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -794,7 +1130,7 @@ export default function Dashboard() {
                     </>
                   ) : (
                     <>
-                      <th className="py-3 px-4 text-center">Asignado a</th>
+                      <th className="py-3 px-4">Líder / Cuadrilla</th>
                       <th className="py-3 px-4 text-center">¿Contactado?</th>
                       <th className="py-3 px-4 text-center">Estado Fase 2</th>
                       <th className="py-3 px-4">Distrito / Parroquia</th>
@@ -955,9 +1291,25 @@ export default function Dashboard() {
                           </>
                         ) : (
                           <>
-                            {/* Colaborador asignado */}
-                            <td className="py-3 px-4 text-center whitespace-nowrap">
-                              {r.fase && r.fase !== '1' && r.fase !== '2' ? (
+                            {/* Líder y Coordinador de Cuadrilla */}
+                            <td className="py-3 px-4 text-xs whitespace-nowrap">
+                              {r.lider_nombre ? (
+                                <div className="space-y-0.5">
+                                  <div className="font-bold text-stone-900 flex items-center gap-1">
+                                    <Shield className="w-3.5 h-3.5 text-diocesis-red shrink-0" />
+                                    <span className="truncate max-w-[150px]">{r.lider_nombre}</span>
+                                  </div>
+                                  <div className="text-[11px] text-purple-700 font-semibold flex items-center gap-1">
+                                    <Users className="w-3 h-3 text-purple-500 shrink-0" />
+                                    <span className="truncate max-w-[130px]">{r.coordinador_nombre || 'Coord. pendiente'}</span>
+                                    {r.cuadrilla_codigo && (
+                                      <span className="font-mono text-[9px] bg-purple-100 text-purple-800 px-1 py-0.2 rounded font-bold">
+                                        {r.cuadrilla_codigo}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : r.fase && r.fase !== '1' && r.fase !== '2' ? (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-900 border border-purple-200">
                                   <Users className="w-3 h-3 text-purple-700" />
                                   {r.fase}
@@ -1320,6 +1672,65 @@ export default function Dashboard() {
               )}
             </div>
 
+            {/* ASIGNACIÓN MANUAL DE CADENA DE MANDO (LÍDER Y COORDINADOR) */}
+            {isComision && (
+              <div className="p-3.5 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-2xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-purple-950 uppercase tracking-wider flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5 text-purple-700" />
+                    Asignación de Cadena de Mando
+                  </span>
+                  {assignSuccessMsg && (
+                    <span className="text-xs font-bold text-emerald-700 animate-pulse">
+                      {assignSuccessMsg}
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-stone-600 uppercase mb-1">Líder General</label>
+                    <input
+                      type="text"
+                      value={editLider}
+                      onChange={(e) => setEditLider(e.target.value)}
+                      placeholder="Ej: Carlos Morales"
+                      className="w-full px-2.5 py-1.5 bg-white border border-purple-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-purple-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-stone-600 uppercase mb-1">Coordinador</label>
+                    <input
+                      type="text"
+                      value={editCoordinador}
+                      onChange={(e) => setEditCoordinador(e.target.value)}
+                      placeholder="Ej: Juan Pérez"
+                      className="w-full px-2.5 py-1.5 bg-white border border-purple-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-purple-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-stone-600 uppercase mb-1">Cód. Cuadrilla</label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={editCuadrilla}
+                        onChange={(e) => setEditCuadrilla(e.target.value)}
+                        placeholder="Ej: L01-C03"
+                        className="w-full px-2.5 py-1.5 bg-white border border-purple-200 rounded-xl text-xs font-mono font-bold focus:ring-2 focus:ring-purple-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveSingleAssignment}
+                        disabled={savingAssignment}
+                        className="px-3 py-1.5 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold transition shadow-xs disabled:opacity-50 shrink-0"
+                      >
+                        {savingAssignment ? '...' : 'Guardar'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="pt-2 flex justify-end">
               <button
                 onClick={() => setSelectedVoluntario(null)}
@@ -1333,23 +1744,23 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* MODAL DE REPARTO DE POSTULANTES */}
+      {/* MODAL UNIFICADO: CADENA DE MANDO, CHOCOLOTEO Y COLABORADORES */}
       {showDistributeModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-stone-200 space-y-5 animate-in fade-in zoom-in-95 duration-150 my-8">
+          <div className="bg-white rounded-3xl max-w-3xl w-full p-6 shadow-2xl border border-stone-200 space-y-5 animate-in fade-in zoom-in-95 duration-150 my-8">
             
-            {/* Cabecera del modal */}
+            {/* Cabecera del modal con pestañas */}
             <div className="flex items-start justify-between border-b border-stone-100 pb-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-diocesis-red/10 flex items-center justify-center text-diocesis-redDark">
-                  <Users className="w-5 h-5" />
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-800 to-indigo-900 flex items-center justify-center text-diocesis-mustard shadow-sm">
+                  <Shield className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="text-lg md:text-xl font-bold font-title text-stone-900 leading-tight">
-                    Repartir Postulantes entre el Equipo
+                    Gestión de Cadena de Mando y Cuadrillas
                   </h3>
                   <p className="text-xs text-stone-500 font-medium">
-                    Distribuye equitativamente a los {stats.sinFase2?.toLocaleString()} postulantes de Fase 1 para contacto telefónico o WhatsApp.
+                    Organiza, chocolotea y supervisa el avance de líderes, coordinadores y cuadrillas.
                   </p>
                 </div>
               </div>
@@ -1364,88 +1775,394 @@ export default function Dashboard() {
               </button>
             </div>
 
-            {/* Credenciales de Acceso para el Equipo */}
-            <div className="p-3.5 bg-gradient-to-r from-amber-50 to-orange-50/60 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-1.5 text-xs font-extrabold text-amber-900">
-                  <Key className="w-3.5 h-3.5 text-amber-700" />
-                  <span>Usuario Exclusivo para el Equipo de Contacto:</span>
-                </div>
-                <div className="text-xs text-stone-700 font-mono font-bold flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span>Correo: <strong className="text-diocesis-redDark">equipo@amigosdelpapa.pe</strong></span>
-                  <span>Contraseña: <strong className="text-diocesis-redDark">Voluntarios2026*</strong></span>
-                </div>
-                <p className="text-[11px] text-amber-800">
-                  Comparte este acceso con tu equipo para que puedan ingresar y filtrar sus postulantes asignados.
-                </p>
-              </div>
+            {/* Pestañas de Navegación del Modal */}
+            <div className="flex items-center gap-1.5 bg-stone-100 p-1.5 rounded-2xl overflow-x-auto text-xs font-bold">
+              {isComision && (
+                <button
+                  type="button"
+                  onClick={() => setModalTab('cuadrillas')}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition shrink-0 ${
+                    modalTab === 'cuadrillas'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  <Shuffle className="w-3.5 h-3.5" />
+                  🎲 Chocolotear Cuadrillas
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => {
-                  navigator.clipboard.writeText('Correo: equipo@amigosdelpapa.pe\nContraseña: Voluntarios2026*\nEnlace: https://voluntarios-web.onrender.com/login');
-                  setCopiedCreds(true);
-                  setTimeout(() => setCopiedCreds(false), 2500);
+                  setModalTab('organigrama');
+                  fetchCuadrillasStats();
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-100/70 text-amber-900 rounded-xl text-xs font-bold transition shadow-2xs shrink-0"
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition shrink-0 ${
+                  modalTab === 'organigrama'
+                    ? 'bg-purple-800 text-white shadow-sm'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
               >
-                {copiedCreds ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                {copiedCreds ? '¡Copiado!' : 'Copiar Acceso'}
+                <Shield className="w-3.5 h-3.5" />
+                📊 Organigrama en Vivo
               </button>
-            </div>
 
-            {/* Input Box para nombres de colaboradores */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider">
-                Ingresa los nombres de los colaboradores:
-              </label>
-              <textarea
-                value={collaboratorNamesInput}
-                onChange={(e) => setCollaboratorNamesInput(e.target.value)}
-                placeholder="Ejemplo: Carlos, María, Juan Pérez, Sofía Gómez (puedes pegarlos o separarlos por comas o saltos de línea)"
-                rows={3}
-                className="w-full p-3 bg-stone-50 border border-stone-300 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-diocesis-mustard focus:bg-white transition resize-none"
-              />
-              
-              {/* Cálculo en vivo */}
-              {(() => {
-                const names = collaboratorNamesInput
-                  .split(/[\n,]+/)
-                  .map(n => n.trim())
-                  .filter(n => n.length > 0);
-                const uniqueCount = new Set(names).size;
-                const totalPorRepartir = stats.sinFase2 || 5214;
-                const perPerson = uniqueCount > 0 ? Math.ceil(totalPorRepartir / uniqueCount) : 0;
+              {isComision && (
+                <button
+                  type="button"
+                  onClick={() => setModalTab('colaboradores')}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition shrink-0 ${
+                    modalTab === 'colaboradores'
+                      ? 'bg-diocesis-redDark text-white shadow-sm'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  👥 Reparto Simple
+                </button>
+              )}
 
-                return (
-                  <div className="flex items-center justify-between text-xs text-stone-500 px-1">
-                    <span>
-                      {uniqueCount > 0 ? (
-                        <span className="font-semibold text-stone-700">
-                          👥 {uniqueCount} colaborador{uniqueCount > 1 ? 'es' : ''} ingresado{uniqueCount > 1 ? 's' : ''} • ~
-                          <strong className="text-diocesis-redDark">{perPerson.toLocaleString()}</strong> postulantes c/u
-                        </span>
-                      ) : (
-                        'Escribe o pega los nombres para calcular el reparto automático.'
-                      )}
-                    </span>
-                    <span className="text-[11px] text-stone-400">Total a repartir: {totalPorRepartir.toLocaleString()}</span>
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* Botón de acción para repartir */}
-            <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={handleDistribute}
-                disabled={distributing || !collaboratorNamesInput.trim()}
-                className="flex-1 py-3 px-4 bg-gradient-to-r from-diocesis-redDark to-diocesis-red hover:from-diocesis-red hover:to-diocesis-redLight text-white font-bold rounded-2xl text-sm shadow-md transition disabled:opacity-50 flex items-center justify-center gap-2"
+                onClick={() => setModalTab('cuentas')}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition shrink-0 ${
+                  modalTab === 'cuentas'
+                    ? 'bg-stone-800 text-white shadow-sm'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
               >
-                <Users className={`w-4 h-4 ${distributing ? 'animate-spin' : ''}`} />
-                {distributing ? 'Repartiendo equitativamente en la base de datos...' : '⚡ Iniciar Reparto Equitativo'}
+                <Key className="w-3.5 h-3.5" />
+                🔑 Accesos del Equipo
               </button>
             </div>
+
+            {/* TAB 1: CHOCOLOTEO Y REPARTO DE CUADRILLAS */}
+            {modalTab === 'cuadrillas' && (
+              <div className="space-y-4">
+                <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-2xl text-xs text-amber-900 space-y-1">
+                  <div className="font-bold flex items-center gap-1.5 text-amber-950">
+                    <Sparkles className="w-4 h-4 text-amber-600" />
+                    <span>¿Cómo funciona el Chocoloteo de Cuadrillas?</span>
+                  </div>
+                  <p className="text-amber-800 leading-relaxed">
+                    Ingresa los nombres de los <strong>20 Líderes</strong> (uno por línea). Si deseas especificar sus coordinadores, escribe: 
+                    <code className="bg-amber-100/90 text-amber-950 px-1 py-0.5 rounded font-mono ml-1 font-bold">Líder: Coord 1, Coord 2...</code>.
+                    Si ingresas solo el nombre del líder, el sistema creará automáticamente <strong>10 cuadrillas</strong> para cada líder.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider">
+                    Estructura de Líderes y Coordinadores:
+                  </label>
+                  <textarea
+                    value={cuadrillasHierarchyInput}
+                    onChange={(e) => setCuadrillasHierarchyInput(e.target.value)}
+                    placeholder={`Ejemplo:\nCarlos Morales: Juan Pérez, María Silva, Roberto Díaz\nAna Gómez: Pedro Torres, Lucía Vega\nO simplemente escribe un líder por línea:\nCarlos Morales\nAna Gómez\nLuis Rodríguez`}
+                    rows={5}
+                    className="w-full p-3 bg-stone-50 border border-stone-300 rounded-2xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white transition resize-none"
+                  />
+
+                  {/* Resumen de cálculo en vivo */}
+                  {(() => {
+                    const lines = cuadrillasHierarchyInput.split('\n').map(l => l.trim()).filter(Boolean);
+                    const totalLideres = lines.length;
+                    let totalCoords = 0;
+                    lines.forEach(l => {
+                      if (l.includes(':')) {
+                        const coords = l.split(':')[1].split(/[\n,]+/).map(c => c.trim()).filter(Boolean);
+                        totalCoords += coords.length || 1;
+                      } else {
+                        totalCoords += 10;
+                      }
+                    });
+                    const baseTotal = cuadrillasTarget === 'sin_fase2' ? (stats.sinFase2 || 5214) : (stats.generalTotal || 7241);
+                    const porCoord = totalCoords > 0 ? Math.ceil(baseTotal / totalCoords) : 0;
+
+                    return (
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-stone-600 px-1">
+                        <span>
+                          👑 <strong>{totalLideres}</strong> líder{totalLideres === 1 ? '' : 'es'} ingresado{totalLideres === 1 ? '' : 's'} • 🎖️ ~<strong>{totalCoords}</strong> cuadrillas • 👥 ~<strong>{porCoord}</strong> voluntarios c/u
+                        </span>
+                        <span className="text-[11px] text-stone-400">
+                          Total a repartir: {baseTotal.toLocaleString()}
+                        </span>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Opciones de Chocoloteo */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-stone-50 rounded-2xl border border-stone-200 text-xs">
+                  <label className="flex items-center gap-2 cursor-pointer font-bold text-stone-800">
+                    <input
+                      type="checkbox"
+                      checked={cuadrillasShuffle}
+                      onChange={(e) => setCuadrillasShuffle(e.target.checked)}
+                      className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500"
+                    />
+                    <span>🎲 Chocoloteo Aleatorio (Mezclar al azar)</span>
+                  </label>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Público Objetivo:</label>
+                    <select
+                      value={cuadrillasTarget}
+                      onChange={(e) => setCuadrillasTarget(e.target.value)}
+                      className="w-full py-1.5 px-2.5 bg-white border border-stone-300 rounded-xl text-xs font-semibold text-stone-700"
+                    >
+                      <option value="sin_fase2">⚠️ Solo Sin Enviar Fase 2 ({stats.sinFase2?.toLocaleString()} postulantes)</option>
+                      <option value="all">📋 Todo el Padrón General ({stats.generalTotal?.toLocaleString()} postulantes)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Botón de Acción */}
+                <button
+                  type="button"
+                  onClick={handleDistributeCuadrillas}
+                  disabled={distributing || !cuadrillasHierarchyInput.trim()}
+                  className="w-full py-3 px-4 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold rounded-2xl text-sm shadow-md transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <Shuffle className={`w-4 h-4 ${distributing ? 'animate-spin' : ''}`} />
+                  {distributing ? 'Chocoloteando y guardando en la base de datos...' : '⚡ Iniciar Chocoloteo y Reparto de Cuadrillas'}
+                </button>
+              </div>
+            )}
+
+            {/* TAB 2: ORGANIGRAMA Y AVANCE EN VIVO */}
+            {modalTab === 'organigrama' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-stone-600 font-medium">
+                    Mostrando <strong>{cuadrillasStats.length}</strong> líderes y sus cuadrillas con avance en tiempo real.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={fetchCuadrillasStats}
+                    disabled={loadingCuadrillasStats}
+                    className="text-xs font-bold text-purple-700 hover:underline inline-flex items-center gap-1"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingCuadrillasStats ? 'animate-spin' : ''}`} />
+                    Actualizar
+                  </button>
+                </div>
+
+                {cuadrillasStats.length === 0 ? (
+                  <div className="p-8 text-center bg-stone-50 rounded-2xl border border-stone-200 text-stone-400 text-xs">
+                    <Shield className="w-8 h-8 mx-auto mb-2 text-stone-300" />
+                    <p className="font-bold text-stone-700">Aún no hay cuadrillas registradas</p>
+                    <p className="mt-1">Usa la pestaña "Chocolotear Cuadrillas" para asignar a los líderes y coordinadores.</p>
+                  </div>
+                ) : (
+                  <div className="max-h-96 overflow-y-auto space-y-2.5 pr-1">
+                    {cuadrillasStats.map((lider) => (
+                      <div key={lider.nombre} className="p-3.5 bg-stone-50 hover:bg-stone-100/70 border border-stone-200 rounded-2xl space-y-2 transition">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-3 h-3 rounded-full bg-purple-600 shrink-0"></span>
+                            <span className="font-bold text-sm text-stone-900 font-title">
+                              {lider.nombre}
+                            </span>
+                            <span className="text-[11px] font-bold text-purple-800 bg-purple-100 px-2 py-0.5 rounded-full">
+                              {lider.coordinadores?.length || 0} cuadrillas
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-3 text-xs">
+                            <span className="font-bold text-stone-700">
+                              Total: <strong>{lider.total?.toLocaleString()}</strong>
+                            </span>
+                            <span className="font-bold text-emerald-700">
+                              Contactados: <strong>{lider.contactados?.toLocaleString()}</strong>
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-16 bg-stone-200 rounded-full h-2 overflow-hidden">
+                                <div 
+                                  className="bg-emerald-500 h-2 rounded-full transition-all"
+                                  style={{ width: `${Math.min(100, lider.porcentaje)}%` }}
+                                />
+                              </div>
+                              <span className="font-extrabold text-[11px] text-stone-800 w-8 text-right">
+                                {lider.porcentaje}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Lista de coordinadores de este líder */}
+                        {lider.coordinadores && lider.coordinadores.length > 0 && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-stone-200/60">
+                            {lider.coordinadores.map((coord) => (
+                              <div key={coord.nombre} className="p-2 bg-white rounded-xl border border-stone-200/80 flex items-center justify-between text-xs">
+                                <div className="truncate pr-2">
+                                  <div className="font-bold text-stone-800 truncate flex items-center gap-1">
+                                    <Users className="w-3 h-3 text-purple-600 shrink-0" />
+                                    <span>{coord.nombre}</span>
+                                  </div>
+                                  <span className="text-[10px] text-stone-400 font-mono">
+                                    {coord.cuadrilla} • {coord.contactados}/{coord.total} ({coord.porcentaje}%)
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setLiderFilter(lider.nombre);
+                                    setCoordinadorFilter(coord.nombre);
+                                    setActiveTab('sin_fase2');
+                                    setShowDistributeModal(false);
+                                  }}
+                                  className="text-[10px] font-bold text-purple-700 hover:bg-purple-100/70 px-2 py-1 rounded-lg transition shrink-0"
+                                  title="Filtrar tabla principal por esta cuadrilla"
+                                >
+                                  Ver →
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 3: REPARTO SIMPLE DE COLABORADORES */}
+            {modalTab === 'colaboradores' && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider">
+                    Ingresa los nombres de los colaboradores:
+                  </label>
+                  <textarea
+                    value={collaboratorNamesInput}
+                    onChange={(e) => setCollaboratorNamesInput(e.target.value)}
+                    placeholder="Ejemplo: Carlos, María, Juan Pérez, Sofía Gómez (separados por comas o saltos de línea)"
+                    rows={3}
+                    className="w-full p-3 bg-stone-50 border border-stone-300 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-diocesis-mustard focus:bg-white transition resize-none"
+                  />
+                  
+                  {/* Cálculo en vivo */}
+                  {(() => {
+                    const names = collaboratorNamesInput.split(/[\n,]+/).map(n => n.trim()).filter(n => n.length > 0);
+                    const uniqueCount = new Set(names).size;
+                    const totalPorRepartir = stats.sinFase2 || 5214;
+                    const perPerson = uniqueCount > 0 ? Math.ceil(totalPorRepartir / uniqueCount) : 0;
+
+                    return (
+                      <div className="flex items-center justify-between text-xs text-stone-500 px-1">
+                        <span>
+                          {uniqueCount > 0 ? (
+                            <span className="font-semibold text-stone-700">
+                              👥 {uniqueCount} colaborador{uniqueCount > 1 ? 'es' : ''} • ~
+                              <strong className="text-diocesis-redDark">{perPerson.toLocaleString()}</strong> postulantes c/u
+                            </span>
+                          ) : (
+                            'Escribe o pega los nombres para calcular el reparto automático.'
+                          )}
+                        </span>
+                        <span className="text-[11px] text-stone-400">Total a repartir: {totalPorRepartir.toLocaleString()}</span>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleDistribute}
+                  disabled={distributing || !collaboratorNamesInput.trim()}
+                  className="w-full py-3 px-4 bg-gradient-to-r from-diocesis-redDark to-diocesis-red hover:from-diocesis-red hover:to-diocesis-redLight text-white font-bold rounded-2xl text-sm shadow-md transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <Users className={`w-4 h-4 ${distributing ? 'animate-spin' : ''}`} />
+                  {distributing ? 'Repartiendo equitativamente en la base de datos...' : '⚡ Iniciar Reparto Equitativo Simple'}
+                </button>
+
+                {/* Tabla de avance por colaborador */}
+                {collaboratorsStats.length > 0 && (
+                  <div className="max-h-48 overflow-y-auto border border-stone-200 rounded-2xl">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-stone-100/90 sticky top-0 border-b border-stone-200 text-stone-600 font-bold">
+                        <tr>
+                          <th className="py-2 px-3">Colaborador</th>
+                          <th className="py-2 px-3 text-center">Asignados</th>
+                          <th className="py-2 px-3 text-center">Contactados</th>
+                          <th className="py-2 px-3 text-center">% Avance</th>
+                          <th className="py-2 px-3 text-center">Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-stone-100">
+                        {collaboratorsStats.map((c) => (
+                          <tr key={c.name} className="hover:bg-amber-50/40">
+                            <td className="py-2 px-3 font-bold text-stone-900">{c.name}</td>
+                            <td className="py-2 px-3 text-center font-mono font-bold">{c.total?.toLocaleString()}</td>
+                            <td className="py-2 px-3 text-center font-mono font-bold text-emerald-700">{c.contactados?.toLocaleString()}</td>
+                            <td className="py-2 px-3 text-center font-bold text-[11px]">{c.porcentaje}%</td>
+                            <td className="py-2 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCollaboratorFilter(c.name);
+                                  setActiveTab('sin_fase2');
+                                  setShowDistributeModal(false);
+                                }}
+                                className="text-[11px] font-bold text-diocesis-redDark hover:underline"
+                              >
+                                Filtrar →
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 4: CREDENCIALES Y CUENTAS */}
+            {modalTab === 'cuentas' && (
+              <div className="space-y-3">
+                <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50/60 border border-amber-200 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-extrabold text-amber-900">
+                      <Key className="w-3.5 h-3.5 text-amber-700" />
+                      <span>Acceso Central Comisión de Inscripciones:</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText('Correo: equipo@amigosdelpapa.pe\nContraseña: Voluntarios2026*\nEnlace: https://voluntarios-web.onrender.com/login');
+                        setCopiedCreds(true);
+                        setTimeout(() => setCopiedCreds(false), 2500);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-amber-300 rounded-lg text-xs font-bold text-amber-900 transition"
+                    >
+                      {copiedCreds ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                      {copiedCreds ? '¡Copiado!' : 'Copiar'}
+                    </button>
+                  </div>
+                  <div className="text-xs font-mono font-bold text-stone-800 space-y-0.5">
+                    <div>Correo: <span className="text-diocesis-redDark">equipo@amigosdelpapa.pe</span></div>
+                    <div>Contraseña: <span className="text-diocesis-redDark">Voluntarios2026*</span></div>
+                  </div>
+                  <p className="text-[11px] text-amber-800">
+                    Este usuario tiene perfil de <strong>Comisión de Inscripciones</strong> con acceso a todo el padrón para realizar validaciones, filtros y asignaciones.
+                  </p>
+                </div>
+
+                <div className="p-4 bg-purple-50/80 border border-purple-200 rounded-2xl space-y-1.5 text-xs text-purple-950">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <Shield className="w-4 h-4 text-purple-700" />
+                    <span>Cuentas para Líderes y Coordinadores:</span>
+                  </div>
+                  <p className="text-purple-900 leading-relaxed text-[11px]">
+                    Las cuentas de Líderes y Coordinadores se crean con su propio correo o DNI. Al iniciar sesión, el sistema detecta automáticamente su nombre y <strong>bloquea la vista para mostrar exclusivamente a sus cuadrillas asignadas</strong>.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Mensaje de estado de la operación */}
             {distributeMsg && (
@@ -1460,92 +2177,6 @@ export default function Dashboard() {
                 <span>{distributeMsg.text}</span>
               </div>
             )}
-
-            {/* Tabla de Avance y Estado del Equipo */}
-            <div className="space-y-2 pt-2 border-t border-stone-100">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <PieChart className="w-3.5 h-3.5 text-stone-500" />
-                  Avance en Vivo por Colaborador:
-                </span>
-                <button
-                  type="button"
-                  onClick={fetchCollaboratorsStats}
-                  disabled={loadingCollabStats}
-                  className="text-[11px] font-bold text-diocesis-redDark hover:underline inline-flex items-center gap-1"
-                >
-                  <RefreshCw className={`w-3 h-3 ${loadingCollabStats ? 'animate-spin' : ''}`} />
-                  Actualizar tabla
-                </button>
-              </div>
-
-              {collaboratorsStats.length === 0 ? (
-                <div className="p-4 bg-stone-50 rounded-2xl text-center text-xs text-stone-400">
-                  Aún no se ha realizado ningún reparto. Ingresa los nombres arriba y presiona "Iniciar Reparto Equitativo".
-                </div>
-              ) : (
-                <div className="max-h-56 overflow-y-auto border border-stone-200 rounded-2xl">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-stone-100/90 sticky top-0 border-b border-stone-200 text-stone-600 font-bold">
-                      <tr>
-                        <th className="py-2 px-3">Colaborador</th>
-                        <th className="py-2 px-3 text-center">Asignados</th>
-                        <th className="py-2 px-3 text-center">Contactados</th>
-                        <th className="py-2 px-3 text-center">Pendientes</th>
-                        <th className="py-2 px-3 text-center">% Avance</th>
-                        <th className="py-2 px-3 text-center">Acción</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-stone-100">
-                      {collaboratorsStats.map((c) => (
-                        <tr key={c.name} className="hover:bg-amber-50/40">
-                          <td className="py-2 px-3 font-bold text-stone-900 flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0"></span>
-                            {c.name}
-                          </td>
-                          <td className="py-2 px-3 text-center font-mono font-bold text-stone-700">
-                            {c.total?.toLocaleString()}
-                          </td>
-                          <td className="py-2 px-3 text-center font-mono font-bold text-emerald-700">
-                            {c.contactados?.toLocaleString()}
-                          </td>
-                          <td className="py-2 px-3 text-center font-mono text-stone-500">
-                            {c.pendientes?.toLocaleString()}
-                          </td>
-                          <td className="py-2 px-3 text-center">
-                            <div className="flex items-center gap-2 justify-center">
-                              <div className="w-16 bg-stone-200 rounded-full h-2 overflow-hidden">
-                                <div 
-                                  className="bg-emerald-500 h-2 rounded-full transition-all"
-                                  style={{ width: `${Math.min(100, c.porcentaje)}%` }}
-                                />
-                              </div>
-                              <span className="font-bold text-stone-700 text-[11px] w-8 text-right">
-                                {c.porcentaje}%
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-2 px-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCollaboratorFilter(c.name);
-                                setActiveTab('sin_fase2');
-                                setShowDistributeModal(false);
-                              }}
-                              className="text-[11px] font-bold text-diocesis-redDark hover:bg-diocesis-red/10 px-2 py-1 rounded-lg transition"
-                              title={`Filtrar tabla por ${c.name}`}
-                            >
-                              Ver mis asignados →
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
 
             {/* Footer del Modal */}
             <div className="pt-2 flex justify-end">
