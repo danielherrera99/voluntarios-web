@@ -50,13 +50,13 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async ({ nombre, email, password, telefono }) => {
+  const register = async ({ dni, nombre, email, password, telefono }) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
       const response = await fetch(`${apiUrl}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre, email, password, telefono })
+        body: JSON.stringify({ dni, nombre, email, password, telefono })
       });
 
       const data = await response.json();

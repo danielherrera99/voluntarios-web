@@ -1805,8 +1805,15 @@ export default function Dashboard() {
                               {s.nombre?.charAt(0)?.toUpperCase() || 'U'}
                             </div>
                             <div>
-                              <div className="text-sm font-black text-stone-900">{s.nombre}</div>
-                              <div className="text-xs text-stone-500 flex items-center gap-2 flex-wrap">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-black text-stone-900">{s.nombre}</span>
+                                {s.dni && (
+                                  <span className="text-[10px] bg-stone-200 text-stone-800 font-mono font-bold px-1.5 py-0.5 rounded border border-stone-300">
+                                    DNI: {s.dni}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-stone-500 flex items-center gap-2 flex-wrap mt-0.5">
                                 <span className="flex items-center gap-1">
                                   <Mail className="w-3 h-3 text-stone-400" />
                                   {s.correo}
@@ -1891,8 +1898,13 @@ export default function Dashboard() {
                             {u.nombre?.charAt(0)?.toUpperCase() || 'U'}
                           </div>
                           <div>
-                            <div className="text-xs font-black text-stone-900 flex items-center gap-1.5">
-                              {u.nombre}
+                            <div className="text-xs font-black text-stone-900 flex items-center gap-1.5 flex-wrap">
+                              <span>{u.nombre}</span>
+                              {u.dni && (
+                                <span className="text-[9px] bg-stone-200 text-stone-700 font-mono font-bold px-1.5 py-0.2 rounded border border-stone-300">
+                                  DNI: {u.dni}
+                                </span>
+                              )}
                               {isCurrentUser && (
                                 <span className="text-[10px] bg-stone-200 text-stone-700 px-1.5 py-0.2 rounded-md font-bold">
                                   Tú
