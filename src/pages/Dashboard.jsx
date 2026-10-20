@@ -1811,19 +1811,38 @@ export default function Dashboard() {
                     return (
                       <div 
                         key={s.id} 
-                        className="p-4 bg-stone-50 hover:bg-stone-100/70 rounded-2xl border border-stone-200 space-y-3 transition"
+                        className={`p-4 rounded-2xl border space-y-3 transition ${
+                          s.inPadron 
+                            ? 'bg-emerald-50/40 hover:bg-emerald-50/70 border-emerald-200 shadow-2xs' 
+                            : 'bg-amber-50/30 hover:bg-amber-50/60 border-amber-200'
+                        }`}
                       >
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-900 font-black text-sm flex items-center justify-center border border-amber-300">
+                            <div className={`w-10 h-10 rounded-full font-black text-sm flex items-center justify-center border shadow-inner ${
+                              s.inPadron 
+                                ? 'bg-emerald-100 text-emerald-900 border-emerald-300' 
+                                : 'bg-amber-100 text-amber-900 border-amber-300'
+                            }`}>
                               {s.nombre?.charAt(0)?.toUpperCase() || 'U'}
                             </div>
                             <div>
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-sm font-black text-stone-900">{s.nombre}</span>
                                 {s.dni && (
-                                  <span className="text-[10px] bg-stone-200 text-stone-800 font-mono font-bold px-1.5 py-0.5 rounded border border-stone-300">
+                                  <span className="text-[10px] bg-white text-stone-800 font-mono font-bold px-1.5 py-0.5 rounded border border-stone-300">
                                     DNI: {s.dni}
+                                  </span>
+                                )}
+                                {s.inPadron ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-extrabold bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-lg border border-emerald-300">
+                                    <CheckCircle className="w-3 h-3 text-emerald-600" />
+                                    ✓ Voluntario en Padrón ({s.padronFase || 'Fase 1'}{s.padronDistrito ? ` • ${s.padronDistrito}` : ''})
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-lg border border-amber-300">
+                                    <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                    ⚠️ No registrado en Padrón (Externo)
                                   </span>
                                 )}
                               </div>
@@ -1917,6 +1936,15 @@ export default function Dashboard() {
                               {u.dni && (
                                 <span className="text-[9px] bg-stone-200 text-stone-700 font-mono font-bold px-1.5 py-0.2 rounded border border-stone-300">
                                   DNI: {u.dni}
+                                </span>
+                              )}
+                              {u.inPadron ? (
+                                <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded border border-emerald-300">
+                                  ✓ Padrón {u.padronFase || ''}
+                                </span>
+                              ) : (
+                                <span className="text-[9px] bg-amber-100 text-amber-900 font-bold px-1.5 py-0.2 rounded border border-amber-300">
+                                  ⚠️ Externo
                                 </span>
                               )}
                               {isCurrentUser && (
