@@ -125,7 +125,8 @@ export default function Dashboard() {
     sinFase2: 5214,
     conFase2: 2027,
     contactados: 0,
-    sinContactar: 5214
+    sinContactar: 5214,
+    sinWhatsapp: 0
   });
 
   // Estado de sincronización en vivo
@@ -160,7 +161,8 @@ export default function Dashboard() {
         { count: noSelCount },
         { count: pendCount },
         { count: sinF2Count },
-        { count: contactadosCount }
+        { count: contactadosCount },
+        { count: sinWhatsappCount }
       ] = await Promise.all([
         supabase.from('voluntarios_general').select('*', { count: 'exact', head: true }),
         supabase.from('voluntarios').select('*', { count: 'exact', head: true }),
@@ -169,7 +171,8 @@ export default function Dashboard() {
         supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('estado', 'NO SELECCIONADO'),
         supabase.from('voluntarios').select('*', { count: 'exact', head: true }).or('estado.eq.PENDIENTE,estado.is.null'),
         supabase.from('voluntarios_general').select('*', { count: 'exact', head: true }).or('estado.eq.SIN_FASE2,estado.eq.CONTACTADO'),
-        supabase.from('voluntarios_general').select('*', { count: 'exact', head: true }).eq('estado', 'CONTACTADO')
+        supabase.from('voluntarios_general').select('*', { count: 'exact', head: true }).eq('estado', 'CONTACTADO'),
+        supabase.from('voluntarios_general').select('*', { count: 'exact', head: true }).eq('tiene_whatsapp', false)
       ]);
 
       const gTotal = generalCount || 7241;
@@ -188,7 +191,8 @@ export default function Dashboard() {
         sinFase2: sinF2,
         conFase2: conF2,
         contactados: contactados,
-        sinContactar: sinContactar
+        sinContactar: sinContactar,
+        sinWhatsapp: sinWhatsappCount || 0
       });
     } catch (err) {
       console.error('Error cargando estadísticas:', err);
@@ -235,6 +239,8 @@ export default function Dashboard() {
           query = query.eq('estado', 'CONTACTADO');
         } else if (contactFilter === 'NO_CONTACTADOS') {
           query = query.eq('estado', 'SIN_FASE2');
+        } else if (contactFilter === 'SIN_WHATSAPP') {
+          query = query.eq('tiene_whatsapp', false).or('estado.eq.SIN_FASE2,estado.eq.CONTACTADO');
         } else {
           query = query.or('estado.eq.SIN_FASE2,estado.eq.CONTACTADO');
         }
@@ -244,6 +250,8 @@ export default function Dashboard() {
       if (activeTab === 'fase1' && fase1Filter !== 'ALL') {
         if (fase1Filter === 'SIN_FASE2') {
           query = query.or('estado.eq.SIN_FASE2,estado.eq.CONTACTADO');
+        } else if (fase1Filter === 'SIN_WHATSAPP') {
+          query = query.eq('tiene_whatsapp', false);
         } else {
           query = query.eq('estado', fase1Filter);
         }
@@ -306,6 +314,41 @@ export default function Dashboard() {
       console.error('Error al actualizar estado de contacto:', err);
       // Revertir en caso de error
       setRecords(prev => prev.map(r => r.id === voluntario.id ? { ...r, estado: voluntario.estado } : r));
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  // Cambiar estado de ¿Tiene WhatsApp? (Sí / No) con switch
+  const handleToggleTieneWhatsApp = async (voluntario) => {
+    const currentVal = voluntario.tiene_whatsapp !== false;
+    const newVal = !currentVal;
+
+    setUpdatingId(`wa_${voluntario.id}`);
+
+    // Actualización optimista inmediata en la UI
+    setRecords(prev => prev.map(r => r.id === voluntario.id ? { ...r, tiene_whatsapp: newVal } : r));
+    if (selectedVoluntario && selectedVoluntario.id === voluntario.id) {
+      setSelectedVoluntario(prev => ({ ...prev, tiene_whatsapp: newVal }));
+    }
+
+    try {
+      const { error } = await supabase
+        .from('voluntarios_general')
+        .update({ tiene_whatsapp: newVal })
+        .eq('id', voluntario.id);
+
+      if (error) throw error;
+
+      // Actualizar contadores globales de sinWhatsapp
+      setStats(prev => ({
+        ...prev,
+        sinWhatsapp: newVal === false ? prev.sinWhatsapp + 1 : Math.max(0, prev.sinWhatsapp - 1)
+      }));
+    } catch (err) {
+      console.error('Error al actualizar tiene_whatsapp:', err);
+      // Revertir en caso de error
+      setRecords(prev => prev.map(r => r.id === voluntario.id ? { ...r, tiene_whatsapp: currentVal } : r));
     } finally {
       setUpdatingId(null);
     }
@@ -859,6 +902,7 @@ export default function Dashboard() {
                   <option value="ALL">Todos en Fase 1 ({stats.generalTotal})</option>
                   <option value="SIN_FASE2">⚠️ Sin enviar Fase 2 / Por contactar ({stats.sinFase2})</option>
                   <option value="CON_FASE2">✅ Ya enviaron Fase 2 ({stats.conFase2})</option>
+                  <option value="SIN_WHATSAPP">❌ Sin WhatsApp / Para Correo ({stats.sinWhatsapp})</option>
                 </select>
               </div>
             ) : (
@@ -871,6 +915,7 @@ export default function Dashboard() {
                   <option value="ALL">📋 Todos sin Fase 2 ({stats.sinFase2})</option>
                   <option value="NO_CONTACTADOS">⏳ Pendientes de Contactar ({stats.sinContactar})</option>
                   <option value="CONTACTADOS">📞 Ya Contactados ({stats.contactados})</option>
+                  <option value="SIN_WHATSAPP">❌ Sin WhatsApp / Para Correo ({stats.sinWhatsapp})</option>
                 </select>
               </div>
             )}
@@ -955,6 +1000,7 @@ export default function Dashboard() {
                     <>
                       <th className="py-3 px-4 text-center">Asignado a</th>
                       <th className="py-3 px-4 text-center">¿Contactado?</th>
+                      <th className="py-3 px-4 text-center">¿Tiene WhatsApp?</th>
                       <th className="py-3 px-4 text-center">Estado Fase 2</th>
                       <th className="py-3 px-4">Distrito / Parroquia</th>
                       <th className="py-3 px-4 text-center">Talla</th>
@@ -966,14 +1012,14 @@ export default function Dashboard() {
               <tbody className="divide-y divide-stone-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={activeTab === 'fase2' ? 7 : 10} className="py-12 text-center text-stone-400">
+                    <td colSpan={activeTab === 'fase2' ? 7 : 11} className="py-12 text-center text-stone-400">
                       <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-diocesis-mustard" />
                       <span className="font-semibold text-sm">Cargando registros...</span>
                     </td>
                   </tr>
                 ) : records.length === 0 ? (
                   <tr>
-                    <td colSpan={activeTab === 'fase2' ? 7 : 10} className="py-12 text-center text-stone-500">
+                    <td colSpan={activeTab === 'fase2' ? 7 : 11} className="py-12 text-center text-stone-500">
                       <Users className="w-8 h-8 mx-auto mb-2 text-stone-300" />
                       <p className="font-bold text-stone-700">No se encontraron registros</p>
                       <p className="text-xs text-stone-400 mt-1">Prueba cambiando los términos de búsqueda o el filtro.</p>
@@ -1008,7 +1054,14 @@ export default function Dashboard() {
                         <td className="py-3 px-4 text-xs whitespace-nowrap">
                           <div className="flex items-center gap-2">
                             <div>
-                              <div className="font-semibold text-stone-800">{r.telefono || '-'}</div>
+                              <div className="font-semibold text-stone-800 flex items-center gap-1.5">
+                                {r.telefono || '-'}
+                                {r.tiene_whatsapp === false && (
+                                  <span className="text-[9px] font-bold bg-rose-100 text-rose-700 px-1 py-0.5 rounded border border-rose-200">
+                                    Sin WA
+                                  </span>
+                                )}
+                              </div>
                               <div className="text-stone-400 text-[11px] truncate max-w-[140px]">{r.correo || '-'}</div>
                             </div>
                             {cleanPhone && (
@@ -1016,10 +1069,18 @@ export default function Dashboard() {
                                 href={getWhatsAppContactUrl(r.telefono, r.nombres_apellidos)}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="p-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition flex items-center justify-center shrink-0 shadow-xs"
-                                title="Escribir por WhatsApp con enlace al formulario Fase 2"
+                                className={`p-1.5 rounded-lg transition flex items-center justify-center shrink-0 shadow-xs ${
+                                  r.tiene_whatsapp === false
+                                    ? 'bg-rose-50 hover:bg-rose-100 text-rose-500 border border-rose-200 opacity-70'
+                                    : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800'
+                                }`}
+                                title={
+                                  r.tiene_whatsapp === false
+                                    ? 'Número marcado sin WhatsApp (hacer clic si se desea reintentar)'
+                                    : 'Escribir por WhatsApp con enlace al formulario Fase 2'
+                                }
                               >
-                                <MessageCircle className="w-4 h-4 text-emerald-700" />
+                                <MessageCircle className={`w-4 h-4 ${r.tiene_whatsapp === false ? 'text-rose-500' : 'text-emerald-700'}`} />
                               </a>
                             )}
                           </div>
@@ -1155,6 +1216,36 @@ export default function Dashboard() {
                                   </button>
                                   <span className={`text-[11px] font-bold ${r.estado === 'CONTACTADO' ? 'text-emerald-700' : 'text-stone-400'}`}>
                                     {r.estado === 'CONTACTADO' ? 'Sí' : 'No'}
+                                  </span>
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Switch ¿Tiene WhatsApp? */}
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                              {r.estado === 'CON_FASE2' || r.fase === '2' ? (
+                                <span className="text-stone-300 text-xs">-</span>
+                              ) : (
+                                <div className="inline-flex items-center gap-1.5 justify-center">
+                                  <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={r.tiene_whatsapp !== false}
+                                    disabled={updatingId === `wa_${r.id}`}
+                                    onClick={() => handleToggleTieneWhatsApp(r)}
+                                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+                                      r.tiene_whatsapp !== false ? 'bg-emerald-600' : 'bg-rose-500'
+                                    } ${updatingId === `wa_${r.id}` ? 'opacity-40 cursor-wait' : ''}`}
+                                    title={r.tiene_whatsapp !== false ? 'Marcar como: Sin WhatsApp / Número no existe' : 'Marcar como: Tiene WhatsApp activo'}
+                                  >
+                                    <span
+                                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                        r.tiene_whatsapp !== false ? 'translate-x-4' : 'translate-x-0'
+                                      }`}
+                                    />
+                                  </button>
+                                  <span className={`text-[11px] font-bold ${r.tiene_whatsapp !== false ? 'text-emerald-700' : 'text-rose-600'}`}>
+                                    {r.tiene_whatsapp !== false ? 'Sí' : 'No'}
                                   </span>
                                 </div>
                               )}
@@ -1348,35 +1439,70 @@ export default function Dashboard() {
 
               {/* Control de Contacto en Modal */}
               {selectedVoluntario.estado !== 'CON_FASE2' && (
-                <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl flex items-center justify-between col-span-2">
+                <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 col-span-2">
                   <div>
                     <span className="text-amber-800 block text-[10px] font-bold uppercase tracking-wider">
-                      Control de Contacto Telefónico / WhatsApp
+                      Control de Contacto y Canales
                     </span>
-                    <span className={`font-bold text-xs ${selectedVoluntario.estado === 'CONTACTADO' ? 'text-emerald-700' : 'text-stone-600'}`}>
-                      {selectedVoluntario.estado === 'CONTACTADO' ? '✅ Ya fue contactado/a por el equipo' : '⏳ Aún no ha sido contactado/a'}
-                    </span>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className={`font-bold text-xs ${selectedVoluntario.estado === 'CONTACTADO' ? 'text-emerald-700' : 'text-stone-600'}`}>
+                        {selectedVoluntario.estado === 'CONTACTADO' ? '✅ Contactado/a' : '⏳ No contactado/a'}
+                      </span>
+                      <span className="text-stone-300">•</span>
+                      <span className={`font-bold text-xs ${selectedVoluntario.tiene_whatsapp !== false ? 'text-emerald-700' : 'text-rose-600'}`}>
+                        {selectedVoluntario.tiene_whatsapp !== false ? '💬 Tiene WhatsApp' : '❌ Sin WhatsApp (Derivar a Correo)'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={selectedVoluntario.estado === 'CONTACTADO'}
-                      disabled={updatingId === selectedVoluntario.id}
-                      onClick={() => handleToggleContactado(selectedVoluntario)}
-                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        selectedVoluntario.estado === 'CONTACTADO' ? 'bg-emerald-600' : 'bg-stone-300'
-                      } ${updatingId === selectedVoluntario.id ? 'opacity-50 cursor-wait' : ''}`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          selectedVoluntario.estado === 'CONTACTADO' ? 'translate-x-5' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                    <span className="text-xs font-bold text-stone-700">
-                      {selectedVoluntario.estado === 'CONTACTADO' ? 'Contactado' : 'No'}
-                    </span>
+
+                  <div className="flex items-center gap-4 flex-wrap">
+                    {/* Switch ¿Contactado? */}
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={selectedVoluntario.estado === 'CONTACTADO'}
+                        disabled={updatingId === selectedVoluntario.id}
+                        onClick={() => handleToggleContactado(selectedVoluntario)}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          selectedVoluntario.estado === 'CONTACTADO' ? 'bg-emerald-600' : 'bg-stone-300'
+                        } ${updatingId === selectedVoluntario.id ? 'opacity-50 cursor-wait' : ''}`}
+                        title={selectedVoluntario.estado === 'CONTACTADO' ? 'Marcar como NO contactado' : 'Marcar como CONTACTADO'}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            selectedVoluntario.estado === 'CONTACTADO' ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                      <span className="text-xs font-bold text-stone-700">
+                        {selectedVoluntario.estado === 'CONTACTADO' ? 'Contactado' : 'No'}
+                      </span>
+                    </div>
+
+                    {/* Switch ¿Tiene WhatsApp? */}
+                    <div className="flex items-center gap-1.5 pl-3 border-l border-amber-300">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={selectedVoluntario.tiene_whatsapp !== false}
+                        disabled={updatingId === `wa_${selectedVoluntario.id}`}
+                        onClick={() => handleToggleTieneWhatsApp(selectedVoluntario)}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          selectedVoluntario.tiene_whatsapp !== false ? 'bg-emerald-600' : 'bg-rose-500'
+                        } ${updatingId === `wa_${selectedVoluntario.id}` ? 'opacity-50 cursor-wait' : ''}`}
+                        title={selectedVoluntario.tiene_whatsapp !== false ? 'Marcar como SIN WhatsApp' : 'Marcar como TIENE WhatsApp'}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            selectedVoluntario.tiene_whatsapp !== false ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                      <span className="text-xs font-bold text-stone-700">
+                        {selectedVoluntario.tiene_whatsapp !== false ? 'WA: Sí' : 'WA: No'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               )}
