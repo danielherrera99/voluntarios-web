@@ -49,19 +49,35 @@ export default function Login() {
           } else if (data.existsInPadrón && data.voluntario?.nombres) {
             const cleanName = data.voluntario.nombres.replace(/^\d{1,2}\/\d{1,2}\/\d{2,4}\s*[-–—:]*\s*/, '').trim();
             setRegNombre(cleanName);
+            if (data.voluntario.correo) {
+              setRegEmail(data.voluntario.correo);
+            }
+            if (data.voluntario.telefono) {
+              setRegTelefono(data.voluntario.telefono);
+            }
+            const infoExtra = [data.voluntario.distrito, data.voluntario.fase].filter(Boolean).join(' • ');
             setDniFeedback({
               type: 'success',
-              text: `✓ Encontrado en el Padrón: ${cleanName} (${data.voluntario.parroquia || data.voluntario.fase})`
+              text: `✓ Encontrado en el Padrón: ${cleanName}${infoExtra ? ` (${infoExtra})` : ''}`
             });
           } else {
             setDniFeedback({
               type: 'info',
-              text: 'DNI no encontrado en el Padrón inicial. Completa tus nombres manualmente.'
+              text: 'DNI no encontrado en el Padrón previo. Completa tus nombres manualmente.'
             });
           }
+        } else {
+          setDniFeedback({
+            type: 'info',
+            text: 'DNI no encontrado en el Padrón previo. Completa tus datos manualmente.'
+          });
         }
       } catch (e) {
         console.error(e);
+        setDniFeedback({
+          type: 'info',
+          text: 'Completa tus datos para enviar tu solicitud.'
+        });
       } finally {
         setVerifyingDni(false);
       }
