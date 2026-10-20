@@ -49,10 +49,27 @@ const cleanVolunteerName = (name) => {
   return name.replace(/^\d{1,2}\/\d{1,2}\/\d{2,4}\s*[-–—:]*\s*/, '').trim();
 };
 
+// Limpiar y normalizar teléfono para enlaces de WhatsApp (evita duplicar el código de país 51 si ya viene registrado con él)
+export const normalizePeruvianPhone = (telefono) => {
+  if (!telefono) return null;
+  let digits = String(telefono).replace(/\D/g, '');
+  if (!digits) return null;
+  
+  if (digits.startsWith('0051')) {
+    digits = digits.slice(4);
+  }
+  
+  // Si el número tiene prefijo 51 y supera los 9 dígitos habituales de un celular en Perú, removemos el 51
+  while (digits.startsWith('51') && digits.length > 9) {
+    digits = digits.slice(2);
+  }
+  
+  return digits;
+};
+
 // Generar enlace directo a WhatsApp con mensaje personalizado incluyendo el enlace al formulario oficial, carta de recomendación y portal de consulta
 const getWhatsAppContactUrl = (telefono, nombres) => {
-  if (!telefono) return null;
-  const cleanPhone = String(telefono).replace(/\D/g, '');
+  const cleanPhone = normalizePeruvianPhone(telefono);
   if (!cleanPhone) return null;
   const name = cleanVolunteerName(nombres);
   const msg = `¡Hola *${name}*! 👋\n\nTe saludamos con alegría del equipo de Voluntariado de la *Diócesis de Chiclayo* para la Visita del Santo Padre 🕊️✨.\n\nNotamos que estás registrado/a en el Padrón General, pero aún no registramos tus documentos de la *Fase 2*.\n\n📄 *Sube tu documentación en el siguiente formulario oficial:*\n${GOOGLE_FORM_URL}\n\n📥 *Descarga aquí el formato oficial de la Carta de Recomendación:*\n${CARTA_RECOMENDACION_URL}\n\n🔍 *Si ya enviaste tu documentación o deseas dar seguimiento a tu postulación, valida tu estado aquí:*\n${PORTAL_CONSULTA_URL}\n\n¡Muchas gracias por tu compromiso y vocación de servicio! 🙏✨`;
@@ -968,7 +985,7 @@ export default function Dashboard() {
                     const isApproved = !isRejected && (r.estado === 'SELECCIONADO' || r.info_validada);
                     const isRevision = !isRejected && r.estado === 'EN REVISIÓN';
 
-                    const cleanPhone = r.telefono ? String(r.telefono).replace(/\D/g, '') : '';
+                    const cleanPhone = normalizePeruvianPhone(r.telefono);
 
                     return (
                       <tr key={r.id || r.dni || idx} className="hover:bg-amber-50/40 transition">
@@ -1806,7 +1823,7 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   solicitudesData.pendientes.map((s) => {
-                    const cleanPhone = s.telefono ? String(s.telefono).replace(/\D/g, '') : null;
+                    const cleanPhone = normalizePeruvianPhone(s.telefono);
                     const selectedRole = selectedUserRoles[s.id] || 'comision';
                     return (
                       <div 
