@@ -871,11 +871,18 @@ export default function Dashboard() {
                 >
                   <option value="ALL">👥 Todos los colaboradores</option>
                   <option value="UNASSIGNED">⚪ Sin Asignar</option>
-                  {collaboratorsStats.map(c => (
-                    <option key={c.name} value={c.name}>
-                      👤 {c.name} ({c.contactados || 0}/{c.total || 0} • {c.porcentaje || 0}%)
-                    </option>
-                  ))}
+                  {collaboratorsStats.map(c => {
+                    const faltan = c.pendientes || 0;
+                    const hechos = c.contactados || 0;
+                    return (
+                      <option key={c.name} value={c.name}>
+                        {faltan === 0 
+                          ? `👤 ${c.name} (✓ Al día • ${hechos} contactados)` 
+                          : `👤 ${c.name} (⏳ Faltan: ${faltan} • ${hechos} contactados • ${c.porcentaje}%)`
+                        }
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             )}
