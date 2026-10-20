@@ -235,7 +235,7 @@ export default function Dashboard() {
       // Filtro por colaborador asignado (solo para Fase 1 y Sin Fase 2)
       if (activeTab !== 'fase2' && collaboratorFilter !== 'ALL') {
         if (collaboratorFilter === 'UNASSIGNED') {
-          query = query.or('fase.eq.1,fase.is.null');
+          query = query.or('fase.is.null,fase.eq.Sin asignar');
         } else {
           query = query.eq('fase', collaboratorFilter);
         }
