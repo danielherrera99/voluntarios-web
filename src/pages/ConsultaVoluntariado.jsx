@@ -41,10 +41,51 @@ export default function ConsultaVoluntariado() {
     setLoading(true);
 
     try {
-      // 1. Consultar Fase 2 (voluntarios)
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+
+      // 1. Intentar a través del Endpoint Seguro del Backend (con Rate Limiting y Sanitización)
+      try {
+        const res = await fetch(`${apiUrl}/api/consulta/${cleanDni}`);
+        if (res.status === 429) {
+          setResult({
+            status: 'NOT_FOUND',
+            dni: cleanDni,
+            observacion: '⚠️ Has realizado demasiadas consultas seguidas. Por seguridad diocesana, por favor espera 1 minuto antes de volver a consultar.'
+          });
+          return;
+        }
+
+        if (res.ok) {
+          const apiData = await res.json();
+          if (apiData.found) {
+            setResult({
+              status: apiData.status === 'FASE1_REGISTRADO' ? 'FASE1' : apiData.status,
+              fase: apiData.fase || '1',
+              name: apiData.name || 'Postulante',
+              dni: apiData.dni,
+              codigo: apiData.codigo,
+              comision: apiData.comision || 'Servicio General',
+              area: apiData.area || 'Diócesis de Chiclayo y Santa Cruz',
+              esVerificar: apiData.status === 'PENDING' && Boolean(apiData.observacion),
+              observacion: apiData.observacion || null
+            });
+            return;
+          } else {
+            setResult({
+              status: 'NOT_FOUND',
+              dni: cleanDni
+            });
+            return;
+          }
+        }
+      } catch (backendErr) {
+        console.warn('Backend temporalmente no disponible, usando respaldo a Supabase:', backendErr);
+      }
+
+      // 2. Respaldo directo a Supabase (consultando ÚNICAMENTE campos públicos, sin datos personales sensibles)
       const { data: f2Data, error: f2Error } = await supabase
         .from('voluntarios')
-        .select('*')
+        .select('dni, nombres_apellidos, codigo, servicio, departamento, estado, fase, observacion, info_validada')
         .eq('dni', cleanDni)
         .maybeSingle();
 
@@ -81,10 +122,10 @@ export default function ConsultaVoluntariado() {
         return;
       }
 
-      // 2. Si no está en Fase 2, consultar en Fase 1 (voluntarios_general)
+      // Consultar en Fase 1 (únicamente campos necesarios)
       const { data: f1Data, error: f1Error } = await supabase
         .from('voluntarios_general')
-        .select('*')
+        .select('dni, nombres_apellidos, codigo, servicio, departamento, estado, fase')
         .eq('dni', cleanDni)
         .maybeSingle();
 

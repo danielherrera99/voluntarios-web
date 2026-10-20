@@ -364,7 +364,10 @@ export default function Dashboard() {
     setSyncMsg('Sincronizando con Google Sheets...');
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
-      const res = await fetch(`${apiUrl}/api/sync-fase2`);
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${apiUrl}/api/sync-fase2`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
       const data = await res.json();
       if (res.ok && data.success) {
         setSyncMsg(`✅ Sincronizado: ${data.total} procesados (${data.saved} guardados).`);
@@ -425,9 +428,13 @@ export default function Dashboard() {
     setDistributeMsg({ type: 'info', text: `Repartiendo equitativamente entre ${names.length} colaboradores...` });
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const token = localStorage.getItem('token');
       const res = await fetch(`${apiUrl}/api/distribute-voluntarios`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({ collaborators: names })
       });
       const data = await res.json();
