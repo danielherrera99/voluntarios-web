@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabase';
 import FloatingChat from '../components/FloatingChat';
 
@@ -33,8 +33,54 @@ export default function ConsultaVoluntariado() {
   const [dniInput, setDniInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [captchaToken, setCaptchaToken] = useState(null);
+  const [captchaError, setCaptchaError] = useState(null);
 
-  const performSearch = async (dni) => {
+  const recaptchaContainerRef = useRef(null);
+  const widgetIdRef = useRef(null);
+
+  const SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6Lde1vctAAAAAPSQWvEDDFmSTYP9rTux28z48aTQ';
+
+  useEffect(() => {
+    // Función para inicializar el widget de reCAPTCHA
+    const initRecaptcha = () => {
+      if (window.grecaptcha && window.grecaptcha.render && recaptchaContainerRef.current && widgetIdRef.current === null) {
+        try {
+          widgetIdRef.current = window.grecaptcha.render(recaptchaContainerRef.current, {
+            sitekey: SITE_KEY,
+            callback: (token) => {
+              setCaptchaToken(token);
+              setCaptchaError(null);
+            },
+            'expired-callback': () => {
+              setCaptchaToken(null);
+            }
+          });
+        } catch (e) {
+          console.warn('Aviso reCAPTCHA:', e);
+        }
+      }
+    };
+
+    if (window.grecaptcha && window.grecaptcha.render) {
+      initRecaptcha();
+    } else {
+      window.onRecaptchaLoaded = () => {
+        initRecaptcha();
+      };
+      const existingScript = document.getElementById('google-recaptcha-v2-script');
+      if (!existingScript) {
+        const script = document.createElement('script');
+        script.id = 'google-recaptcha-v2-script';
+        script.src = 'https://www.google.com/recaptcha/api.js?onload=onRecaptchaLoaded&render=explicit';
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+      }
+    }
+  }, [SITE_KEY]);
+
+  const performSearch = async (dni, token) => {
     const cleanDni = dni.trim();
     if (!cleanDni) return;
 
@@ -45,7 +91,9 @@ export default function ConsultaVoluntariado() {
 
       // 1. Intentar a través del Endpoint Seguro del Backend (con Rate Limiting y Sanitización)
       try {
-        const res = await fetch(`${apiUrl}/api/consulta/${cleanDni}`);
+        const res = await fetch(`${apiUrl}/api/consulta/${cleanDni}`, {
+          headers: token ? { 'x-recaptcha-token': token } : {}
+        });
         if (res.status === 429) {
           setResult({
             status: 'NOT_FOUND',
@@ -162,6 +210,13 @@ export default function ConsultaVoluntariado() {
     } finally {
       setLoading(false);
       scrollIntoResult();
+      // Resetear widget de reCAPTCHA para la siguiente consulta
+      if (widgetIdRef.current !== null && window.grecaptcha) {
+        try {
+          window.grecaptcha.reset(widgetIdRef.current);
+          setCaptchaToken(null);
+        } catch (e) {}
+      }
     }
   };
 
@@ -176,7 +231,14 @@ export default function ConsultaVoluntariado() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    performSearch(dniInput);
+    if (!dniInput.trim()) return;
+
+    if (!captchaToken) {
+      setCaptchaError('Por favor marca la casilla "No soy un robot" antes de consultar.');
+      return;
+    }
+    setCaptchaError(null);
+    performSearch(dniInput, captchaToken);
   };
 
   return (
@@ -307,6 +369,17 @@ export default function ConsultaVoluntariado() {
                 onChange={(e) => setDniInput(e.target.value.replace(/\D/g, ''))}
                 className="w-full pl-12 pr-4 py-4 bg-stone-50 border-2 border-stone-300 rounded-2xl text-stone-900 placeholder-stone-400 focus:outline-none focus:border-diocesis-red focus:bg-white transition text-base md:text-lg font-semibold shadow-inner"
               />
+            </div>
+
+            {/* WIDGET GOOGLE reCAPTCHA v2 */}
+            <div className="flex flex-col items-center justify-center my-4">
+              <div ref={recaptchaContainerRef} className="shadow-xs rounded-xl overflow-hidden min-h-[78px] flex items-center justify-center"></div>
+              {captchaError && (
+                <p className="text-xs text-rose-600 font-bold mt-2 bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-200 text-center animate-bounce">
+                  <i className="fa-solid fa-circle-exclamation mr-1.5"></i>
+                  {captchaError}
+                </p>
+              )}
             </div>
 
             <button
