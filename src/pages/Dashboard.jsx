@@ -374,7 +374,7 @@ export default function Dashboard() {
       if (res.ok && (data.success || Array.isArray(data))) {
         setDistributeMsg({ 
           type: 'success', 
-          text: `¡Reparto completado con éxito! Se asignaron ${(data.total || data.totalDistributed)?.toLocaleString() || 'los'} postulantes entre ${data.collaborators?.length || names.length} personas.` 
+          text: `¡Reparto completado con éxito! Se asignaron ${(data.total || data.totalDistributed)?.toLocaleString() || 'los'} postulantes pendientes entre ${data.collaborators?.length || names.length} personas (respetando a los ya contactados).` 
         });
         await fetchCollaboratorsStats();
         await fetchRecords();
@@ -1548,22 +1548,29 @@ export default function Dashboard() {
                   .map(n => n.trim())
                   .filter(n => n.length > 0);
                 const uniqueCount = new Set(names).size;
-                const totalPorRepartir = stats.sinFase2 || 5214;
+                const totalPorRepartir = stats.sinContactar || 2266;
                 const perPerson = uniqueCount > 0 ? Math.ceil(totalPorRepartir / uniqueCount) : 0;
 
                 return (
-                  <div className="flex items-center justify-between text-xs text-stone-500 px-1">
-                    <span>
-                      {uniqueCount > 0 ? (
-                        <span className="font-semibold text-stone-700">
-                          👥 {uniqueCount} colaborador{uniqueCount > 1 ? 'es' : ''} ingresado{uniqueCount > 1 ? 's' : ''} • ~
-                          <strong className="text-diocesis-redDark">{perPerson.toLocaleString()}</strong> postulantes c/u
-                        </span>
-                      ) : (
-                        'Escribe o pega los nombres para calcular el reparto automático.'
-                      )}
-                    </span>
-                    <span className="text-[11px] text-stone-400">Total a repartir: {totalPorRepartir.toLocaleString()}</span>
+                  <div className="space-y-1.5 px-1">
+                    <div className="flex items-center justify-between text-xs text-stone-500">
+                      <span>
+                        {uniqueCount > 0 ? (
+                          <span className="font-semibold text-stone-700">
+                            👥 {uniqueCount} colaborador{uniqueCount > 1 ? 'es' : ''} ingresado{uniqueCount > 1 ? 's' : ''} • ~
+                            <strong className="text-diocesis-redDark">{perPerson.toLocaleString()}</strong> postulantes pendientes c/u
+                          </span>
+                        ) : (
+                          'Escribe o pega los nombres para calcular el reparto automático.'
+                        )}
+                      </span>
+                      <span className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">
+                        Pendientes por repartir: {totalPorRepartir.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-emerald-700 font-medium">
+                      🔒 <strong>Protección activa:</strong> Los {stats.contactados?.toLocaleString() || '2,782'} postulantes que ya fueron contactados conservan a su colaborador original y no se modifican.
+                    </div>
                   </div>
                 );
               })()}
