@@ -118,16 +118,16 @@ export default function Dashboard() {
 
   // Estadísticas globales (KPIs)
   const [stats, setStats] = useState({
-    generalTotal: 7241,
+    generalTotal: 7956,
     fase2Total: 0,
     seleccionados: 0,
     enRevision: 0,
     noSeleccionados: 0,
     pendientes: 0,
-    sinFase2: 5214,
+    sinFase2: 5929,
     conFase2: 2027,
     contactados: 0,
-    sinContactar: 5214,
+    sinContactar: 5929,
     sinWhatsapp: 0
   });
 
