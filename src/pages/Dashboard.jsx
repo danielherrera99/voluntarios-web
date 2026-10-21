@@ -111,8 +111,10 @@ export default function Dashboard() {
   const [solicitudesData, setSolicitudesData] = useState({ pendientes: [], aprobados: [], totalPendientes: 0 });
   const [loadingSolicitudes, setLoadingSolicitudes] = useState(false);
   const [solicitudActionMsg, setSolicitudActionMsg] = useState(null);
-  const [solicitudesTab, setSolicitudesTab] = useState('pendientes'); // 'pendientes' | 'activos'
+  const [solicitudesTab, setSolicitudesTab] = useState('pendientes'); // 'pendientes' | 'activos' | 'auditoria'
   const [selectedUserRoles, setSelectedUserRoles] = useState({});
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
 
   // Estadísticas globales (KPIs)
   const [stats, setStats] = useState({
@@ -281,6 +283,23 @@ export default function Dashboard() {
     }
   }, [activeTab, currentPage, pageSize, debouncedSearch, statusFilter, fase1Filter, contactFilter, collaboratorFilter]);
 
+  // Enviar evento de auditoría en segundo plano
+  const sendAudit = (accion, detalles) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      fetch(`${apiUrl}/api/auditoria`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ accion, detalles })
+      }).catch(e => console.warn('Audit error:', e));
+    } catch (e) {}
+  };
+
   // Cambiar estado de Contactado / No Contactado con el switch
   const handleToggleContactado = async (voluntario) => {
     if (voluntario.estado === 'CON_FASE2') return;
@@ -303,6 +322,14 @@ export default function Dashboard() {
         .eq('id', voluntario.id);
 
       if (error) throw error;
+
+      // Registrar evento de auditoría
+      sendAudit('CAMBIO_CONTACTADO', {
+        voluntario_id: voluntario.id,
+        dni: voluntario.dni,
+        nombres: voluntario.nombres_apellidos,
+        nuevo_estado: newEstado
+      });
 
       // Actualizar contadores globales
       setStats(prev => ({
@@ -339,6 +366,14 @@ export default function Dashboard() {
         .eq('id', voluntario.id);
 
       if (error) throw error;
+
+      // Registrar evento de auditoría
+      sendAudit('CAMBIO_WHATSAPP', {
+        voluntario_id: voluntario.id,
+        dni: voluntario.dni,
+        nombres: voluntario.nombres_apellidos,
+        tiene_whatsapp: newVal
+      });
 
       // Actualizar contadores globales de sinWhatsapp
       setStats(prev => ({
@@ -479,6 +514,28 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error('Error cargando solicitudes:', err);
+    }
+  }, [user?.rol]);
+
+  // Cargar historial de auditoría de seguridad
+  const fetchAuditLogs = useCallback(async () => {
+    if (user?.rol !== 'admin') return;
+    try {
+      setLoadingAudit(true);
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const res = await fetch(`${apiUrl}/api/auditoria?limit=150`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAuditLogs(data || []);
+      }
+    } catch (err) {
+      console.error('Error cargando auditoría:', err);
+    } finally {
+      setLoadingAudit(false);
     }
   }, [user?.rol]);
 
@@ -1896,19 +1953,19 @@ export default function Dashboard() {
               </button>
             </div>
 
-            {/* Pestañas de Solicitudes */}
-            <div className="grid grid-cols-2 p-1 bg-stone-100 rounded-2xl border border-stone-200">
+            {/* Pestañas de Solicitudes y Auditoría */}
+            <div className="grid grid-cols-3 p-1 bg-stone-100 rounded-2xl border border-stone-200">
               <button
                 type="button"
                 onClick={() => setSolicitudesTab('pendientes')}
-                className={`py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer ${
+                className={`py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   solicitudesTab === 'pendientes'
                     ? 'bg-white text-stone-900 shadow-sm'
                     : 'text-stone-500 hover:text-stone-800'
                 }`}
               >
-                <Clock className="w-3.5 h-3.5 text-amber-600" />
-                <span>Pendientes por Aprobar</span>
+                <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span className="truncate">Pendientes</span>
                 {solicitudesData.totalPendientes > 0 && (
                   <span className="bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
                     {solicitudesData.totalPendientes}
@@ -1918,14 +1975,29 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={() => setSolicitudesTab('activos')}
-                className={`py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer ${
+                className={`py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   solicitudesTab === 'activos'
                     ? 'bg-white text-stone-900 shadow-sm'
                     : 'text-stone-500 hover:text-stone-800'
                 }`}
               >
-                <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Usuarios Activos ({solicitudesData.aprobados?.length || 0})</span>
+                <UserCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span className="truncate">Activos ({solicitudesData.aprobados?.length || 0})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSolicitudesTab('auditoria');
+                  fetchAuditLogs();
+                }}
+                className={`py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  solicitudesTab === 'auditoria'
+                    ? 'bg-white text-stone-900 shadow-sm'
+                    : 'text-stone-500 hover:text-stone-800'
+                }`}
+              >
+                <Shield className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <span className="truncate">Auditoría</span>
               </button>
             </div>
 
@@ -2060,7 +2132,7 @@ export default function Dashboard() {
                     );
                   })
                 )
-              ) : (
+              ) : solicitudesTab === 'activos' ? (
                 /* LISTA DE USUARIOS ACTIVOS */
                 solicitudesData.aprobados?.length === 0 ? (
                   <div className="text-center py-8 text-stone-400 text-xs">No hay usuarios registrados</div>
@@ -2134,13 +2206,149 @@ export default function Dashboard() {
                     );
                   })
                 )
+              ) : (
+                /* HISTORIAL DE AUDITORÍA EN TIEMPO REAL */
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between pb-2 border-b border-stone-200">
+                    <span className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
+                      <Shield className="w-4 h-4 text-amber-600" />
+                      Trazabilidad de Acciones y Seguridad
+                    </span>
+                    <button
+                      type="button"
+                      onClick={fetchAuditLogs}
+                      disabled={loadingAudit}
+                      className="px-2.5 py-1 text-[11px] font-bold bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${loadingAudit ? 'animate-spin' : ''}`} />
+                      Actualizar
+                    </button>
+                  </div>
+
+                  {loadingAudit ? (
+                    <div className="text-center py-12 text-stone-400 text-xs">
+                      <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-stone-400" />
+                      Cargando historial de auditoría...
+                    </div>
+                  ) : auditLogs.length === 0 ? (
+                    <div className="text-center py-10 bg-stone-50 rounded-2xl border border-dashed border-stone-200 text-xs text-stone-500">
+                      Aún no hay registros de auditoría almacenados.
+                    </div>
+                  ) : (
+                    auditLogs.map((log) => {
+                      const dateObj = new Date(log.created_at);
+                      const timeStr = !isNaN(dateObj) ? dateObj.toLocaleString('es-PE', {
+                        day: '2-digit', month: '2-digit', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit', second: '2-digit'
+                      }) : log.created_at;
+
+                      const isPositive = log.accion.includes('APROBADO') || log.accion.includes('EXITOSO');
+                      const isNegative = log.accion.includes('RECHAZADO') || log.accion.includes('ELIMINADO') || log.accion.includes('FALLIDO');
+                      const d = log.detalles || {};
+
+                      return (
+                        <div 
+                          key={log.id} 
+                          className="p-2.5 bg-stone-50 hover:bg-white rounded-xl border border-stone-200 hover:border-amber-400 transition text-xs space-y-1"
+                        >
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide border ${
+                                isPositive 
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300' 
+                                  : isNegative 
+                                  ? 'bg-rose-50 text-rose-800 border-rose-300' 
+                                  : 'bg-amber-50 text-amber-900 border-amber-300'
+                              }`}>
+                                {log.accion.replace(/_/g, ' ')}
+                              </span>
+                              <span className="font-bold text-stone-800">
+                                {log.usuario_nombre || 'Sistema'}
+                              </span>
+                              {log.usuario_correo && (
+                                <span className="text-[10px] text-stone-400">({log.usuario_correo})</span>
+                              )}
+                            </div>
+                            <span className="text-[10px] font-mono text-stone-400 shrink-0">
+                              {timeStr}
+                            </span>
+                          </div>
+
+                          <div className="text-[11px] text-stone-600 pl-1">
+                            {log.accion === 'CAMBIO_CONTACTADO' && (
+                              <span>
+                                Voluntario: <strong className="text-stone-800">{d.nombres}</strong> (DNI: {d.dni}) &rarr; Marcado como <span className="font-bold text-emerald-700">{d.nuevo_estado === 'CONTACTADO' ? '✅ Contactado' : '⏳ Pendiente'}</span>
+                              </span>
+                            )}
+                            {log.accion === 'CAMBIO_WHATSAPP' && (
+                              <span>
+                                Voluntario: <strong className="text-stone-800">{d.nombres}</strong> (DNI: {d.dni}) &rarr; WhatsApp: <span className="font-bold">{d.tiene_whatsapp ? '💬 Activo' : '❌ Sin WhatsApp'}</span>
+                              </span>
+                            )}
+                            {log.accion === 'USUARIO_APROBADO' && (
+                              <span>
+                                Autorizó acceso a <strong className="text-stone-800">{d.nombre}</strong> (DNI: {d.dni || 'S/D'}) con rol <span className="font-bold">{d.rol}</span>
+                              </span>
+                            )}
+                            {log.accion === 'USUARIO_RECHAZADO' && (
+                              <span>
+                                Rechazó solicitud de <strong className="text-stone-800">{d.nombre}</strong> (DNI: {d.dni || 'S/D'})
+                              </span>
+                            )}
+                            {log.accion === 'USUARIO_ELIMINADO' && (
+                              <span>
+                                Eliminó permanentemente la cuenta de <strong className="text-stone-800">{d.nombre}</strong> (DNI: {d.dni || 'S/D'})
+                              </span>
+                            )}
+                            {log.accion === 'LOGIN_EXITOSO' && (
+                              <span>
+                                Inicio de sesión seguro con {d.correo || d.dni} (Rol: {d.rol})
+                              </span>
+                            )}
+                            {log.accion === 'LOGIN_FALLIDO' && (
+                              <span className="text-rose-600">
+                                Intento fallido con: {d.input} • {d.motivo || 'Credenciales incorrectas'}
+                              </span>
+                            )}
+                            {log.accion === 'REGISTRO_SOLICITUD' && (
+                              <span>
+                                Nueva solicitud de <strong className="text-stone-800">{d.nombre}</strong> (DNI: {d.dni}) • {d.correo}
+                              </span>
+                            )}
+                            {log.accion === 'REPARTO_VOLUNTARIOS' && (
+                              <span>
+                                Reparto masivo: {d.totalAsignados} voluntarios distribuidos equitativamente entre {d.totalColaboradores} colaboradores.
+                              </span>
+                            )}
+                            {log.accion === 'REPARTO_CUADRILLAS' && (
+                              <span>
+                                Chocoloteo y distribución de cuadrillas: {d.totalAsignados} voluntarios asignados.
+                              </span>
+                            )}
+                            {!['CAMBIO_CONTACTADO', 'CAMBIO_WHATSAPP', 'USUARIO_APROBADO', 'USUARIO_RECHAZADO', 'USUARIO_ELIMINADO', 'LOGIN_EXITOSO', 'LOGIN_FALLIDO', 'REGISTRO_SOLICITUD', 'REPARTO_VOLUNTARIOS', 'REPARTO_CUADRILLAS'].includes(log.accion) && (
+                              <span className="font-mono text-[10px] text-stone-500">{JSON.stringify(d)}</span>
+                            )}
+                          </div>
+
+                          {log.ip && (
+                            <div className="text-[9px] text-stone-400 pl-1 font-mono">
+                              IP: {log.ip}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               )}
             </div>
 
             {/* Footer */}
             <div className="pt-2 border-t border-stone-100 flex items-center justify-between">
               <span className="text-[11px] text-stone-400">
-                Total activos: {solicitudesData.totalAprobados || solicitudesData.aprobados?.length || 0}
+                {solicitudesTab === 'pendientes' && `Pendientes: ${solicitudesData.totalPendientes || 0}`}
+                {solicitudesTab === 'activos' && `Total activos: ${solicitudesData.totalAprobados || solicitudesData.aprobados?.length || 0}`}
+                {solicitudesTab === 'auditoria' && `Registros mostrados: ${auditLogs.length}`}
               </span>
               <button
                 type="button"

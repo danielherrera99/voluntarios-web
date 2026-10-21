@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LogIn, UserPlus, Clock, CheckCircle2, AlertCircle, Phone, Mail, Lock, User, ShieldCheck, CreditCard, Search } from 'lucide-react';
+import { LogIn, UserPlus, Clock, CheckCircle2, AlertCircle, Phone, Mail, Lock, User, ShieldCheck, CreditCard, Search, Check, X } from 'lucide-react';
 
 export default function Login() {
   const [mode, setMode] = useState('login'); // 'login' | 'register'
@@ -27,6 +27,22 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const { login, register } = useAuth();
   const navigate = useNavigate();
+
+  // Mostrar mensaje si se cerró sesión automáticamente (ej. expiración de 8 horas)
+  useEffect(() => {
+    const reason = sessionStorage.getItem('logout_reason');
+    if (reason) {
+      setError(reason);
+      sessionStorage.removeItem('logout_reason');
+    }
+  }, []);
+
+  // Validación de seguridad de contraseña en tiempo real
+  const hasMinLength = regPassword.length >= 8;
+  const hasLetter = /[a-zA-Z]/.test(regPassword);
+  const hasNumber = /\d/.test(regPassword);
+  const passwordsMatch = regPassword.length > 0 && regPassword === regConfirmPassword;
+  const isPasswordValid = hasMinLength && hasLetter && hasNumber;
 
   // Verificación dinámica de DNI con el Padrón de Voluntarios
   const handleDniChange = async (val) => {
@@ -112,13 +128,13 @@ export default function Login() {
       return;
     }
 
-    if (regPassword !== regConfirmPassword) {
-      setError('Las contraseñas no coinciden. Por favor verifícalas.');
+    if (!isPasswordValid) {
+      setError('La contraseña debe tener al menos 8 caracteres y combinar letras y números.');
       return;
     }
 
-    if (regPassword.length < 6) {
-      setError('La contraseña debe tener un mínimo de 6 caracteres.');
+    if (!passwordsMatch) {
+      setError('Las contraseñas no coinciden. Por favor verifícalas.');
       return;
     }
 
@@ -430,7 +446,7 @@ export default function Login() {
                     required 
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
-                    placeholder="Mínimo 6"
+                    placeholder="Mínimo 8 carac."
                     className="w-full pl-9 pr-3 py-2 text-xs bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white transition"
                   />
                 </div>
@@ -438,7 +454,7 @@ export default function Login() {
 
               <div>
                 <label className="block text-xs font-bold text-stone-700 mb-1">
-                  Confirmar
+                  Confirmar Contraseña
                 </label>
                 <div className="relative">
                   <ShieldCheck className="w-4 h-4 text-stone-400 absolute left-3 top-3 pointer-events-none" />
@@ -447,12 +463,37 @@ export default function Login() {
                     required 
                     value={regConfirmPassword}
                     onChange={(e) => setRegConfirmPassword(e.target.value)}
-                    placeholder="Repite clave"
+                    placeholder="Repite tu clave"
                     className="w-full pl-9 pr-3 py-2 text-xs bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white transition"
                   />
                 </div>
               </div>
             </div>
+
+            {/* Checklist visual de requisitos de seguridad de contraseña */}
+            {regPassword.length > 0 && (
+              <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200 text-[11px] space-y-1">
+                <p className="font-bold text-stone-600 mb-1">Requisitos de seguridad:</p>
+                <div className="grid grid-cols-2 gap-1.5 font-medium">
+                  <span className={`flex items-center gap-1 ${hasMinLength ? 'text-emerald-700 font-bold' : 'text-stone-400'}`}>
+                    {hasMinLength ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <X className="w-3.5 h-3.5 text-stone-300" />}
+                    Mín. 8 caracteres
+                  </span>
+                  <span className={`flex items-center gap-1 ${hasLetter ? 'text-emerald-700 font-bold' : 'text-stone-400'}`}>
+                    {hasLetter ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <X className="w-3.5 h-3.5 text-stone-300" />}
+                    Incluye letras
+                  </span>
+                  <span className={`flex items-center gap-1 ${hasNumber ? 'text-emerald-700 font-bold' : 'text-stone-400'}`}>
+                    {hasNumber ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <X className="w-3.5 h-3.5 text-stone-300" />}
+                    Incluye números
+                  </span>
+                  <span className={`flex items-center gap-1 ${passwordsMatch ? 'text-emerald-700 font-bold' : 'text-stone-400'}`}>
+                    {passwordsMatch ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <X className="w-3.5 h-3.5 text-stone-300" />}
+                    Coinciden
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div className="text-[11px] text-stone-500 leading-tight pt-1">
               🔒 Tu cuenta quedará amarrada a tu DNI y requerirá autorización del Administrador antes de activarse.
