@@ -41,7 +41,7 @@ const PORTAL_CONSULTA_URL = "https://amigosdeleoncix.onrender.com/";
 const GOOGLE_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfO_z7lnEDjQR37y7V7uh9gEsFs5ZNlznvM6_GyeKiAljmlmA/viewform";
 
 // Formato Oficial de la Carta de Recomendación (Google Drive)
-const CARTA_RECOMENDACION_URL = "https://drive.google.com/file/d/1SvOr6zyyG2al2vVhZH3ryfgFVaR04Uyz/view?usp=sharing";
+const CARTA_RECOMENDACION_URL = "https://drive.google.com/file/d/1S4yGZY9iC65vW2m9q4u5VGMtcS9wh_kn/view?usp=sharing";
 
 // Limpiar fecha de nacimiento u otros prefijos que puedan estar en el nombre (ej. "19/07/1981 ROSA GARCÍA GALLEGOS")
 const cleanVolunteerName = (name) => {

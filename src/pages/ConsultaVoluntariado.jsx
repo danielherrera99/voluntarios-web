@@ -29,6 +29,9 @@ const mockDatabase = {
 // Enlace al Formulario Oficial de Google Forms (Etapa 2)
 const GOOGLE_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfO_z7lnEDjQR37y7V7uh9gEsFs5ZNlznvM6_GyeKiAljmlmA/viewform";
 
+// Formato Oficial de la Carta de Recomendación (Google Drive)
+const CARTA_RECOMENDACION_URL = "https://drive.google.com/file/d/1S4yGZY9iC65vW2m9q4u5VGMtcS9wh_kn/view?usp=sharing";
+
 export default function ConsultaVoluntariado() {
   const [dniInput, setDniInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -653,15 +656,28 @@ export default function ConsultaVoluntariado() {
                       </p>
                     </div>
 
-                    <a
-                      href={GOOGLE_FORM_URL}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center justify-center gap-2.5 bg-diocesis-red hover:bg-diocesis-redDark text-white font-title font-bold px-8 py-4 rounded-2xl transition shadow-lg hover:shadow-xl text-base border-b-4 border-diocesis-redDark cursor-pointer"
-                    >
-                      <i className="fa-solid fa-cloud-arrow-up text-xl text-diocesis-mustard"></i>
-                      <span>Subir Documentación en Google Forms</span>
-                    </a>
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                      <a
+                        href={GOOGLE_FORM_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 bg-diocesis-red hover:bg-diocesis-redDark text-white font-title font-bold px-7 py-3.5 rounded-2xl transition shadow-lg hover:shadow-xl text-sm md:text-base border-b-4 border-diocesis-redDark cursor-pointer"
+                      >
+                        <i className="fa-solid fa-cloud-arrow-up text-lg text-diocesis-mustard"></i>
+                        <span>Subir Documentación en Google Forms</span>
+                      </a>
+
+                      <a
+                        href={CARTA_RECOMENDACION_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white hover:bg-stone-50 text-stone-800 font-bold px-5 py-3.5 rounded-2xl transition shadow-sm hover:shadow border border-stone-300 text-sm cursor-pointer"
+                        title="Descargar plantilla oficial de la Carta de Recomendación"
+                      >
+                        <i className="fa-solid fa-file-arrow-down text-diocesis-red"></i>
+                        <span>Descargar Formato de Carta</span>
+                      </a>
+                    </div>
                   </div>
 
                   <div className="text-center bg-stone-50 p-4 rounded-2xl border border-stone-200">

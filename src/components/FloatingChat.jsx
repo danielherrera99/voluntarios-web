@@ -10,15 +10,17 @@ const PORTAL_URL = "https://amigosdeleoncix.onrender.com/";
 const MTPE_CUL_URL = "https://www.empleosperu.gob.pe/CertificadoUnicoLaboral/";
 const WHATSAPP_SOPORTE_URL = "https://wa.me/51945854083?text=Hola,%20tengo%20una%20consulta%20sobre%20mis%20documentos%20de%20la%20Fase%202";
 
+const CARTA_RECOMENDACION_URL = "https://drive.google.com/file/d/1S4yGZY9iC65vW2m9q4u5VGMtcS9wh_kn/view?usp=sharing";
+
 // Respuestas inmediatas para preguntas frecuentes (cero latencia)
 const QUICK_FAQ_ANSWERS = {
   docs_fase2: {
     question: "📄 ¿Qué documentos piden en Fase 2?",
-    answer: `Para la **Fase 2** debes subir obligatoriamente estos 3 documentos en el formulario:\n\n1. 🆔 **DNI o Pasaporte:** Escaneado o fotografiado por ambos lados, totalmente nítido y legible.\n2. 📄 **Carta de Compromiso:** Impresa, con tus datos completos y firma manuscrita.\n3. 📋 **CertiAdulto (CUL):** Certificado Único Laboral expedido gratis por el Ministerio de Trabajo (MTPE).\n\n🔗 Puedes subirlos aquí: [Formulario Oficial de Fase 2](${GOOGLE_FORM_URL})`
+    answer: `Para la **Fase 2** debes subir obligatoriamente estos 3 documentos en el formulario:\n\n1. 🆔 **DNI o Pasaporte:** Escaneado o fotografiado por ambos lados, totalmente nítido y legible.\n2. 📄 **Carta de Recomendación / Compromiso:** Impresa, con tus datos completos y firma manuscrita.\n3. 📋 **CertiAdulto (CUL):** Certificado Único Laboral expedido gratis por el Ministerio de Trabajo (MTPE).\n\n🔗 Puedes subirlos aquí: [Formulario Oficial de Fase 2](${GOOGLE_FORM_URL})`
   },
   carta_compromiso: {
     question: "📥 ¿Dónde descargo la Carta de Compromiso?",
-    answer: `La **Carta de Compromiso** oficial es obligatoria para validar tu postulación.\n\n👉 Debes descargarla desde el portal, imprimirla, firmarla a mano y subirla en formato PDF o imagen legible.\n\n🔗 Si aún no la tienes, puedes solicitarla o verificar su disponibilidad en la sección de consulta o escribirnos directamente a WhatsApp: [Contactar Soporte por WhatsApp](${WHATSAPP_SOPORTE_URL})`
+    answer: `La **Carta de Recomendación / Compromiso** oficial es obligatoria para validar tu postulación.\n\n👉 Debes descargarla, imprimirla, llenarla, firmarla a mano y subirla en formato PDF o imagen legible.\n\n📥 [Descargar Formato Oficial en Google Drive](${CARTA_RECOMENDACION_URL})\n\n💬 Si tienes alguna duda, escríbenos a WhatsApp: [Contactar Soporte por WhatsApp](${WHATSAPP_SOPORTE_URL})`
   },
   certiadulto_cul: {
     question: "🆔 ¿Cómo tramito el CertiAdulto (CUL)?",
