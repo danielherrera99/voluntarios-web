@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LogIn, UserPlus, Clock, CheckCircle2, AlertCircle, Phone, Mail, Lock, User, ShieldCheck, CreditCard, Search, Check, X } from 'lucide-react';
+import { 
+  LogIn, UserPlus, Clock, CheckCircle2, AlertCircle, Phone, Mail, Lock, User, 
+  ShieldCheck, CreditCard, Search, Check, X, ArrowLeft, KeyRound, Eye, EyeOff, RefreshCw 
+} from 'lucide-react';
 
 export default function Login() {
-  const [mode, setMode] = useState('login'); // 'login' | 'register'
+  const [mode, setMode] = useState('login'); // 'login' | 'register' | 'forgot'
   
   // Login State
   const [email, setEmail] = useState('');
@@ -22,11 +25,31 @@ export default function Login() {
   const [verifyingDni, setVerifyingDni] = useState(false);
   const [dniFeedback, setDniFeedback] = useState(null);
 
+  // Forgot Password State (Estilo Jufra Pomalca - OTP 6 dígitos)
+  const [forgotStep, setForgotStep] = useState(1); // 1: Solicitar, 2: Código OTP, 3: Nueva contraseña, 4: Éxito
+  const [forgotUserOrEmail, setForgotUserOrEmail] = useState('');
+  const [forgotCode, setForgotCode] = useState('');
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
+  const [forgotMaskedEmail, setForgotMaskedEmail] = useState('');
+  const [forgotSuccessMsg, setForgotSuccessMsg] = useState('');
+  const [showForgotPass, setShowForgotPass] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+
   // General States
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const { login, register } = useAuth();
   const navigate = useNavigate();
+
+  // Temporizador para reenvío de código OTP
+  useEffect(() => {
+    let timer;
+    if (countdown > 0) {
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [countdown]);
 
   // Mostrar mensaje si se cerró sesión automáticamente (ej. expiración de 8 horas)
   useEffect(() => {
@@ -43,6 +66,13 @@ export default function Login() {
   const hasNumber = /\d/.test(regPassword);
   const passwordsMatch = regPassword.length > 0 && regPassword === regConfirmPassword;
   const isPasswordValid = hasMinLength && hasLetter && hasNumber;
+
+  // Validación de contraseña para recuperación
+  const forgotHasMinLength = forgotNewPassword.length >= 8;
+  const forgotHasLetter = /[a-zA-Z]/.test(forgotNewPassword);
+  const forgotHasNumber = /\d/.test(forgotNewPassword);
+  const forgotPasswordsMatch = forgotNewPassword.length > 0 && forgotNewPassword === forgotConfirmPassword;
+  const isForgotPassValid = forgotHasMinLength && forgotHasLetter && forgotHasNumber && forgotPasswordsMatch;
 
   // Verificación dinámica de DNI con el Padrón de Voluntarios
   const handleDniChange = async (val) => {
@@ -169,6 +199,123 @@ export default function Login() {
     }
   };
 
+  // Manejador 1: Solicitar código de recuperación (Paso 1)
+  const handleForgotRequestCode = async (e) => {
+    if (e) e.preventDefault();
+    setError(null);
+
+    const cleanInput = forgotUserOrEmail.trim();
+    if (!cleanInput) {
+      setError('Por favor ingresa tu DNI o Correo electrónico registrado.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const res = await fetch(`${apiUrl}/api/auth/recuperar-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usernameOrEmail: cleanInput })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.msg || 'No se pudo enviar el código. Verifica los datos ingresados.');
+        return;
+      }
+
+      setForgotMaskedEmail(data.maskedEmail || cleanInput);
+      setForgotStep(2);
+      setCountdown(60);
+      setError(null);
+    } catch (err) {
+      console.error(err);
+      setError('Error al conectar con el servidor.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Manejador 2: Verificar código de 6 dígitos (Paso 2)
+  const handleForgotVerifyCode = async (e) => {
+    e.preventDefault();
+    setError(null);
+
+    const cleanCode = forgotCode.trim();
+    if (cleanCode.length !== 6) {
+      setError('Por favor ingresa el código completo de 6 dígitos.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const res = await fetch(`${apiUrl}/api/auth/verificar-codigo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          usernameOrEmail: forgotUserOrEmail.trim(),
+          codigo: cleanCode
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.msg || 'Código inválido o expirado.');
+        return;
+      }
+
+      setForgotStep(3);
+      setError(null);
+    } catch (err) {
+      console.error(err);
+      setError('Error al verificar el código.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Manejador 3: Restablecer contraseña con código (Paso 3)
+  const handleForgotResetPassword = async (e) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!isForgotPassValid) {
+      setError('Verifica que la contraseña cumpla los requisitos de seguridad y que ambas coincidan.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const res = await fetch(`${apiUrl}/api/auth/reset-password`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          usernameOrEmail: forgotUserOrEmail.trim(),
+          codigo: forgotCode.trim(),
+          newPassword: forgotNewPassword
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.msg || 'Error al restablecer la contraseña.');
+        return;
+      }
+
+      setForgotSuccessMsg(data.msg || '¡Contraseña restablecida exitosamente!');
+      setForgotStep(4);
+      setError(null);
+    } catch (err) {
+      console.error(err);
+      setError('Error inesperado al restablecer la contraseña.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const isPendingError = error && (error.includes('pendiente') || error.includes('aprobación'));
 
   return (
@@ -193,7 +340,7 @@ export default function Login() {
         </div>
 
         {/* PESTAÑAS (LOGIN vs REGISTRO) */}
-        {!regSuccess && (
+        {!regSuccess && mode !== 'forgot' && (
           <div className="grid grid-cols-2 p-1 bg-stone-100 rounded-2xl mb-6 border border-stone-200">
             <button
               type="button"
@@ -298,9 +445,23 @@ export default function Login() {
             </div>
             
             <div>
-              <label className="block text-xs font-bold text-stone-700 mb-1">
-                Contraseña
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-stone-700">
+                  Contraseña
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('forgot');
+                    setForgotStep(1);
+                    setError(null);
+                    setForgotUserOrEmail(email);
+                  }}
+                  className="text-[11px] font-semibold text-diocesis-red hover:text-diocesis-redDark hover:underline cursor-pointer"
+                >
+                  ¿Olvidaste tu contraseña?
+                </button>
+              </div>
               <div className="relative">
                 <Lock className="w-4 h-4 text-stone-400 absolute left-3 top-3 pointer-events-none" />
                 <input 
@@ -339,6 +500,273 @@ export default function Login() {
               </button>
             </div>
           </form>
+        ) : mode === 'forgot' ? (
+          /* ================================================================= */
+          /* MÓDULO DE RECUPERACIÓN / CAMBIO DE CONTRASEÑA (ESTILO JUFRA POMALCA) */
+          /* ================================================================= */
+          <div className="space-y-4">
+            
+            {/* Botón superior Volver */}
+            {forgotStep !== 4 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (forgotStep === 1) {
+                    setMode('login');
+                    setError(null);
+                  } else {
+                    setForgotStep(forgotStep - 1);
+                    setError(null);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-stone-500 hover:text-stone-900 transition cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                {forgotStep === 1 ? 'Volver a Iniciar Sesión' : 'Atrás'}
+              </button>
+            )}
+
+            {/* PASO 1: SOLICITAR CÓDIGO */}
+            {forgotStep === 1 && (
+              <form onSubmit={handleForgotRequestCode} className="space-y-4">
+                <div className="text-center pb-2">
+                  <div className="w-12 h-12 bg-amber-100 text-amber-800 rounded-2xl flex items-center justify-center mx-auto mb-2 border border-amber-200 shadow-xs">
+                    <KeyRound className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-base font-extrabold text-stone-900">
+                    Recuperar Contraseña
+                  </h3>
+                  <p className="text-xs text-stone-500 mt-1 leading-relaxed px-2">
+                    Ingresa tu <strong>DNI o Correo electrónico</strong> registrado para enviarte un código de seguridad de 6 dígitos.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 mb-1">
+                    DNI o Correo Electrónico
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-stone-400 absolute left-3 top-3 pointer-events-none" />
+                    <input
+                      type="text"
+                      required
+                      value={forgotUserOrEmail}
+                      onChange={(e) => setForgotUserOrEmail(e.target.value)}
+                      placeholder="Ej. 72849102 o correo@ejemplo.com"
+                      className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white transition"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-2.5 bg-diocesis-red hover:bg-diocesis-redDark text-white rounded-xl text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                >
+                  {loading ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <KeyRound className="w-4 h-4" />
+                      Enviar Código de Seguridad
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
+
+            {/* PASO 2: VERIFICAR CÓDIGO OTP (6 DÍGITOS) */}
+            {forgotStep === 2 && (
+              <form onSubmit={handleForgotVerifyCode} className="space-y-4">
+                <div className="text-center pb-2">
+                  <div className="w-12 h-12 bg-emerald-100 text-emerald-800 rounded-2xl flex items-center justify-center mx-auto mb-2 border border-emerald-200 shadow-xs">
+                    <ShieldCheck className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-base font-extrabold text-stone-900">
+                    Ingresa el Código de 6 Dígitos
+                  </h3>
+                  <p className="text-xs text-stone-600 mt-1 leading-relaxed px-2">
+                    Enviamos un código de seguridad a <strong className="text-stone-900">{forgotMaskedEmail}</strong>. Revisa tu bandeja de entrada o spam.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 mb-1 text-center">
+                    Código de Seguridad
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    value={forgotCode}
+                    onChange={(e) => setForgotCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="123456"
+                    className="w-full text-center py-2.5 text-xl tracking-[0.4em] font-mono font-black bg-stone-50 border-2 border-stone-300 focus:border-amber-500 rounded-xl focus:outline-none focus:bg-white transition"
+                  />
+                  <p className="text-[11px] text-stone-400 text-center mt-1">
+                    Validez por 15 minutos
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading || forgotCode.length !== 6}
+                  className="w-full py-2.5 bg-diocesis-red hover:bg-diocesis-redDark text-white rounded-xl text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                >
+                  {loading ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Verificar Código
+                    </>
+                  )}
+                </button>
+
+                {/* Opción de reenvío con temporizador */}
+                <div className="text-center pt-1">
+                  {countdown > 0 ? (
+                    <span className="text-xs text-stone-400 flex items-center justify-center gap-1 font-medium">
+                      <Clock className="w-3.5 h-3.5" /> Reenviar código en {countdown}s
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={handleForgotRequestCode}
+                      className="text-xs text-diocesis-red hover:underline font-bold transition cursor-pointer"
+                    >
+                      ¿No te llegó el correo? Reenviar código
+                    </button>
+                  )}
+                </div>
+              </form>
+            )}
+
+            {/* PASO 3: NUEVA CONTRASEÑA */}
+            {forgotStep === 3 && (
+              <form onSubmit={handleForgotResetPassword} className="space-y-4">
+                <div className="text-center pb-2">
+                  <div className="w-12 h-12 bg-amber-100 text-amber-800 rounded-2xl flex items-center justify-center mx-auto mb-2 border border-amber-200 shadow-xs">
+                    <Lock className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-base font-extrabold text-stone-900">
+                    Crea tu Nueva Contraseña
+                  </h3>
+                  <p className="text-xs text-stone-500 mt-1 leading-relaxed px-2">
+                    Ingresa una nueva contraseña segura para acceder a tu cuenta.
+                  </p>
+                </div>
+
+                {/* Nueva Contraseña */}
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 mb-1">
+                    Nueva Contraseña
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-stone-400 absolute left-3 top-3 pointer-events-none" />
+                    <input
+                      type={showForgotPass ? 'text' : 'password'}
+                      required
+                      value={forgotNewPassword}
+                      onChange={(e) => setForgotNewPassword(e.target.value)}
+                      placeholder="Mínimo 8 caracteres"
+                      className="w-full pl-9 pr-10 py-2 text-xs sm:text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white transition"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotPass(!showForgotPass)}
+                      className="absolute right-3 top-2.5 text-stone-400 hover:text-stone-600"
+                    >
+                      {showForgotPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirmar Nueva Contraseña */}
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 mb-1">
+                    Confirmar Nueva Contraseña
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-stone-400 absolute left-3 top-3 pointer-events-none" />
+                    <input
+                      type={showForgotPass ? 'text' : 'password'}
+                      required
+                      value={forgotConfirmPassword}
+                      onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                      placeholder="Repite la contraseña"
+                      className="w-full pl-9 pr-10 py-2 text-xs sm:text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white transition"
+                    />
+                  </div>
+                </div>
+
+                {/* Checklist de requisitos de seguridad */}
+                <div className="p-3 bg-stone-50 border border-stone-200 rounded-2xl text-[11px] space-y-1.5">
+                  <div className={`flex items-center gap-1.5 font-medium ${forgotHasMinLength ? 'text-emerald-700 font-bold' : 'text-stone-500'}`}>
+                    {forgotHasMinLength ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <X className="w-3.5 h-3.5 text-stone-400" />}
+                    <span>Mínimo 8 caracteres</span>
+                  </div>
+                  <div className={`flex items-center gap-1.5 font-medium ${forgotHasLetter && forgotHasNumber ? 'text-emerald-700 font-bold' : 'text-stone-500'}`}>
+                    {forgotHasLetter && forgotHasNumber ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <X className="w-3.5 h-3.5 text-stone-400" />}
+                    <span>Contiene letras y números</span>
+                  </div>
+                  <div className={`flex items-center gap-1.5 font-medium ${forgotPasswordsMatch ? 'text-emerald-700 font-bold' : 'text-stone-500'}`}>
+                    {forgotPasswordsMatch ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <X className="w-3.5 h-3.5 text-stone-400" />}
+                    <span>Las contraseñas coinciden</span>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading || !isForgotPassValid}
+                  className="w-full py-2.5 bg-diocesis-red hover:bg-diocesis-redDark text-white rounded-xl text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                >
+                  {loading ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      Restablecer Contraseña
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
+
+            {/* PASO 4: ÉXITO */}
+            {forgotStep === 4 && (
+              <div className="text-center py-4 space-y-4">
+                <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto border-4 border-emerald-200 shadow-inner">
+                  <CheckCircle2 className="w-9 h-9" />
+                </div>
+
+                <div>
+                  <h3 className="text-base font-extrabold text-stone-900">
+                    ¡Contraseña Restablecida!
+                  </h3>
+                  <p className="text-xs text-stone-600 mt-2 leading-relaxed px-2">
+                    {forgotSuccessMsg || 'Tu contraseña ha sido actualizada con éxito.'}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail(forgotUserOrEmail);
+                    setPassword('');
+                    setMode('login');
+                    setForgotStep(1);
+                    setError(null);
+                  }}
+                  className="w-full py-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-bold transition shadow cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <LogIn className="w-4 h-4" />
+                  Iniciar Sesión Ahora
+                </button>
+              </div>
+            )}
+          </div>
         ) : (
           /* FORMULARIO DE SOLICITUD DE ACCESO VINCULADA A DNI */
           <form onSubmit={handleRegister} className="space-y-3.5">
