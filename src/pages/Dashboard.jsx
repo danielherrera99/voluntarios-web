@@ -31,8 +31,10 @@ import {
   Check,
   Trash2,
   Mail,
-  Shield
+  Shield,
+  FileSpreadsheet
 } from 'lucide-react';
+import * as xlsx from 'xlsx';
 
 // Portal Oficial de Consulta Pública
 const PORTAL_CONSULTA_URL = "https://amigosdeleoncix.onrender.com/";
@@ -134,6 +136,10 @@ export default function Dashboard() {
   // Estado de sincronización en vivo
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState(null);
+
+  // Estado para exportación dinámica a Excel
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
 
   // Modal de detalle
   const [selectedVoluntario, setSelectedVoluntario] = useState(null);
@@ -298,6 +304,196 @@ export default function Dashboard() {
         body: JSON.stringify({ accion, detalles })
       }).catch(e => console.warn('Audit error:', e));
     } catch (e) {}
+  };
+
+  // Exportar a Excel según los filtros activos en tiempo real
+  const handleExportExcel = async () => {
+    if (exporting) return;
+    setExporting(true);
+    setExportProgress(0);
+
+    try {
+      const isFase2 = activeTab === 'fase2';
+      const tableName = isFase2 ? 'voluntarios' : 'voluntarios_general';
+
+      // 1. Construir la consulta respetando todos los filtros activos
+      let query = supabase.from(tableName).select('*');
+
+      if (debouncedSearch) {
+        if (/^\d+$/.test(debouncedSearch)) {
+          query = query.ilike('dni', `%${debouncedSearch}%`);
+        } else {
+          query = query.or(`nombres_apellidos.ilike.%${debouncedSearch}%,dni.ilike.%${debouncedSearch}%`);
+        }
+      }
+
+      if (isFase2 && statusFilter !== 'ALL') {
+        if (statusFilter === 'PENDIENTE') {
+          query = query.or('estado.eq.PENDIENTE,estado.is.null');
+        } else {
+          query = query.eq('estado', statusFilter);
+        }
+      }
+
+      if (activeTab === 'sin_fase2') {
+        if (contactFilter === 'CONTACTADOS') {
+          query = query.eq('estado', 'CONTACTADO');
+        } else if (contactFilter === 'NO_CONTACTADOS') {
+          query = query.eq('estado', 'SIN_FASE2');
+        } else if (contactFilter === 'SIN_WHATSAPP') {
+          query = query.eq('tiene_whatsapp', false).or('estado.eq.SIN_FASE2,estado.eq.CONTACTADO');
+        } else {
+          query = query.or('estado.eq.SIN_FASE2,estado.eq.CONTACTADO');
+        }
+      }
+
+      if (activeTab === 'fase1' && fase1Filter !== 'ALL') {
+        if (fase1Filter === 'SIN_FASE2') {
+          query = query.or('estado.eq.SIN_FASE2,estado.eq.CONTACTADO');
+        } else if (fase1Filter === 'SIN_WHATSAPP') {
+          query = query.eq('tiene_whatsapp', false);
+        } else {
+          query = query.eq('estado', fase1Filter);
+        }
+      }
+
+      if (activeTab !== 'fase2' && collaboratorFilter !== 'ALL') {
+        if (collaboratorFilter === 'UNASSIGNED') {
+          query = query.or('fase.is.null,fase.eq.Sin asignar');
+        } else {
+          query = query.eq('fase', collaboratorFilter);
+        }
+      }
+
+      query = query.order('nombres_apellidos', { ascending: true });
+
+      // 2. Descargar en lotes de 1000
+      let allExportRows = [];
+      let page = 0;
+      const batchSize = 1000;
+
+      while (true) {
+        const { data: chunk, error } = await query.range(page * batchSize, (page + 1) * batchSize - 1);
+        if (error) throw error;
+        if (!chunk || chunk.length === 0) break;
+        allExportRows.push(...chunk);
+        setExportProgress(allExportRows.length);
+        if (chunk.length < batchSize) break;
+        page++;
+      }
+
+      if (allExportRows.length === 0) {
+        alert('No se encontraron registros con los filtros seleccionados.');
+        return;
+      }
+
+      // 3. Formatear datos para el archivo Excel
+      const excelData = allExportRows.map((r, idx) => {
+        if (isFase2) {
+          return {
+            'N°': idx + 1,
+            'Código': r.codigo || '',
+            'DNI / Documento': r.dni || '',
+            'Nombres y Apellidos': r.nombres_apellidos || '',
+            'Estado': r.estado || 'PENDIENTE',
+            'Info Validada': r.info_validada ? 'SÍ' : 'NO',
+            'Comisión / Servicio': r.servicio || '',
+            'Área': r.departamento || '',
+            'Teléfono': r.telefono || '',
+            'Correo': r.correo || '',
+            'Distrito': r.distrito || '',
+            'Jurisdicción': r.jurisdiccion || '',
+            'Talla': r.talla || '',
+            'Observaciones': r.observacion || ''
+          };
+        } else {
+          let estadoTexto = 'Pendiente de Contactar';
+          if (r.estado === 'CONTACTADO') estadoTexto = 'Contactado';
+          else if (r.estado === 'CON_FASE2') estadoTexto = 'Ya llenó Fase 2';
+
+          return {
+            'N°': idx + 1,
+            'Código': r.codigo || '',
+            'DNI / Documento': r.dni || '',
+            'Nombres y Apellidos': r.nombres_apellidos || '',
+            '¿Tiene WhatsApp?': r.tiene_whatsapp === false ? 'NO' : 'SÍ',
+            'Estado de Contacto': estadoTexto,
+            'Asignado a': r.fase || 'Sin asignar',
+            'Teléfono / Celular': r.telefono || '',
+            'Correo Electrónico': r.correo || '',
+            'Edad': r.edad || '',
+            'Fecha Nacimiento': r.fecha_nacimiento || '',
+            'Departamento': r.departamento || '',
+            'Provincia': r.provincia || '',
+            'Distrito': r.distrito || '',
+            'Dirección': r.direccion || '',
+            'Jurisdicción': r.jurisdiccion || '',
+            'Comisión / Servicio': r.servicio || '',
+            'Talla': r.talla || '',
+            'Líder de Comisión': r.lider_nombre || '',
+            'Coordinador de Cuadrilla': r.coordinador_nombre || '',
+            'Código Cuadrilla': r.cuadrilla_codigo || ''
+          };
+        }
+      });
+
+      // 4. Crear libro y hoja con SheetJS
+      const ws = xlsx.utils.json_to_sheet(excelData);
+
+      // Calcular anchos de columna automáticamente
+      const colWidths = Object.keys(excelData[0] || {}).map(key => {
+        let maxLen = key.length;
+        for (let i = 0; i < Math.min(excelData.length, 50); i++) {
+          const val = excelData[i][key];
+          if (val) maxLen = Math.max(maxLen, String(val).length);
+        }
+        return { wch: Math.min(Math.max(maxLen + 3, 10), 40) };
+      });
+      ws['!cols'] = colWidths;
+
+      const wb = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(wb, ws, isFase2 ? 'Fase 2' : 'Voluntarios');
+
+      // 5. Nombre descriptivo y limpio según los filtros
+      let tag = activeTab;
+      if (activeTab === 'sin_fase2') {
+        if (contactFilter === 'SIN_WHATSAPP') tag = 'Sin_WhatsApp_Para_Correo';
+        else if (contactFilter === 'CONTACTADOS') tag = 'Contactados';
+        else if (contactFilter === 'NO_CONTACTADOS') tag = 'Pendientes_Contactar';
+        else tag = 'Sin_Fase2';
+      } else if (activeTab === 'fase1' && fase1Filter === 'SIN_WHATSAPP') {
+        tag = 'Sin_WhatsApp_Para_Correo';
+      }
+      if (collaboratorFilter !== 'ALL') {
+        tag += `_${collaboratorFilter.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      }
+      if (debouncedSearch) {
+        tag += `_busqueda`;
+      }
+
+      const dateStr = new Date().toISOString().split('T')[0];
+      const filename = `Voluntariado_${tag}_${dateStr}.xlsx`;
+
+      xlsx.writeFile(wb, filename);
+
+      // 6. Registrar en el historial de auditoría
+      sendAudit('EXPORTAR_EXCEL', {
+        pestana: activeTab,
+        filtroFase1: fase1Filter,
+        filtroContacto: contactFilter,
+        colaborador: collaboratorFilter,
+        busqueda: debouncedSearch || null,
+        totalExportados: excelData.length,
+        archivo: filename
+      });
+
+    } catch (err) {
+      console.error('Error al exportar a Excel:', err);
+      alert('Error generando el archivo Excel: ' + err.message);
+    } finally {
+      setExporting(false);
+      setExportProgress(0);
+    }
   };
 
   // Cambiar estado de Contactado / No Contactado con el switch
@@ -1035,14 +1231,34 @@ export default function Dashboard() {
         <div className="bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden">
           
           {/* Header de la Tabla */}
-          <div className="px-6 py-4 border-b border-stone-200 flex items-center justify-between bg-stone-50/50">
+          <div className="px-6 py-4 border-b border-stone-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-stone-50/50">
             <div className="text-xs font-bold text-stone-600">
               Mostrando <span className="text-diocesis-redDark font-extrabold">{records.length}</span> de{' '}
-              <span className="text-diocesis-redDark font-extrabold">{totalRecords.toLocaleString()}</span> registros
-              {debouncedSearch && <span> (filtrado por "{debouncedSearch}")</span>}
+              <span className="text-stone-900 font-extrabold">{totalRecords.toLocaleString()}</span> registros
+              {debouncedSearch && <span className="text-stone-500 font-normal"> (filtrado por "{debouncedSearch}")</span>}
+              <span className="text-stone-400 font-normal ml-2">• Página {currentPage} de {totalPages}</span>
             </div>
-            <div className="text-xs text-stone-500 font-semibold">
-              Página {currentPage} de {totalPages}
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                disabled={exporting || totalRecords === 0}
+                className="inline-flex items-center justify-center gap-2 px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white rounded-xl text-xs font-bold shadow-sm transition disabled:opacity-50 cursor-pointer"
+                title="Descargar todos los registros filtrados en formato Excel (.xlsx)"
+              >
+                {exporting ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
+                    <span>Generando Excel ({exportProgress} / {totalRecords})...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+                    <span>Exportar Excel ({totalRecords.toLocaleString()})</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
 
