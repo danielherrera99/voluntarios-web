@@ -94,6 +94,7 @@ export default function Dashboard() {
   const [fase1Filter, setFase1Filter] = useState('ALL'); // Para Fase 1: 'ALL', 'SIN_FASE2', 'CON_FASE2'
   const [contactFilter, setContactFilter] = useState('ALL'); // Para Sin Fase 2: 'ALL', 'NO_CONTACTADOS', 'CONTACTADOS'
   const [collaboratorFilter, setCollaboratorFilter] = useState('ALL'); // 'ALL', 'UNASSIGNED', o nombre del colaborador
+  const [jurisdiccionFilter, setJurisdiccionFilter] = useState('ALL'); // 'ALL', 'Santa Cruz', 'Chiclayo', etc.
   const [updatingId, setUpdatingId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -156,7 +157,7 @@ export default function Dashboard() {
   // Reset de página al cambiar de pestaña o filtro
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, statusFilter, fase1Filter, contactFilter, collaboratorFilter]);
+  }, [activeTab, statusFilter, fase1Filter, contactFilter, collaboratorFilter, jurisdiccionFilter]);
 
   // Cargar estadísticas globales una sola vez o al sincronizar
   const fetchGlobalStats = useCallback(async () => {
@@ -274,6 +275,11 @@ export default function Dashboard() {
         }
       }
 
+      // Filtro por Jurisdicción (para Fase 1, Sin Fase 2, y Fase 2)
+      if (jurisdiccionFilter !== 'ALL') {
+        query = query.ilike('jurisdiccion', `%${jurisdiccionFilter}%`);
+      }
+
       // Orden y rango de paginación
       query = query.order('nombres_apellidos', { ascending: true }).range(from, to);
 
@@ -287,7 +293,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, currentPage, pageSize, debouncedSearch, statusFilter, fase1Filter, contactFilter, collaboratorFilter]);
+  }, [activeTab, currentPage, pageSize, debouncedSearch, statusFilter, fase1Filter, contactFilter, collaboratorFilter, jurisdiccionFilter]);
 
   // Enviar evento de auditoría en segundo plano
   const sendAudit = (accion, detalles) => {
@@ -363,6 +369,10 @@ export default function Dashboard() {
         } else {
           query = query.eq('fase', collaboratorFilter);
         }
+      }
+
+      if (jurisdiccionFilter !== 'ALL') {
+        query = query.ilike('jurisdiccion', `%${jurisdiccionFilter}%`);
       }
 
       query = query.order('nombres_apellidos', { ascending: true });
@@ -467,6 +477,9 @@ export default function Dashboard() {
       if (collaboratorFilter !== 'ALL') {
         tag += `_${collaboratorFilter.replace(/[^a-zA-Z0-9]/g, '_')}`;
       }
+      if (jurisdiccionFilter !== 'ALL') {
+        tag += `_${jurisdiccionFilter.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      }
       if (debouncedSearch) {
         tag += `_busqueda`;
       }
@@ -482,6 +495,7 @@ export default function Dashboard() {
         filtroFase1: fase1Filter,
         filtroContacto: contactFilter,
         colaborador: collaboratorFilter,
+        filtroJurisdiccion: jurisdiccionFilter,
         busqueda: debouncedSearch || null,
         totalExportados: excelData.length,
         archivo: filename
@@ -1116,8 +1130,8 @@ export default function Dashboard() {
             {/* Buscador por DNI / Nombres */}
             <div className={`relative ${
               activeTab !== 'fase2' && collaboratorsStats.length > 0 
-                ? 'md:col-span-4 lg:col-span-4' 
-                : 'md:col-span-6 lg:col-span-7'
+                ? 'md:col-span-3 lg:col-span-3' 
+                : 'md:col-span-4 lg:col-span-4'
             }`}>
               <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
@@ -1139,7 +1153,7 @@ export default function Dashboard() {
 
             {/* Filtro de estado según la pestaña activa */}
             {activeTab === 'fase2' ? (
-              <div className="md:col-span-4 lg:col-span-3">
+              <div className="md:col-span-3 lg:col-span-3">
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
@@ -1182,7 +1196,7 @@ export default function Dashboard() {
 
             {/* Filtro por Colaborador Asignado (solo para Fase 1 y Sin Fase 2) */}
             {activeTab !== 'fase2' && (
-              <div className="md:col-span-3 lg:col-span-3">
+              <div className="md:col-span-2 lg:col-span-2">
                 <select
                   value={collaboratorFilter}
                   onChange={(e) => {
@@ -1191,7 +1205,7 @@ export default function Dashboard() {
                   }}
                   className="w-full py-2.5 px-3 bg-purple-50/70 border border-purple-300 rounded-xl text-sm font-bold text-purple-900 focus:outline-none focus:ring-2 focus:ring-purple-400"
                 >
-                  <option value="ALL">👥 Todos los colaboradores</option>
+                  <option value="ALL">👥 Colaboradores</option>
                   <option value="UNASSIGNED">⚪ Sin Asignar</option>
                   {collaboratorsStats.map(c => {
                     const faltan = c.pendientes || 0;
@@ -1199,8 +1213,8 @@ export default function Dashboard() {
                     return (
                       <option key={c.name} value={c.name}>
                         {faltan === 0 
-                          ? `👤 ${c.name} (✓ Al día • ${hechos} contactados)` 
-                          : `👤 ${c.name} (⏳ Faltan: ${faltan} • ${hechos} contactados • ${c.porcentaje}%)`
+                          ? `👤 ${c.name} (✓ ${hechos})` 
+                          : `👤 ${c.name} (⏳ ${faltan} • ${hechos})`
                         }
                       </option>
                     );
@@ -1208,6 +1222,29 @@ export default function Dashboard() {
                 </select>
               </div>
             )}
+
+            {/* Filtro por Jurisdicción (para Fase 1, Sin Fase 2 y Fase 2) */}
+            <div className={activeTab === 'fase2' ? 'md:col-span-3 lg:col-span-3' : 'md:col-span-2 lg:col-span-2'}>
+              <select
+                value={jurisdiccionFilter}
+                onChange={(e) => {
+                  setJurisdiccionFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className={`w-full py-2.5 px-3 rounded-xl text-sm font-semibold border transition focus:outline-none focus:ring-2 ${
+                  jurisdiccionFilter !== 'ALL'
+                    ? 'bg-amber-100/90 border-amber-400 text-amber-900 font-bold focus:ring-amber-500 shadow-xs'
+                    : 'bg-stone-50 border-stone-300 text-stone-700 focus:ring-diocesis-mustard'
+                }`}
+              >
+                <option value="ALL">🏛️ Todas las Jurisdicciones</option>
+                <option value="Santa Cruz">📍 Santa Cruz – Chiclayo</option>
+                <option value="Chiclayo">Chiclayo</option>
+                <option value="Lima">Lima</option>
+                <option value="Cusco">Cusco</option>
+                <option value="Pucallpa">Pucallpa</option>
+              </select>
+            </div>
 
             {/* Selector de cantidad por página */}
             <div className="md:col-span-2 lg:col-span-2">
@@ -1322,7 +1359,20 @@ export default function Dashboard() {
 
                         {/* Nombres y Apellidos */}
                         <td className="py-3 px-4 font-semibold text-stone-900">
-                          {cleanVolunteerName(r.nombres_apellidos)}
+                          <div>{cleanVolunteerName(r.nombres_apellidos)}</div>
+                          {activeTab === 'fase2' && r.jurisdiccion && (
+                            <div className="mt-0.5">
+                              {r.jurisdiccion.toLowerCase().includes('santa cruz') ? (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                  📍 Santa Cruz – Chiclayo
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-stone-400 font-medium">
+                                  🏛️ {r.jurisdiccion}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </td>
 
                         {/* Servicio */}
@@ -1551,7 +1601,14 @@ export default function Dashboard() {
 
                             {/* Distrito y Código */}
                             <td className="py-3 px-4 text-xs text-stone-600">
-                              <div>{r.distrito || r.jurisdiccion || '-'}</div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span>{r.distrito || r.jurisdiccion || '-'}</span>
+                                {r.jurisdiccion && r.jurisdiccion.toLowerCase().includes('santa cruz') && (
+                                  <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                    Santa Cruz
+                                  </span>
+                                )}
+                              </div>
                               {r.codigo && <span className="text-[10px] text-stone-400 font-mono">Cód: {r.codigo}</span>}
                             </td>
 
