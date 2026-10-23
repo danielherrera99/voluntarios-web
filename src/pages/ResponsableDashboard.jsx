@@ -3,13 +3,14 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabase';
 import { 
   Award, Shield, Users, CheckCircle2, Clock, Search, 
-  FileSpreadsheet, RefreshCw, LogOut, Check, X, ChevronDown, ChevronRight
+  FileSpreadsheet, RefreshCw, LogOut, Check, X, ChevronDown, ChevronRight,
+  AlertTriangle, HeartPulse, Droplets, ShieldAlert, Sparkles, Coffee
 } from 'lucide-react';
 import * as xlsx from 'xlsx';
 
 export default function ResponsableDashboard() {
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState('estructura'); // 'estructura' | 'solicitudes'
+  const [activeTab, setActiveTab] = useState('supervision'); // 'supervision' | 'estructura' | 'solicitudes'
   const [mandos, setMandos] = useState([]);
   const [solicitudes, setSolicitudes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,6 +18,13 @@ export default function ResponsableDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedLideres, setExpandedLideres] = useState({});
   const [actionMsg, setActionMsg] = useState(null);
+
+  // Estados interactivos Día D del Responsable
+  const [liderPresencia, setLiderPresencia] = useState({});
+  const [incidenciasMacro, setIncidenciasMacro] = useState([
+    { id: 1, lider: 'Líder Sector Norte', tipo: 'hidratacion', desc: 'Se requiere refuerzo de 20 cajas de agua en cuadrillas 01 al 10', hora: '08:20 AM', estado: 'atendiendo' },
+    { id: 2, lider: 'Líder Sector Sur', tipo: 'medica', desc: 'Voluntario atendido por insolación en carpa médica 2', hora: '09:05 AM', estado: 'controlado' }
+  ]);
 
   const responsableNombre = user?.responsable_nombre || user?.nombre || 'Responsable General';
   const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
@@ -83,6 +91,15 @@ export default function ResponsableDashboard() {
     }));
   };
 
+  const togglePresenciaLider = (nombre) => {
+    setLiderPresencia(prev => ({
+      ...prev,
+      [nombre]: prev[nombre] === 'presente' ? 'pendiente' : 'presente'
+    }));
+  };
+
+  const totalLideresPresentes = Object.values(liderPresencia).filter(p => p === 'presente').length;
+
   const handleAprobarSolicitud = async (solId, nombrePersona, rolPersona) => {
     setActionLoading(solId);
     setActionMsg(null);
@@ -120,16 +137,16 @@ export default function ResponsableDashboard() {
       const token = localStorage.getItem('token');
       const res = await fetch(`${apiUrl}/api/auth/solicitudes/${solId}/rechazar`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        }
+        headers: { Authorization: `Bearer ${token}` }
       });
 
       const json = await res.json();
-      if (!res.ok) throw new Error(json.msg || 'Error al rechazar');
+      if (!res.ok) throw new Error(json.msg || 'Error al rechazar solicitud');
 
-      setActionMsg({ type: 'info', text: `Solicitud de ${nombrePersona} rechazada.` });
+      setActionMsg({
+        type: 'info',
+        text: `Solicitud de ${nombrePersona} rechazada.`
+      });
       fetchData();
     } catch (err) {
       setActionMsg({ type: 'error', text: err.message });
@@ -141,12 +158,13 @@ export default function ResponsableDashboard() {
   const exportToExcel = () => {
     const data = mandos.map((m, idx) => ({
       '#': idx + 1,
-      'Responsable': m.responsable_nombre,
-      'Líder': m.lider_nombre,
+      'Responsable General': m.responsable_nombre,
+      'Líder de Sector': m.lider_nombre,
       'DNI Líder': m.lider_dni || '',
       'Cuadrilla': m.cuadrilla_codigo,
-      'Nombre del Guía': m.guia_nombre,
+      'Guía de Cuadrilla': m.guia_nombre,
       'DNI Guía': m.guia_dni || '',
+      'Carta Respaldo Líder': m.lider_carta ? 'SÍ' : 'PENDIENTE',
       'Carta Respaldo Guía': m.guia_carta ? 'SÍ' : 'PENDIENTE',
       'Cupo Voluntarios': m.total_voluntarios || 9
     }));
@@ -158,61 +176,73 @@ export default function ResponsableDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-stone-100 flex flex-col font-sans">
-      {/* Top Navbar */}
-      <header className="bg-white border-b border-stone-200 sticky top-0 z-30 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+    <div className="min-h-screen bg-diocesis-cream flex flex-col font-sans text-stone-800">
+      
+      {/* NAVBAR SUPERIOR OFICIAL DIÓCESIS */}
+      <nav className="bg-diocesis-redDark text-white sticky top-0 z-40 shadow-lg border-b-2 border-diocesis-mustard">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-600 text-white flex items-center justify-center font-bold shadow-sm">
-              <Award className="w-5 h-5" />
-            </div>
+            <img 
+              src="/logos/logo_comision_juventud.png" 
+              alt="Diócesis de Chiclayo" 
+              className="w-10 h-10 object-contain drop-shadow"
+            />
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-black tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-950 border border-amber-300 uppercase">
-                  Responsable General
+                <span className="font-title font-bold text-base md:text-lg tracking-wide text-white block leading-tight">
+                  Panel de Responsable General
                 </span>
-                <span className="text-xs font-medium text-stone-500">
-                  DNI: <strong className="font-mono text-stone-800">{user?.dni}</strong>
+                <span className="text-[11px] font-mono font-black px-2 py-0.5 rounded-full bg-diocesis-mustard text-diocesis-redDark shadow-xs uppercase">
+                  Comando Estratégico
                 </span>
               </div>
-              <h1 className="text-sm sm:text-base font-extrabold text-stone-900 leading-tight">
-                {responsableNombre}
-              </h1>
+              <span className="text-xs text-diocesis-mustardLight font-medium">
+                Diócesis de Chiclayo • Visita Papal 2026
+              </span>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
+            <div className="hidden sm:flex flex-col text-right">
+              <span className="text-xs font-bold text-white leading-tight">{responsableNombre}</span>
+              <span className="text-[11px] text-diocesis-mustard font-mono">DNI: {user?.dni}</span>
+            </div>
             <button
               onClick={logout}
-              className="px-3 py-1.5 text-xs font-bold text-stone-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition flex items-center gap-1.5 cursor-pointer border border-transparent hover:border-red-200"
+              className="px-3 py-1.5 text-xs font-bold bg-diocesis-red hover:bg-diocesis-redLight text-white rounded-lg transition flex items-center gap-1.5 cursor-pointer border border-diocesis-mustard/40 shadow-xs"
             >
               <LogOut className="w-3.5 h-3.5" />
-              Cerrar Sesión
+              <span className="hidden sm:inline">Cerrar Sesión</span>
             </button>
           </div>
         </div>
-      </header>
+      </nav>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full space-y-6 flex-1">
         
-        {/* Banner de Sector */}
-        <div className="bg-white rounded-2xl border border-stone-200 p-4 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Banner de Sector con Estilo Diócesis */}
+        <div className="bg-white rounded-2xl border-2 border-diocesis-mustard/40 p-5 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400">
-              Sector General
-            </span>
-            <div className="flex items-center gap-2 text-xs sm:text-sm">
-              <span className="text-stone-500 font-medium">Coordinación Pastoral:</span>
-              <strong className="text-stone-900 font-bold">Diócesis de Chiclayo - Visita Papal 2026</strong>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-diocesis-redDark text-white">
+                Jurisdicción de Sector
+              </span>
+              <span className="text-xs text-stone-500 font-semibold">Comisión Central de Voluntarios:</span>
             </div>
+            <h2 className="text-lg font-black text-diocesis-redDark">
+              🎖️ Coordinador General de Sector: {responsableNombre}
+            </h2>
+            <p className="text-xs text-stone-600">
+              Supervisas directamente a <strong className="text-diocesis-red font-bold">{lideresList.length} Líderes</strong>, <strong className="text-diocesis-red font-bold">{totalGuias} Guías</strong> y un despliegue de hasta <strong className="text-diocesis-red font-bold">{totalCapacidad} voluntarios</strong>.
+            </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={fetchData}
               disabled={loading}
-              className="px-3 py-2 text-xs font-bold text-stone-700 bg-stone-50 hover:bg-stone-100 border border-stone-300 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-2 text-xs font-bold text-diocesis-redDark bg-amber-50 hover:bg-amber-100 border border-diocesis-mustard/50 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               Actualizar
@@ -220,58 +250,70 @@ export default function ResponsableDashboard() {
             <button
               onClick={exportToExcel}
               disabled={mandos.length === 0}
-              className="px-3 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              className="px-3 py-2 text-xs font-bold text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
-              Exportar Sector
+              Exportar Sector Completo
             </button>
           </div>
         </div>
 
-        {/* Tarjetas de Métricas */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-xs">
-            <span className="text-xs font-bold text-stone-500">Líderes de Sector</span>
-            <div className="text-2xl font-black text-amber-900 mt-1">
-              {lideresList.length} <span className="text-xs font-normal text-stone-500">líderes</span>
+        {/* Tarjetas de Métricas con Estilo Diócesis */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="bg-white rounded-2xl border border-diocesis-mustard/40 p-4 shadow-sm hover:border-diocesis-mustard transition">
+            <div className="flex items-center justify-between text-stone-500 mb-1">
+              <span className="text-xs font-bold">Líderes de Sector</span>
+              <Award className="w-4 h-4 text-diocesis-mustard" />
             </div>
-            <p className="text-[11px] text-stone-400 mt-1">Mandos intermedios a cargo</p>
+            <div className="text-2xl sm:text-3xl font-black text-diocesis-redDark font-mono">
+              {lideresList.length}
+            </div>
+            <p className="text-[11px] text-stone-500 mt-1">Mandos tácticos directos</p>
           </div>
 
-          <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-xs">
-            <span className="text-xs font-bold text-stone-500">Total Guías / Cuadrillas</span>
-            <div className="text-2xl font-black text-stone-900 mt-1 font-mono">
+          <div className="bg-white rounded-2xl border border-diocesis-mustard/40 p-4 shadow-sm hover:border-diocesis-mustard transition">
+            <div className="flex items-center justify-between text-stone-500 mb-1">
+              <span className="text-xs font-bold">Guías / Cuadrillas</span>
+              <Shield className="w-4 h-4 text-diocesis-red" />
+            </div>
+            <div className="text-2xl sm:text-3xl font-black text-stone-900 font-mono">
               {totalGuias}
             </div>
-            <p className="text-[11px] text-stone-400 mt-1">Cuadrillas operativas en tu zona</p>
+            <p className="text-[11px] text-stone-500 mt-1">Cuadrillas operativas</p>
           </div>
 
-          <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-xs">
-            <span className="text-xs font-bold text-stone-500">Capacidad Total de Sector</span>
-            <div className="text-2xl font-black text-blue-900 mt-1">
-              {totalCapacidad} <span className="text-xs font-normal text-stone-500">voluntarios</span>
+          <div className="bg-white rounded-2xl border border-diocesis-mustard/40 p-4 shadow-sm hover:border-diocesis-mustard transition">
+            <div className="flex items-center justify-between text-stone-500 mb-1">
+              <span className="text-xs font-bold">Capacidad Total Sector</span>
+              <Users className="w-4 h-4 text-blue-600" />
             </div>
-            <p className="text-[11px] text-stone-400 mt-1">Capacidad máxima proyectada</p>
+            <div className="text-2xl sm:text-3xl font-black text-blue-900 font-mono">
+              {totalCapacidad}
+            </div>
+            <p className="text-[11px] text-stone-500 mt-1">Voluntarios proyectados</p>
           </div>
 
-          <div className={`rounded-2xl border p-4 shadow-xs transition ${
+          <div className={`rounded-2xl border p-4 shadow-sm transition ${
             solicitudes.length > 0 
-              ? 'bg-amber-50/70 border-amber-300' 
-              : 'bg-white border-stone-200'
+              ? 'bg-amber-100/70 border-diocesis-mustard' 
+              : 'bg-white border-diocesis-mustard/40'
           }`}>
-            <span className="text-xs font-bold text-stone-500">Solicitudes por Aprobar</span>
-            <div className="text-2xl font-black mt-1 text-amber-900">
+            <div className="flex items-center justify-between text-stone-500 mb-1">
+              <span className="text-xs font-bold">Solicitudes Pendientes</span>
+              <Clock className="w-4 h-4 text-amber-600" />
+            </div>
+            <div className="text-2xl sm:text-3xl font-black text-amber-900 font-mono">
               {solicitudes.length}
             </div>
-            <p className="text-[11px] text-stone-400 mt-1">
-              {solicitudes.length > 0 ? 'Mandos esperando tu autorización' : 'Sin solicitudes pendientes'}
+            <p className="text-[11px] text-stone-500 mt-1">
+              {solicitudes.length > 0 ? 'Esperando tu aprobación' : 'Todo al día'}
             </p>
           </div>
         </div>
 
         {/* Notificación de acción */}
         {actionMsg && (
-          <div className={`p-3 rounded-xl text-xs font-bold flex items-center justify-between border ${
+          <div className={`p-3 rounded-xl text-xs font-bold flex items-center justify-between border shadow-sm ${
             actionMsg.type === 'success' 
               ? 'bg-emerald-50 text-emerald-900 border-emerald-300' 
               : actionMsg.type === 'error'
@@ -285,188 +327,329 @@ export default function ResponsableDashboard() {
           </div>
         )}
 
-        {/* Pestañas de Navegación */}
-        <div className="flex border-b border-stone-200 gap-2">
+        {/* Pestañas de Navegación con Estilo Diócesis */}
+        <div className="flex border-b-2 border-diocesis-mustard/30 gap-2 overflow-x-auto pb-1">
           <button
-            onClick={() => setActiveTab('estructura')}
-            className={`py-2.5 px-4 text-xs sm:text-sm font-bold border-b-2 transition flex items-center gap-2 cursor-pointer ${
-              activeTab === 'estructura'
-                ? 'border-amber-600 text-amber-950'
-                : 'border-transparent text-stone-500 hover:text-stone-700'
+            onClick={() => setActiveTab('supervision')}
+            className={`py-2.5 px-4 text-xs sm:text-sm font-bold border-b-4 transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+              activeTab === 'supervision'
+                ? 'border-diocesis-redDark text-diocesis-redDark bg-white/70 rounded-t-xl shadow-xs'
+                : 'border-transparent text-stone-600 hover:text-stone-900'
             }`}
           >
-            <Shield className="w-4 h-4" />
-            Estructura del Sector ({lideresList.length} Líderes • {totalGuias} Guías)
+            <Sparkles className="w-4 h-4 text-diocesis-mustard" />
+            Supervisión Día D en Vivo
+          </button>
+
+          <button
+            onClick={() => setActiveTab('estructura')}
+            className={`py-2.5 px-4 text-xs sm:text-sm font-bold border-b-4 transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+              activeTab === 'estructura'
+                ? 'border-diocesis-redDark text-diocesis-redDark bg-white/70 rounded-t-xl shadow-xs'
+                : 'border-transparent text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            Estructura de Mandos ({lideresList.length} Líderes / {totalGuias} Guías)
           </button>
 
           <button
             onClick={() => setActiveTab('solicitudes')}
-            className={`py-2.5 px-4 text-xs sm:text-sm font-bold border-b-2 transition flex items-center gap-2 cursor-pointer ${
+            className={`py-2.5 px-4 text-xs sm:text-sm font-bold border-b-4 transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
               activeTab === 'solicitudes'
-                ? 'border-amber-600 text-amber-950'
-                : 'border-transparent text-stone-500 hover:text-stone-700'
+                ? 'border-diocesis-redDark text-diocesis-redDark bg-white/70 rounded-t-xl shadow-xs'
+                : 'border-transparent text-stone-600 hover:text-stone-900'
             }`}
           >
             <CheckCircle2 className="w-4 h-4" />
             Aprobar Cuentas del Sector
             {solicitudes.length > 0 && (
-              <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
+              <span className="w-5 h-5 rounded-full bg-diocesis-red text-white text-[10px] font-bold flex items-center justify-center">
                 {solicitudes.length}
               </span>
             )}
           </button>
         </div>
 
-        {/* CONTENIDO: TAB ESTRUCTURA */}
+        {/* PESTAÑA 1: SUPERVISIÓN DÍA D (EN VIVO) */}
+        {activeTab === 'supervision' && (
+          <div className="space-y-6">
+            
+            {/* Monitor de Despliegue de Líderes */}
+            <div className="bg-white rounded-2xl border border-diocesis-mustard/40 p-5 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <div>
+                  <h3 className="text-base font-extrabold text-diocesis-redDark flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                    Estado de Despliegue de Líderes en el Terreno
+                  </h3>
+                  <p className="text-xs text-stone-500">
+                    Control de arribo y confirmación de los líderes de sector en sus puntos de control
+                  </p>
+                </div>
+                <span className="text-xs font-mono font-bold px-3 py-1 bg-amber-50 text-amber-900 border border-amber-300 rounded-full w-fit">
+                  {totalLideresPresentes} de {lideresList.length} Líderes Confirmados
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {lideresList.map((lider, idx) => {
+                  const isPresent = liderPresencia[lider.nombre] === 'presente';
+                  return (
+                    <div 
+                      key={idx}
+                      className={`p-4 rounded-xl border transition flex items-center justify-between ${
+                        isPresent 
+                          ? 'bg-emerald-50/80 border-emerald-400 shadow-xs' 
+                          : 'bg-stone-50 border-stone-200 hover:border-diocesis-mustard'
+                      }`}
+                    >
+                      <div className="min-w-0 pr-2">
+                        <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-diocesis-redDark text-white">
+                          Líder #{idx + 1}
+                        </span>
+                        <h4 className="font-bold text-xs sm:text-sm text-stone-900 mt-1 truncate">
+                          {lider.nombre}
+                        </h4>
+                        <div className="text-[11px] text-stone-500 font-mono mt-0.5">
+                          DNI: {lider.dni || 'Sin DNI'} • {lider.guias.length} cuadrillas
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => togglePresenciaLider(lider.nombre)}
+                        className={`px-3 py-1.5 rounded-lg font-extrabold text-xs transition cursor-pointer flex items-center gap-1 ${
+                          isPresent
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
+                            : 'bg-white hover:bg-stone-200 text-stone-700 border border-stone-300'
+                        }`}
+                      >
+                        {isPresent ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            En Puesto
+                          </>
+                        ) : (
+                          'Confirmar'
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Alertas e Incidencias Consolidadas de Sector */}
+            <div className="bg-white rounded-2xl border border-diocesis-mustard/40 p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-base font-extrabold text-diocesis-redDark flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-amber-600" />
+                    Monitor de Incidencias y Soporte de Campo
+                  </h3>
+                  <p className="text-xs text-stone-500">
+                    Incidencias reportadas por los Líderes de tu sector para escalamiento con la Comisión
+                  </p>
+                </div>
+                <span className="text-[11px] font-mono font-bold px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-300 rounded-full">
+                  Canal Abierto
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {incidenciasMacro.map((inc) => (
+                  <div 
+                    key={inc.id}
+                    className="p-4 rounded-xl border border-stone-200 bg-stone-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-diocesis-mustard transition"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase ${
+                          inc.tipo === 'medica' ? 'bg-rose-100 text-rose-800' : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {inc.tipo}
+                        </span>
+                        <strong className="text-xs text-stone-900">{inc.lider}</strong>
+                        <span className="text-[10px] text-stone-400 font-mono">• {inc.hora}</span>
+                      </div>
+                      <p className="text-xs text-stone-700 font-medium">
+                        {inc.desc}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        {inc.estado === 'controlado' ? '✓ Controlado' : '⏳ En Atención'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* PESTAÑA 2: ESTRUCTURA DE MANDOS */}
         {activeTab === 'estructura' && (
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-stone-200">
+            <div className="bg-white rounded-2xl border border-diocesis-mustard/40 p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h3 className="text-sm font-extrabold text-stone-900">
-                  Líderes y Guías del Sector
+                <h3 className="text-sm font-extrabold text-diocesis-redDark">
+                  Organigrama de Mandos de tu Sector
                 </h3>
                 <p className="text-xs text-stone-500">
-                  Haz clic en cualquier Líder para desplegar sus Guías y Cuadrillas asignadas
+                  Despliega cada líder para ver los guías y cuadrillas bajo su mando
                 </p>
               </div>
 
               <input
                 type="text"
-                placeholder="Buscar líder, guía, DNI o cuadrilla..."
+                placeholder="Buscar por líder, guía o cuadrilla..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="px-3 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 w-full sm:w-72"
+                className="px-3 py-1.5 text-xs bg-white border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-diocesis-red w-full sm:w-64"
               />
             </div>
 
             {loading ? (
-              <div className="bg-white rounded-2xl p-12 text-center text-stone-500 border border-stone-200">
-                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-amber-600" />
-                <p className="text-xs font-bold">Cargando árbol de mando del sector...</p>
-              </div>
-            ) : lideresList.length === 0 ? (
-              <div className="bg-white rounded-2xl p-12 text-center text-stone-500 border border-stone-200 text-xs">
-                No se encontraron líderes asignados a este Responsable.
+              <div className="bg-white rounded-2xl border border-stone-200 p-12 text-center text-stone-500">
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-diocesis-red" />
+                <p className="text-xs font-bold">Cargando organigrama del sector...</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {lideresList.map((lider, lIdx) => {
-                  const isExpanded = Boolean(expandedLideres[lider.nombre] || searchTerm);
-                  const matchingGuias = lider.guias.filter(g => {
+                {lideresList
+                  .filter(l => {
                     if (!searchTerm) return true;
-                    const t = searchTerm.toLowerCase();
-                    return (
-                      String(g.guia_nombre || '').toLowerCase().includes(t) ||
-                      String(g.guia_dni || '').toLowerCase().includes(t) ||
-                      String(g.cuadrilla_codigo || '').toLowerCase().includes(t) ||
-                      String(lider.nombre || '').toLowerCase().includes(t)
+                    const term = searchTerm.toLowerCase();
+                    const matchLider = l.nombre.toLowerCase().includes(term) || String(l.dni || '').includes(term);
+                    const matchGuia = l.guias.some(g => 
+                      String(g.guia_nombre || '').toLowerCase().includes(term) ||
+                      String(g.cuadrilla_codigo || '').toLowerCase().includes(term)
                     );
-                  });
+                    return matchLider || matchGuia;
+                  })
+                  .map((lider, idx) => {
+                    const isExpanded = !!expandedLideres[lider.nombre];
+                    const cupoTotalLider = lider.guias.reduce((acc, g) => acc + (g.total_voluntarios || 9), 0);
 
-                  if (searchTerm && matchingGuias.length === 0) return null;
-
-                  return (
-                    <div key={lider.nombre || lIdx} className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-xs">
-                      {/* Cabecera del Líder */}
-                      <button
-                        onClick={() => toggleLider(lider.nombre)}
-                        className="w-full p-4 flex items-center justify-between hover:bg-stone-50/80 transition text-left cursor-pointer"
+                    return (
+                      <div 
+                        key={idx}
+                        className="bg-white rounded-2xl border border-diocesis-mustard/40 shadow-xs overflow-hidden transition"
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs">
-                            {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-200 uppercase">
-                                Líder de Sector
-                              </span>
-                              {lider.dni && (
-                                <span className="text-[11px] font-mono text-stone-500">
-                                  DNI: {lider.dni}
-                                </span>
-                              )}
+                        {/* Cabecera del Líder */}
+                        <div 
+                          onClick={() => toggleLider(lider.nombre)}
+                          className="p-4 flex items-center justify-between cursor-pointer hover:bg-amber-50/50 transition border-b border-stone-100"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-diocesis-redDark text-diocesis-mustardLight flex items-center justify-center font-bold text-xs shadow-xs">
+                              L{idx + 1}
                             </div>
-                            <h4 className="text-sm font-extrabold text-stone-900 mt-0.5">
-                              {lider.nombre}
-                            </h4>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-extrabold text-sm text-stone-900">
+                                  {lider.nombre}
+                                </span>
+                                <span className="text-[11px] font-mono text-stone-500 font-bold">
+                                  DNI: {lider.dni || 'Sin DNI'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-stone-500 mt-0.5">
+                                <span>{lider.guias.length} Guías / Cuadrillas</span>
+                                <span>•</span>
+                                <span className="font-semibold text-diocesis-red">{cupoTotalLider} cupos de voluntarios</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            {lider.carta ? (
+                              <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                Carta: Entregada
+                              </span>
+                            ) : (
+                              <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-100 text-stone-600 border border-stone-300">
+                                Carta: Pendiente
+                              </span>
+                            )}
+                            <button className="text-stone-400 hover:text-stone-700">
+                              {isExpanded ? <ChevronDown className="w-5 h-5 text-diocesis-redDark" /> : <ChevronRight className="w-5 h-5" />}
+                            </button>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-4 text-xs font-bold text-stone-600">
-                          <span className="px-2.5 py-1 rounded-lg bg-stone-100 text-stone-800">
-                            {matchingGuias.length} Guías / Cuadrillas
-                          </span>
-                        </div>
-                      </button>
-
-                      {/* Tabla desplegable de Guías */}
-                      {isExpanded && (
-                        <div className="border-t border-stone-100 bg-stone-50/50 p-3 overflow-x-auto">
-                          <table className="w-full text-left border-collapse text-xs">
-                            <thead>
-                              <tr className="text-stone-500 font-bold uppercase text-[10px] tracking-wider border-b border-stone-200">
-                                <th className="py-2 px-3">Cuadrilla</th>
-                                <th className="py-2 px-3">Nombre del Guía</th>
-                                <th className="py-2 px-3">DNI</th>
-                                <th className="py-2 px-3">Carta Respaldo</th>
-                                <th className="py-2 px-3 text-right">Cupo</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-stone-100">
-                              {matchingGuias.map((g, gi) => (
-                                <tr key={g.id || gi} className="hover:bg-amber-50/30 transition">
-                                  <td className="py-2.5 px-3">
-                                    <span className="font-mono font-bold px-2 py-0.5 rounded-md bg-stone-100 text-stone-800 border border-stone-300">
-                                      {g.cuadrilla_codigo}
-                                    </span>
-                                  </td>
-                                  <td className="py-2.5 px-3 font-bold text-stone-900">{g.guia_nombre}</td>
-                                  <td className="py-2.5 px-3 font-mono font-bold text-stone-600">{g.guia_dni || '-'}</td>
-                                  <td className="py-2.5 px-3">
-                                    {g.guia_carta ? (
-                                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full border border-emerald-200">
-                                        ✓ ENVIADO
-                                      </span>
-                                    ) : (
-                                      <span className="text-[10px] font-bold text-stone-500 bg-stone-100 px-2 py-0.5 rounded-full border border-stone-300">
-                                        PENDIENTE
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td className="py-2.5 px-3 font-bold text-stone-800 text-right">
-                                    {g.total_voluntarios || 9} cupos
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                        {/* Listado de Guías expandido */}
+                        {isExpanded && (
+                          <div className="bg-stone-50/60 p-4 border-t border-stone-100">
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left border-collapse text-xs">
+                                <thead>
+                                  <tr className="text-stone-500 font-bold uppercase text-[10px] border-b border-stone-200">
+                                    <th className="py-2 px-3">Cuadrilla</th>
+                                    <th className="py-2 px-3">Nombre del Guía</th>
+                                    <th className="py-2 px-3">DNI Guía</th>
+                                    <th className="py-2 px-3">Carta Respaldo</th>
+                                    <th className="py-2 px-3 text-right">Cupo</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-stone-200/50">
+                                  {lider.guias.map((g, gIdx) => (
+                                    <tr key={g.id || gIdx} className="hover:bg-white transition">
+                                      <td className="py-2.5 px-3">
+                                        <span className="font-mono font-bold px-2 py-0.5 rounded bg-white text-diocesis-redDark border border-stone-300">
+                                          {g.cuadrilla_codigo}
+                                        </span>
+                                      </td>
+                                      <td className="py-2.5 px-3 font-bold text-stone-900">{g.guia_nombre}</td>
+                                      <td className="py-2.5 px-3 font-mono font-bold text-stone-700">{g.guia_dni || '-'}</td>
+                                      <td className="py-2.5 px-3">
+                                        {g.guia_carta ? (
+                                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                            ✓ Enviado
+                                          </span>
+                                        ) : (
+                                          <span className="text-[10px] font-bold text-stone-500 bg-stone-100 px-2 py-0.5 rounded border border-stone-300">
+                                            Pendiente
+                                          </span>
+                                        )}
+                                      </td>
+                                      <td className="py-2.5 px-3 text-right font-bold text-stone-800">
+                                        {g.total_voluntarios || 9}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </div>
         )}
 
-        {/* CONTENIDO: TAB APROBAR SOLICITUDES (DELEGACIÓN JERÁRQUICA) */}
+        {/* PESTAÑA 3: APROBAR SOLICITUDES DE ACCESO */}
         {activeTab === 'solicitudes' && (
-          <div className="bg-white rounded-2xl border border-stone-200 shadow-xs overflow-hidden">
-            <div className="p-4 border-b border-stone-100">
-              <h3 className="text-sm font-extrabold text-stone-900">
-                Solicitudes de Acceso de tu Sector ({solicitudes.length})
+          <div className="bg-white rounded-2xl border border-diocesis-mustard/40 shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-stone-100 bg-amber-50/40">
+              <h3 className="text-sm font-extrabold text-diocesis-redDark">
+                Solicitudes de Acceso Pendientes ({solicitudes.length})
               </h3>
               <p className="text-xs text-stone-500">
-                Líderes y Guías de tu zona que se registraron con su DNI y requieren tu activación
+                Líderes y Guías de tu sector que se registraron con su DNI y requieren tu autorización para ingresar
               </p>
             </div>
 
             {loading ? (
               <div className="p-12 text-center text-stone-500">
-                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-amber-600" />
-                <p className="text-xs font-bold">Verificando solicitudes del sector...</p>
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-diocesis-red" />
+                <p className="text-xs font-bold">Verificando solicitudes...</p>
               </div>
             ) : solicitudes.length === 0 ? (
               <div className="p-12 text-center max-w-md mx-auto space-y-2">
@@ -474,10 +657,10 @@ export default function ResponsableDashboard() {
                   <CheckCircle2 className="w-6 h-6" />
                 </div>
                 <h4 className="text-sm font-extrabold text-stone-900">
-                  ¡Al día! No hay solicitudes pendientes en tu sector
+                  ¡Al día! No tienes solicitudes pendientes en tu sector
                 </h4>
                 <p className="text-xs text-stone-500">
-                  Cuando tus líderes o guías creen su cuenta con su DNI, aparecerán listados aquí para que los autorices.
+                  Cuando los mandos de tu sector se registren con su DNI, aparecerán aquí para que los actives con un solo clic.
                 </p>
               </div>
             ) : (
@@ -485,10 +668,10 @@ export default function ResponsableDashboard() {
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-stone-50 border-b border-stone-200 text-stone-600 font-bold uppercase text-[10px] tracking-wider">
-                      <th className="py-3 px-4">Postulante / DNI</th>
-                      <th className="py-3 px-4">Cargo Reconocido</th>
-                      <th className="py-3 px-4">Líder / Cuadrilla</th>
-                      <th className="py-3 px-4">Contacto</th>
+                      <th className="py-3 px-4">Solicitante</th>
+                      <th className="py-3 px-4">Rol Asignado</th>
+                      <th className="py-3 px-4">Correo</th>
+                      <th className="py-3 px-4">Celular</th>
                       <th className="py-3 px-4 text-right">Acción</th>
                     </tr>
                   </thead>
@@ -500,28 +683,20 @@ export default function ResponsableDashboard() {
                           <div className="text-[11px] font-mono text-stone-500">DNI: {s.dni}</div>
                         </td>
                         <td className="py-3 px-4">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                            s.rol === 'lider'
-                              ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                              : 'bg-blue-100 text-blue-900 border border-blue-300'
+                          <span className={`font-bold px-2 py-0.5 rounded-md text-[10px] uppercase border ${
+                            s.rol_propuesto === 'lider'
+                              ? 'bg-amber-100 text-amber-900 border-amber-300'
+                              : 'bg-blue-100 text-blue-900 border-blue-300'
                           }`}>
-                            {s.rol === 'lider' ? '🛡️ Líder de Sector' : '🤝 Guía de Cuadrilla'}
+                            {s.rol_propuesto || 'Líder / Guía'}
                           </span>
                         </td>
-                        <td className="py-3 px-4">
-                          <div className="font-bold text-stone-800">{s.lider_nombre || '-'}</div>
-                          {s.cuadrilla_codigo && (
-                            <div className="text-[10px] font-mono text-stone-500">{s.cuadrilla_codigo}</div>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="font-mono text-stone-600">{s.correo}</div>
-                          <div className="text-[11px] font-bold text-stone-700">{s.telefono || '-'}</div>
-                        </td>
+                        <td className="py-3 px-4 font-mono text-stone-600">{s.correo}</td>
+                        <td className="py-3 px-4 font-bold text-stone-800">{s.telefono || '-'}</td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-2">
                             <button
-                              onClick={() => handleAprobarSolicitud(s.id, s.nombre, s.rol)}
+                              onClick={() => handleAprobarSolicitud(s.id, s.nombre, s.rol_propuesto)}
                               disabled={actionLoading === s.id}
                               className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs transition shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
                             >
