@@ -2302,12 +2302,18 @@ export default function Dashboard() {
                 ) : (
                   solicitudesData.pendientes.map((s) => {
                     const cleanPhone = normalizePeruvianPhone(s.telefono);
-                    const selectedRole = selectedUserRoles[s.id] || 'comision';
+                    const selectedRole = selectedUserRoles[s.id] || s.rol || 'comision';
                     return (
                       <div 
                         key={s.id} 
                         className={`p-4 rounded-2xl border space-y-3 transition ${
-                          s.inPadron 
+                          s.rol === 'responsable'
+                            ? 'bg-amber-100/40 hover:bg-amber-100/70 border-amber-300 shadow-2xs'
+                            : s.rol === 'lider'
+                            ? 'bg-emerald-100/40 hover:bg-emerald-100/70 border-emerald-300 shadow-2xs'
+                            : s.rol === 'guia'
+                            ? 'bg-blue-100/40 hover:bg-blue-100/70 border-blue-300 shadow-2xs'
+                            : s.inPadron 
                             ? 'bg-emerald-50/40 hover:bg-emerald-50/70 border-emerald-200 shadow-2xs' 
                             : 'bg-amber-50/30 hover:bg-amber-50/60 border-amber-200'
                         }`}
@@ -2315,7 +2321,13 @@ export default function Dashboard() {
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                           <div className="flex items-center gap-3">
                             <div className={`w-10 h-10 rounded-full font-black text-sm flex items-center justify-center border shadow-inner ${
-                              s.inPadron 
+                              s.rol === 'responsable'
+                                ? 'bg-amber-500 text-white border-amber-600'
+                                : s.rol === 'lider'
+                                ? 'bg-emerald-600 text-white border-emerald-700'
+                                : s.rol === 'guia'
+                                ? 'bg-blue-600 text-white border-blue-700'
+                                : s.inPadron 
                                 ? 'bg-emerald-100 text-emerald-900 border-emerald-300' 
                                 : 'bg-amber-100 text-amber-900 border-amber-300'
                             }`}>
@@ -2329,12 +2341,28 @@ export default function Dashboard() {
                                     DNI: {s.dni}
                                   </span>
                                 )}
-                                {s.inPadron ? (
+                                {s.rol === 'responsable' && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-black bg-amber-200 text-amber-950 px-2 py-0.5 rounded-lg border border-amber-400">
+                                    🎖️ RESPONSABLE GENERAL
+                                  </span>
+                                )}
+                                {s.rol === 'lider' && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-black bg-emerald-200 text-emerald-950 px-2 py-0.5 rounded-lg border border-emerald-400">
+                                    🛡️ LÍDER DE SECTOR {s.responsable_nombre ? `(Resp: ${s.responsable_nombre})` : ''}
+                                  </span>
+                                )}
+                                {s.rol === 'guia' && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-black bg-blue-200 text-blue-950 px-2 py-0.5 rounded-lg border border-blue-400">
+                                    🤝 GUÍA DE CUADRILLA ({s.cuadrilla_codigo || 'CUA-???'})
+                                  </span>
+                                )}
+                                {!['responsable', 'lider', 'guia'].includes(s.rol) && s.inPadron && (
                                   <span className="inline-flex items-center gap-1 text-[10px] font-extrabold bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-lg border border-emerald-300">
                                     <CheckCircle className="w-3 h-3 text-emerald-600" />
                                     ✓ Voluntario en Padrón ({s.padronFase || 'Fase 1'}{s.padronDistrito ? ` • ${s.padronDistrito}` : ''})
                                   </span>
-                                ) : (
+                                )}
+                                {!['responsable', 'lider', 'guia'].includes(s.rol) && !s.inPadron && (
                                   <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-lg border border-amber-300">
                                     <AlertTriangle className="w-3 h-3 text-amber-600" />
                                     ⚠️ No registrado en Padrón (Externo)
@@ -2376,6 +2404,9 @@ export default function Dashboard() {
                               onChange={(e) => setSelectedUserRoles(prev => ({ ...prev, [s.id]: e.target.value }))}
                               className="text-xs py-1 px-2.5 bg-white border border-stone-300 rounded-xl font-semibold text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
                             >
+                              <option value="responsable">🎖️ Responsable General</option>
+                              <option value="lider">🛡️ Líder de Sector</option>
+                              <option value="guia">🤝 Guía de Cuadrilla</option>
                               <option value="comision">Comisión (Colaborador)</option>
                               <option value="admin">Administrador General</option>
                             </select>
@@ -2458,9 +2489,19 @@ export default function Dashboard() {
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border uppercase tracking-wider ${
                             u.rol === 'admin'
                               ? 'bg-amber-50 text-amber-900 border-amber-300 font-extrabold'
+                              : u.rol === 'responsable'
+                              ? 'bg-amber-100 text-amber-950 border-amber-400 font-black'
+                              : u.rol === 'lider'
+                              ? 'bg-emerald-100 text-emerald-950 border-emerald-400 font-bold'
+                              : u.rol === 'guia'
+                              ? 'bg-blue-100 text-blue-950 border-blue-400 font-bold'
                               : 'bg-blue-50 text-blue-800 border-blue-200'
                           }`}>
-                            {u.rol === 'admin' ? 'Administrador' : 'Comisión'}
+                            {u.rol === 'admin' ? 'Administrador' 
+                              : u.rol === 'responsable' ? '🎖️ Responsable'
+                              : u.rol === 'lider' ? '🛡️ Líder'
+                              : u.rol === 'guia' ? '🤝 Guía'
+                              : 'Comisión'}
                           </span>
 
                           {!isCurrentUser && (
