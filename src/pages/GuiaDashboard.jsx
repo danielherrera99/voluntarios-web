@@ -7,9 +7,11 @@ import {
   AlertTriangle, Check, X, ShieldAlert, HeartPulse, Droplets, MapPin, Coffee, Sparkles
 } from 'lucide-react';
 import * as xlsx from 'xlsx';
+import MapaTactico from '../components/MapaTactico';
 
 export default function GuiaDashboard() {
   const { user, logout } = useAuth();
+  const [activeTab, setActiveTab] = useState('nomina'); // 'nomina' | 'mapa'
   const [voluntarios, setVoluntarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -259,7 +261,46 @@ export default function GuiaDashboard() {
 
         </div>
 
-        {/* LISTADO DE VOLUNTARIOS Y CONTROL OPERATIVO */}
+        {/* PESTAÑAS DE OPERACIÓN DEL GUÍA */}
+        <div className="flex border-b-2 border-diocesis-mustard/30 gap-2">
+          <button
+            onClick={() => setActiveTab('nomina')}
+            className={`py-2.5 px-4 text-xs sm:text-sm font-bold border-b-4 transition flex items-center gap-2 cursor-pointer ${
+              activeTab === 'nomina'
+                ? 'border-diocesis-redDark text-diocesis-redDark bg-white/70 rounded-t-xl shadow-xs'
+                : 'border-transparent text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            Nómina & Asistencia ({voluntarios.length})
+          </button>
+
+          <button
+            onClick={() => setActiveTab('mapa')}
+            className={`py-2.5 px-4 text-xs sm:text-sm font-bold border-b-4 transition flex items-center gap-2 cursor-pointer ${
+              activeTab === 'mapa'
+                ? 'border-diocesis-redDark text-diocesis-redDark bg-white/70 rounded-t-xl shadow-xs'
+                : 'border-transparent text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            <MapPin className="w-4 h-4 text-diocesis-red" />
+            Mapa Táctico & Mi Puesto
+          </button>
+        </div>
+
+        {/* VISTA: MAPA TÁCTICO */}
+        {activeTab === 'mapa' && (
+          <MapaTactico 
+            rol="guia"
+            cuadrillaCodigo={cuadrillaCode}
+            guiaNombre={guiaNombre}
+            liderNombre={liderNombre}
+            onReportSos={() => setShowSosModal(true)}
+          />
+        )}
+
+        {/* VISTA: LISTADO DE VOLUNTARIOS Y CONTROL OPERATIVO */}
+        {activeTab === 'nomina' && (
         <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden">
           <div className="p-4 sm:p-5 border-b border-stone-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-stone-50/70">
             <div>
@@ -400,6 +441,7 @@ export default function GuiaDashboard() {
             </div>
           )}
         </div>
+        )}
 
       </main>
 

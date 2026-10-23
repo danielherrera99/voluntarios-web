@@ -4,9 +4,10 @@ import { supabase } from '../supabase';
 import { 
   Shield, Users, CheckCircle2, XCircle, Clock, AlertCircle, 
   Search, FileSpreadsheet, RefreshCw, LogOut, Check, X, Phone, 
-  MessageCircle, AlertTriangle, HeartPulse, Droplets, ShieldAlert, Coffee, Sparkles
+  MessageCircle, AlertTriangle, HeartPulse, Droplets, ShieldAlert, Coffee, Sparkles, MapPin
 } from 'lucide-react';
 import * as xlsx from 'xlsx';
+import MapaTactico from '../components/MapaTactico';
 
 export default function LiderDashboard() {
   const { user, logout } = useAuth();
@@ -387,6 +388,18 @@ export default function LiderDashboard() {
           </button>
 
           <button
+            onClick={() => setActiveTab('mapa')}
+            className={`py-2.5 px-4 text-xs sm:text-sm font-bold border-b-4 transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+              activeTab === 'mapa'
+                ? 'border-diocesis-redDark text-diocesis-redDark bg-white/70 rounded-t-xl shadow-xs'
+                : 'border-transparent text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            <MapPin className="w-4 h-4 text-diocesis-red" />
+            Mapa Táctico del Sector
+          </button>
+
+          <button
             onClick={() => setActiveTab('voluntarios')}
             className={`py-2.5 px-4 text-xs sm:text-sm font-bold border-b-4 transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
               activeTab === 'voluntarios'
@@ -398,6 +411,19 @@ export default function LiderDashboard() {
             Voluntarios ({voluntarios.length})
           </button>
         </div>
+
+        {/* PESTAÑA: MAPA TÁCTICO DEL SECTOR */}
+        {activeTab === 'mapa' && (
+          <MapaTactico
+            rol="lider"
+            cuadrillasLista={guias.map(g => ({
+              ...g,
+              estado_dia_d: guiaStatus[g.guia_dni] || 'pendiente',
+              has_sos: incidenciasSector.some(inc => !inc.resuelto && inc.desc.includes(g.cuadrilla_codigo))
+            }))}
+            liderNombre={liderNombre}
+          />
+        )}
 
         {/* PESTAÑA 1: SUPERVISIÓN DÍA D (EN VIVO) */}
         {activeTab === 'supervision' && (
