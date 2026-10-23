@@ -2,12 +2,23 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import ResponsableDashboard from './pages/ResponsableDashboard';
+import LiderDashboard from './pages/LiderDashboard';
+import GuiaDashboard from './pages/GuiaDashboard';
 import ConsultaVoluntariado from './pages/ConsultaVoluntariado';
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
   return children;
+};
+
+const DashboardRouter = () => {
+  const { user } = useAuth();
+  if (user?.rol === 'responsable') return <ResponsableDashboard />;
+  if (user?.rol === 'lider') return <LiderDashboard />;
+  if (user?.rol === 'guia') return <GuiaDashboard />;
+  return <Dashboard />;
 };
 
 function AppRoutes() {
@@ -19,13 +30,13 @@ function AppRoutes() {
       <Route path="/" element={<ConsultaVoluntariado />} />
       <Route path="/consulta" element={<ConsultaVoluntariado />} />
 
-      {/* Acceso Administrativo */}
+      {/* Acceso Administrativo y Jerárquico */}
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
       <Route 
         path="/dashboard" 
         element={
           <ProtectedRoute>
-            <Dashboard />
+            <DashboardRouter />
           </ProtectedRoute>
         } 
       />

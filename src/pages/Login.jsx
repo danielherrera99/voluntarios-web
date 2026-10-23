@@ -92,6 +92,19 @@ export default function Login() {
               type: 'warning',
               text: data.msg || 'Este DNI ya tiene una cuenta o solicitud en curso.'
             });
+          } else if (data.esMando && data.mandoInfo) {
+            setRegNombre(data.mandoInfo.nombre);
+            if (data.voluntario?.correo) {
+              setRegEmail(data.voluntario.correo);
+            }
+            if (data.voluntario?.telefono) {
+              setRegTelefono(data.voluntario.telefono);
+            }
+            setDniFeedback({
+              type: 'mando',
+              cargo: data.mandoInfo.cargo,
+              text: `✓ Reconocido en la Cadena de Mandos Oficial: ${data.mandoInfo.etiqueta}`
+            });
           } else if (data.existsInPadrón && data.voluntario?.nombres) {
             const cleanName = data.voluntario.nombres.replace(/^\d{1,2}\/\d{1,2}\/\d{2,4}\s*[-–—:]*\s*/, '').trim();
             setRegNombre(cleanName);
@@ -799,12 +812,15 @@ export default function Login() {
               {/* Feedback dinámico de DNI */}
               {dniFeedback && (
                 <div className={`mt-1.5 p-2 rounded-xl text-[11px] font-semibold leading-tight flex items-start gap-1.5 border ${
-                  dniFeedback.type === 'success' 
+                  dniFeedback.type === 'mando'
+                    ? 'bg-amber-100 text-amber-950 border-amber-400 font-bold shadow-xs'
+                    : dniFeedback.type === 'success' 
                     ? 'bg-emerald-50 text-emerald-900 border-emerald-300' 
                     : dniFeedback.type === 'warning'
                     ? 'bg-amber-50 text-amber-900 border-amber-300'
                     : 'bg-stone-50 text-stone-700 border-stone-200'
                 }`}>
+                  {dniFeedback.type === 'mando' && <ShieldCheck className="w-4 h-4 text-amber-800 shrink-0 mt-0.5" />}
                   {dniFeedback.type === 'success' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />}
                   {dniFeedback.type === 'warning' && <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />}
                   <span>{dniFeedback.text}</span>
