@@ -210,6 +210,8 @@ export default function ConsultaVoluntariado() {
         status: 'NOT_FOUND',
         dni: cleanDni
       });
+    } finally {
+      setLoading(false);
       // Resetear widget de reCAPTCHA para la siguiente consulta
       if (widgetIdRef.current !== null && window.grecaptcha) {
         try {
@@ -220,12 +222,17 @@ export default function ConsultaVoluntariado() {
     }
   };
 
+  const handleCloseModal = () => {
+    setResult(null);
+    setLoading(false);
+  };
+
   // Bloquear scroll de fondo y permitir cerrar con tecla Escape cuando el modal está abierto
   useEffect(() => {
     if (result) {
       document.body.style.overflow = 'hidden';
       const handleKeyDown = (e) => {
-        if (e.key === 'Escape') setResult(null);
+        if (e.key === 'Escape') handleCloseModal();
       };
       window.addEventListener('keydown', handleKeyDown);
       return () => {
@@ -423,7 +430,7 @@ export default function ConsultaVoluntariado() {
           <div 
             className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-fade-in modal-backdrop-print"
             onClick={(e) => {
-              if (e.target === e.currentTarget) setResult(null);
+              if (e.target === e.currentTarget) handleCloseModal();
             }}
           >
             <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden my-auto border border-stone-200 animate-in fade-in zoom-in-95 duration-200">
@@ -431,7 +438,7 @@ export default function ConsultaVoluntariado() {
               {/* Botón flotante para cerrar (X) */}
               <button
                 type="button"
-                onClick={() => setResult(null)}
+                onClick={handleCloseModal}
                 className="absolute top-4 right-4 z-30 w-9 h-9 rounded-full bg-black/30 hover:bg-black/50 text-white flex items-center justify-center transition backdrop-blur-xs cursor-pointer shadow-md no-print"
                 title="Cerrar ventana (Esc)"
               >
@@ -514,7 +521,7 @@ export default function ConsultaVoluntariado() {
                   <div className="pt-4 border-t border-stone-200 flex flex-col sm:flex-row items-center justify-between gap-3 no-print">
                     <button
                       type="button"
-                      onClick={() => setResult(null)}
+                      onClick={handleCloseModal}
                       className="w-full sm:w-auto px-5 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold rounded-xl transition text-sm cursor-pointer"
                     >
                       Cerrar
@@ -617,7 +624,7 @@ export default function ConsultaVoluntariado() {
                   <div className="pt-3 border-t border-stone-200 flex justify-end no-print">
                     <button
                       type="button"
-                      onClick={() => setResult(null)}
+                      onClick={handleCloseModal}
                       className="w-full sm:w-auto px-5 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold rounded-xl text-sm transition cursor-pointer"
                     >
                       Cerrar Consulta
@@ -729,7 +736,7 @@ export default function ConsultaVoluntariado() {
                   <div className="pt-2 border-t border-stone-200 flex justify-end no-print">
                     <button
                       type="button"
-                      onClick={() => setResult(null)}
+                      onClick={handleCloseModal}
                       className="w-full sm:w-auto px-5 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold rounded-xl text-sm transition cursor-pointer"
                     >
                       Cerrar Consulta
@@ -771,7 +778,7 @@ export default function ConsultaVoluntariado() {
                   <div className="pt-4 border-t border-stone-200 flex justify-center no-print">
                     <button
                       type="button"
-                      onClick={() => setResult(null)}
+                      onClick={handleCloseModal}
                       className="px-6 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold rounded-xl text-sm transition cursor-pointer"
                     >
                       Cerrar
@@ -804,7 +811,7 @@ export default function ConsultaVoluntariado() {
                   <div className="pt-4 flex justify-center no-print">
                     <button
                       type="button"
-                      onClick={() => setResult(null)}
+                      onClick={handleCloseModal}
                       className="px-6 py-2.5 bg-stone-800 hover:bg-stone-900 text-white font-bold rounded-xl text-sm transition cursor-pointer shadow-sm"
                     >
                       Cerrar e Intentar de Nuevo
