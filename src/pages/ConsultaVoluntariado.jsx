@@ -462,17 +462,11 @@ export default function ConsultaVoluntariado() {
                       <span className="text-stone-800 font-semibold text-base">DNI: {result.dni}</span>
                     </div>
                     {result.codigo && (
-                      <div>
+                      <div className="md:col-span-2">
                         <span className="text-xs text-stone-500 uppercase font-bold block">Código Oficial</span>
-                        <span className="text-emerald-800 font-mono font-bold text-base">{result.codigo}</span>
+                        <span className="text-emerald-800 font-mono font-bold text-base md:text-lg">{result.codigo}</span>
                       </div>
                     )}
-                    <div>
-                      <span className="text-xs text-stone-500 uppercase font-bold block">Comisión Asignada</span>
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-diocesis-red text-white rounded-lg text-xs md:text-sm font-bold mt-1 shadow-sm">
-                        <i className="fa-solid fa-users text-diocesis-mustard"></i> {result.comision || 'Servicio Diocesano'}
-                      </span>
-                    </div>
                   </div>
 
                   {/* COMUNICADO PARA TERCERA FASE */}
@@ -809,7 +803,7 @@ export default function ConsultaVoluntariado() {
                 <i className="fa-solid fa-chevron-down group-open:rotate-180 transition-transform text-diocesis-mustard"></i>
               </summary>
               <p className="mt-2 text-stone-600 font-medium leading-relaxed pl-6">
-                Al ingresar tu número de DNI en este portal, si tus documentos fueron validados satisfactoriamente aparecerá el mensaje <strong>"¡Felicidades, Pasaste a la Tercera Etapa!"</strong> (en tarjeta verde). Allí podrás descargar tu <strong>Constancia Oficial de Selección</strong>, conocer tu comisión asignada y las instrucciones para la jornada presencial de capacitación y tu integración al canal oficial de WhatsApp.
+                Al ingresar tu número de DNI en este portal, si tus documentos fueron validados satisfactoriamente aparecerá el mensaje <strong>"¡Felicidades, Pasaste a la Tercera Etapa!"</strong> (en tarjeta verde). Allí podrás descargar tu <strong>Constancia Oficial de Selección</strong>, obtener tu código oficial y conocer las instrucciones para la jornada presencial de capacitación y tu integración al canal oficial de WhatsApp.
               </p>
             </details>
           </div>
