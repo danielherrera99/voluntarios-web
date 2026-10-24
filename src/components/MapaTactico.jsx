@@ -118,7 +118,37 @@ export default function MapaTactico({
   const tileLayerRef = useRef(null);
   const markersLayerRef = useRef(null);
 
-  const currentSede = SEDES_DIOCESIS.find(s => s.id === selectedSedeId) || SEDES_DIOCESIS[0];
+  // Coordenadas personalizadas de Sedes guardadas por el Administrador
+  const [customSedesCoords, setCustomSedesCoords] = useState(() => {
+    try {
+      const saved = localStorage.getItem('sedes_custom_coords');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const rawSede = SEDES_DIOCESIS.find(s => s.id === selectedSedeId) || SEDES_DIOCESIS[0];
+  const currentSede = {
+    ...rawSede,
+    lat: customSedesCoords[rawSede.id]?.lat ?? rawSede.lat,
+    lng: customSedesCoords[rawSede.id]?.lng ?? rawSede.lng,
+  };
+
+  const handleResetSedePos = (sedeId) => {
+    setCustomSedesCoords(prev => {
+      const copy = { ...prev };
+      delete copy[sedeId];
+      try {
+        localStorage.setItem('sedes_custom_coords', JSON.stringify(copy));
+      } catch (e) {
+        console.error(e);
+      }
+      return copy;
+    });
+    setFeedbackMsg(`✓ Sede restablecida a coordenadas originales.`);
+    setTimeout(() => setFeedbackMsg(null), 3000);
+  };
 
   // 1. Cargar Puntos Tácticos de Supabase
   const fetchPuntosTacticos = async () => {
@@ -334,11 +364,11 @@ export default function MapaTactico({
 
     markersLayerRef.current.clearLayers();
 
-    // 1. Marcador principal de la Sede
+    // 1. Marcador principal de la Sede (Arrastrable en Modo Editor)
     const sedeIcon = L.divIcon({
       className: 'custom-sede-icon',
       html: `
-        <div style="background-color: #6B0D12; border: 3px solid #B5871D; color: white; width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.4);">
+        <div style="background-color: #6B0D12; border: 3px solid #B5871D; color: white; width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); cursor: ${isEditorMode ? 'grab' : 'pointer'};">
           ${currentSede.icono}
         </div>
       `,
@@ -346,14 +376,63 @@ export default function MapaTactico({
       iconAnchor: [22, 22]
     });
 
-    const sedeMarker = L.marker([currentSede.lat, currentSede.lng], { icon: sedeIcon })
-      .bindPopup(`
-        <div style="font-family: sans-serif; padding: 4px;">
-          <strong style="color: #6B0D12; font-size: 14px;">${currentSede.nombre}</strong><br/>
-          <span style="font-size: 12px; color: #666;">${currentSede.tipo}</span><br/>
-          <span style="font-size: 11px; font-weight: bold; color: #B5871D;">Capacidad: ${currentSede.capacidadCuadrillas} cuadrillas</span>
+    const sedeMarker = L.marker([currentSede.lat, currentSede.lng], { 
+      icon: sedeIcon,
+      draggable: isEditorMode
+    });
+
+    if (isEditorMode) {
+      sedeMarker.on('dragend', (e) => {
+        const { lat, lng } = e.target.getLatLng();
+        const updated = {
+          ...customSedesCoords,
+          [currentSede.id]: { lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) }
+        };
+        setCustomSedesCoords(updated);
+        try {
+          localStorage.setItem('sedes_custom_coords', JSON.stringify(updated));
+        } catch (err) {
+          console.error('Error guardando posición de sede:', err);
+        }
+        setFeedbackMsg(`✓ Posición de "${currentSede.nombre}" actualizada.`);
+        setTimeout(() => setFeedbackMsg(null), 3000);
+      });
+    }
+
+    const isCustomSede = !!customSedesCoords[currentSede.id];
+    const sedePopupContent = document.createElement('div');
+    sedePopupContent.style.fontFamily = 'sans-serif';
+    sedePopupContent.style.minWidth = '190px';
+    sedePopupContent.innerHTML = `
+      <strong style="color: #6B0D12; font-size: 14px; display: block;">${currentSede.nombre}</strong>
+      <span style="font-size: 11px; color: #666; display: block; margin-top: 2px;">${currentSede.tipo}</span>
+      <span style="font-size: 11px; font-weight: bold; color: #B5871D; display: block; margin-top: 2px;">Capacidad: ${currentSede.capacidadCuadrillas} cuadrillas</span>
+      <span style="font-size: 10px; color: #888; font-family: monospace; display: block; margin-top: 4px;">Coord: ${currentSede.lat.toFixed(5)}, ${currentSede.lng.toFixed(5)}</span>
+      ${isEditorMode ? `
+        <div style="margin-top: 6px; padding: 4px 6px; background-color: #FEF3C7; color: #92400E; font-size: 10px; font-weight: bold; border-radius: 4px;">
+          🖐️ MODO EDITOR: Arrastra este icono para reubicar la Sede
         </div>
-      `);
+      ` : ''}
+    `;
+
+    if (canEdit && isEditorMode && isCustomSede) {
+      const resetBtn = document.createElement('button');
+      resetBtn.innerText = '↩️ Restablecer posición original';
+      resetBtn.style.marginTop = '6px';
+      resetBtn.style.padding = '4px 8px';
+      resetBtn.style.fontSize = '10px';
+      resetBtn.style.fontWeight = 'bold';
+      resetBtn.style.color = '#78350F';
+      resetBtn.style.backgroundColor = '#FDE68A';
+      resetBtn.style.border = '1px solid #F59E0B';
+      resetBtn.style.borderRadius = '6px';
+      resetBtn.style.cursor = 'pointer';
+      resetBtn.style.width = '100%';
+      resetBtn.onclick = () => handleResetSedePos(currentSede.id);
+      sedePopupContent.appendChild(resetBtn);
+    }
+
+    sedeMarker.bindPopup(sedePopupContent);
     markersLayerRef.current.addLayer(sedeMarker);
 
     // 2. Marcadores Dinámicos de Supabase para esta Sede
@@ -361,15 +440,25 @@ export default function MapaTactico({
 
     if (activePoiFilter && puntosSede.length > 0) {
       puntosSede.forEach(poi => {
-        const poiIcon = L.divIcon({
-          className: 'custom-poi-icon',
-          html: `
+        const isCuadrilla = poi.tipo === 'cuadrilla';
+        const poiHtml = isCuadrilla && poi.cuadrilla_codigo
+          ? `
+            <div style="background-color: #9B1C22; color: #FFF; width: 36px; height: 36px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px solid #B5871D; box-shadow: 0 3px 8px rgba(0,0,0,0.4); cursor: ${isEditorMode ? 'grab' : 'pointer'};">
+              <span style="font-size: 10px; font-weight: 900; line-height: 1;">${poi.cuadrilla_codigo.replace('CUA-', 'C-')}</span>
+              <span style="font-size: 7px; opacity: 0.9; font-weight: bold;">CUAD.</span>
+            </div>
+          `
+          : `
             <div style="background-color: ${poi.color || '#2563EB'}; color: white; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.35); cursor: ${isEditorMode ? 'grab' : 'pointer'};">
               ${poi.icono || '📍'}
             </div>
-          `,
-          iconSize: [34, 34],
-          iconAnchor: [17, 17]
+          `;
+
+        const poiIcon = L.divIcon({
+          className: 'custom-poi-icon',
+          html: poiHtml,
+          iconSize: [36, 36],
+          iconAnchor: [18, 18]
         });
 
         const poiMarker = L.marker([Number(poi.lat), Number(poi.lng)], { 
@@ -391,8 +480,14 @@ export default function MapaTactico({
         popupContent.style.minWidth = '180px';
         popupContent.innerHTML = `
           <strong style="color: #6B0D12; font-size: 13px; display: block;">${poi.nombre}</strong>
+          ${poi.cuadrilla_codigo ? `<span style="font-size: 11px; font-weight: bold; color: #B5871D; display: block;">Código: ${poi.cuadrilla_codigo}</span>` : ''}
           <span style="font-size: 11px; color: #555; display: block; margin-top: 2px;">${poi.descripcion || 'Punto táctico de campo'}</span>
           <span style="font-size: 10px; color: #888; font-family: monospace; display: block; margin-top: 4px;">Coord: ${Number(poi.lat).toFixed(5)}, ${Number(poi.lng).toFixed(5)}</span>
+          ${isEditorMode ? `
+            <div style="margin-top: 4px; padding: 2px 4px; background-color: #FEF3C7; color: #92400E; font-size: 9px; font-weight: bold; border-radius: 4px;">
+              🖐️ Arrástrame para mover este punto
+            </div>
+          ` : ''}
         `;
 
         if (canEdit && isEditorMode) {
@@ -418,17 +513,19 @@ export default function MapaTactico({
     }
 
     // 3. Marcadores de Cuadrillas en la zona
-    const cuadrillas = cuadrillasLista.length > 0 ? cuadrillasLista : [
-      {
-        id: 1,
-        cuadrilla_codigo: cuadrillaCodigo,
-        guia_nombre: guiaNombre,
-        lider_nombre: liderNombre,
-        lat: currentSede.lat + 0.0008,
-        lng: currentSede.lng + 0.0006,
-        estado_dia_d: gpsConfirmed ? 'presente' : 'pendiente'
-      }
-    ];
+    const cuadrillas = cuadrillasLista.length > 0 
+      ? cuadrillasLista 
+      : (!isAdmin && rol !== 'admin' ? [
+          {
+            id: 1,
+            cuadrilla_codigo: cuadrillaCodigo,
+            guia_nombre: guiaNombre,
+            lider_nombre: liderNombre,
+            lat: currentSede.lat + 0.0008,
+            lng: currentSede.lng + 0.0006,
+            estado_dia_d: gpsConfirmed ? 'presente' : 'pendiente'
+          }
+        ] : []);
 
     cuadrillas.forEach((c, idx) => {
       const cLat = c.lat || (currentSede.lat + (Math.sin(idx * 0.8) * 0.0012));
@@ -440,7 +537,7 @@ export default function MapaTactico({
       const cIcon = L.divIcon({
         className: 'custom-cua-icon',
         html: `
-          <div style="background-color: ${pinBg}; border: 2px solid white; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; font-family: monospace; box-shadow: 0 2px 6px rgba(0,0,0,0.35);">
+          <div style="background-color: ${pinBg}; border: 2px solid white; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; font-family: monospace; box-shadow: 0 2px 6px rgba(0,0,0,0.35); cursor: ${isEditorMode ? 'grab' : 'pointer'};">
             ${c.cuadrilla_codigo ? c.cuadrilla_codigo.replace('CUA-', '') : idx + 1}
           </div>
         `,
@@ -448,7 +545,10 @@ export default function MapaTactico({
         iconAnchor: [14, 14]
       });
 
-      const cuaMarker = L.marker([cLat, cLng], { icon: cIcon })
+      const cuaMarker = L.marker([cLat, cLng], { 
+        icon: cIcon,
+        draggable: isEditorMode 
+      })
         .bindPopup(`
           <div style="font-family: sans-serif; min-width: 160px;">
             <strong style="color: #6B0D12; font-size: 13px;">${c.cuadrilla_codigo || 'CUA'}</strong><br/>
@@ -467,7 +567,7 @@ export default function MapaTactico({
 
   useEffect(() => {
     renderMarkers();
-  }, [puntosDb, activePoiFilter, isEditorMode, gpsConfirmed]);
+  }, [puntosDb, activePoiFilter, isEditorMode, gpsConfirmed, customSedesCoords, selectedSedeId]);
 
   // Centrar en ubicación GPS
   const handleLocateMe = () => {
