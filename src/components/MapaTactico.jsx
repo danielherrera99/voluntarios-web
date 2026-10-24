@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
+import { supabase } from '../supabase';
 import { 
   MapPin, Navigation, Shield, AlertTriangle, CheckCircle2, Clock, 
   HeartPulse, Droplets, ShieldAlert, Coffee, ExternalLink, RefreshCw,
   Eye, Phone, MessageCircle, Layers, ZoomIn, ZoomOut, Compass, Info,
-  Building, Church, Landmark, Mountain, Car, Globe, Map
+  Building, Church, Landmark, Mountain, Car, Globe, Map, Plus, Trash2, Edit3, X, Check
 } from 'lucide-react';
 
 // Sedes oficiales de la Visita Papal en la Diócesis de Chiclayo (Coordenadas Reales de Lambayeque)
@@ -21,14 +22,7 @@ export const SEDES_DIOCESIS = [
     zoom: 16,
     icono: '⛪',
     color: '#9B1C22',
-    descripcion: 'Zona de mayor concentración, altar monumental, anillos de contención y cuadrillas de seguridad.',
-    pois: [
-      { tipo: 'altar', nombre: 'Altar Mayor Papal', lat: -6.777800, lng: -79.851000, icono: '✝️' },
-      { tipo: 'medica', nombre: 'Carpa Médica #1 (Norte)', lat: -6.777000, lng: -79.852500, icono: '🚑' },
-      { tipo: 'medica', nombre: 'Carpa Médica #2 (Sur)', lat: -6.779800, lng: -79.849500, icono: '🚑' },
-      { tipo: 'agua', nombre: 'Punto Hidratación Central', lat: -6.778500, lng: -79.850200, icono: '💧' },
-      { tipo: 'puerta', nombre: 'Puerta Principal de Evacuación', lat: -6.780200, lng: -79.851500, icono: '🚪' }
-    ]
+    descripcion: 'Zona de mayor concentración, altar monumental, anillos de contención y cuadrillas de seguridad.'
   },
   {
     id: 'catedral-chiclayo',
@@ -42,13 +36,7 @@ export const SEDES_DIOCESIS = [
     zoom: 17,
     icono: '🏛️',
     color: '#B5871D',
-    descripcion: 'Cordón de honor papal en calles aledañas, atrio de la Catedral y Plaza de Armas.',
-    pois: [
-      { tipo: 'altar', nombre: 'Atrio Catedral Santa María', lat: -6.771900, lng: -79.838900, icono: '⛪' },
-      { tipo: 'puerta', nombre: 'Acceso Peatonal San José / Balta', lat: -6.772500, lng: -79.839800, icono: '🚪' },
-      { tipo: 'medica', nombre: 'Ambulancia SAMU Plaza Mayor', lat: -6.771500, lng: -79.839600, icono: '🚑' },
-      { tipo: 'agua', nombre: 'Punto Hidratación Plaza', lat: -6.772200, lng: -79.838500, icono: '💧' }
-    ]
+    descripcion: 'Cordón de honor papal en calles aledañas, atrio de la Catedral y Plaza de Armas.'
   },
   {
     id: 'santuario-paz',
@@ -62,13 +50,7 @@ export const SEDES_DIOCESIS = [
     zoom: 16,
     icono: '🕊️',
     color: '#10B981',
-    descripcion: 'Atención especial para personas con discapacidad, adultos mayores y pastoral de salud.',
-    pois: [
-      { tipo: 'altar', nombre: 'Nave Central del Santuario', lat: -6.820300, lng: -79.869800, icono: '🕊️' },
-      { tipo: 'medica', nombre: 'Carpa Médica Especializada', lat: -6.820900, lng: -79.870500, icono: '🚑' },
-      { tipo: 'agua', nombre: 'Módulo de Hidratación', lat: -6.820100, lng: -79.870400, icono: '💧' },
-      { tipo: 'puerta', nombre: 'Rampa Accesible Sillas de Ruedas', lat: -6.821200, lng: -79.869600, icono: '♿' }
-    ]
+    descripcion: 'Atención especial para personas con discapacidad, adultos mayores y pastoral de salud.'
   },
   {
     id: 'zana-historica',
@@ -82,13 +64,7 @@ export const SEDES_DIOCESIS = [
     zoom: 16,
     icono: '🏺',
     color: '#8B5CF6',
-    descripcion: 'Ruinas del Convento San Agustín, Plaza Mayor de Zaña y ruta histórica papal.',
-    pois: [
-      { tipo: 'altar', nombre: 'Convento San Agustín de Zaña', lat: -6.924200, lng: -79.584200, icono: '✝️' },
-      { tipo: 'puerta', nombre: 'Ingreso Puente Histórico Zaña', lat: -6.925500, lng: -79.585500, icono: '🚪' },
-      { tipo: 'medica', nombre: 'Puesto Médico de Campaña Zaña', lat: -6.924500, lng: -79.585200, icono: '🚑' },
-      { tipo: 'agua', nombre: 'Punto de Hidratación Zaña', lat: -6.924800, lng: -79.583800, icono: '💧' }
-    ]
+    descripcion: 'Ruinas del Convento San Agustín, Plaza Mayor de Zaña y ruta histórica papal.'
   },
   {
     id: 'santa-cruz',
@@ -102,18 +78,13 @@ export const SEDES_DIOCESIS = [
     zoom: 16,
     icono: '⛰️',
     color: '#D97706',
-    descripcion: 'Recepción y bendición de delegaciones campesinas y juveniles de la sierra diocesana.',
-    pois: [
-      { tipo: 'altar', nombre: 'Templo Matriz Santa Cruz', lat: -6.626200, lng: -78.945600, icono: '⛪' },
-      { tipo: 'medica', nombre: 'Centro de Salud Santa Cruz', lat: -6.626900, lng: -78.946300, icono: '🚑' },
-      { tipo: 'agua', nombre: 'Módulo de Hidratación Sierra', lat: -6.625800, lng: -78.945200, icono: '💧' },
-      { tipo: 'puerta', nombre: 'Acceso Terminal Terrestre', lat: -6.627200, lng: -78.945000, icono: '🚪' }
-    ]
+    descripcion: 'Recepción y bendición de delegaciones campesinas y juveniles de la sierra diocesana.'
   }
 ];
 
 export default function MapaTactico({ 
   rol = 'guia', 
+  isAdmin = false,
   cuadrillaCodigo = 'CUA-001', 
   guiaNombre = 'Mi Cuadrilla',
   liderNombre = 'Líder de Sector',
@@ -128,6 +99,20 @@ export default function MapaTactico({
   const [gpsConfirmed, setGpsConfirmed] = useState(false);
   const [activePoiFilter, setActivePoiFilter] = useState(true);
 
+  // Estados del Editor de Puntos (Exclusivo Administrador)
+  const canEdit = isAdmin || rol === 'admin' || rol === 'comision';
+  const [isEditorMode, setIsEditorMode] = useState(false);
+  const [puntosDb, setPuntosDb] = useState([]);
+  const [loadingPuntos, setLoadingPuntos] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newPointCoords, setNewPointCoords] = useState(null);
+  const [newPointTipo, setNewPointTipo] = useState('medica');
+  const [newPointNombre, setNewPointNombre] = useState('');
+  const [newPointDesc, setNewPointDesc] = useState('');
+  const [newPointCuadrilla, setNewPointCuadrilla] = useState('');
+  const [savingPoint, setSavingPoint] = useState(false);
+  const [feedbackMsg, setFeedbackMsg] = useState(null);
+
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const tileLayerRef = useRef(null);
@@ -135,23 +120,44 @@ export default function MapaTactico({
 
   const currentSede = SEDES_DIOCESIS.find(s => s.id === selectedSedeId) || SEDES_DIOCESIS[0];
 
-  // Configuración de capas de mapas gratuitos (OpenStreetMap y Esri Satélite)
+  // 1. Cargar Puntos Tácticos de Supabase
+  const fetchPuntosTacticos = async () => {
+    setLoadingPuntos(true);
+    try {
+      const { data, error } = await supabase
+        .from('puntos_tacticos')
+        .select('*')
+        .order('id', { ascending: true });
+
+      if (error) throw error;
+      setPuntosDb(data || []);
+    } catch (err) {
+      console.error('Error cargando puntos tácticos:', err.message);
+    } finally {
+      setLoadingPuntos(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPuntosTacticos();
+  }, []);
+
+  // Configuración de capas de mapas gratuitos
   const TILE_LAYERS = {
     callejero: {
       url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
       attribution: '© OpenStreetMap colaboradores'
     },
     satelite: {
-      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{n}',
-      attribution: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics'
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      attribution: 'Tiles © Esri — Source: Esri, Maxar'
     }
   };
 
-  // Inicializar o actualizar el mapa de Leaflet
+  // Inicializar o centrar mapa Leaflet
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
-    // Si ya existe instancia de mapa, centrar suavemente en la sede seleccionada
     if (mapInstanceRef.current) {
       mapInstanceRef.current.flyTo([currentSede.lat, currentSede.lng], currentSede.zoom, {
         duration: 1.2
@@ -160,7 +166,6 @@ export default function MapaTactico({
       return;
     }
 
-    // Inicializar nuevo mapa
     const map = L.map(mapContainerRef.current, {
       center: [currentSede.lat, currentSede.lng],
       zoom: currentSede.zoom,
@@ -168,7 +173,6 @@ export default function MapaTactico({
       scrollWheelZoom: true
     });
 
-    // Agregar capa base (Callejero OpenStreetMap)
     const initialTiles = L.tileLayer(TILE_LAYERS.callejero.url, {
       maxZoom: 19,
       attribution: TILE_LAYERS.callejero.attribution
@@ -176,7 +180,6 @@ export default function MapaTactico({
 
     tileLayerRef.current = initialTiles;
 
-    // Grupo de marcadores
     const markersGroup = L.layerGroup().addTo(map);
     markersLayerRef.current = markersGroup;
 
@@ -191,6 +194,28 @@ export default function MapaTactico({
     };
   }, [selectedSedeId]);
 
+  // Manejar clics en el mapa cuando el Editor está activo
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+
+    const handleMapClick = (e) => {
+      if (!isEditorMode) return;
+      setNewPointCoords({ lat: e.latlng.lat, lng: e.latlng.lng });
+      setNewPointNombre('');
+      setNewPointDesc('');
+      setNewPointCuadrilla('');
+      setShowAddModal(true);
+    };
+
+    mapInstanceRef.current.on('click', handleMapClick);
+
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.off('click', handleMapClick);
+      }
+    };
+  }, [isEditorMode, selectedSedeId]);
+
   // Cambiar capa (Callejero vs Satélite)
   const toggleMapType = (type) => {
     setMapType(type);
@@ -199,12 +224,12 @@ export default function MapaTactico({
     tileLayerRef.current.remove();
 
     const newUrl = type === 'satelite' 
-      ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+      ? TILE_LAYERS.satelite.url
+      : TILE_LAYERS.callejero.url;
 
     const newAttr = type === 'satelite'
-      ? 'Tiles © Esri — Source: Esri, Maxar'
-      : '© OpenStreetMap';
+      ? TILE_LAYERS.satelite.attribution
+      : TILE_LAYERS.callejero.attribution;
 
     const newTiles = L.tileLayer(newUrl, {
       maxZoom: 19,
@@ -212,6 +237,95 @@ export default function MapaTactico({
     }).addTo(mapInstanceRef.current);
 
     tileLayerRef.current = newTiles;
+  };
+
+  // Guardar un nuevo punto en Supabase
+  const handleGuardarPunto = async (e) => {
+    e.preventDefault();
+    if (!newPointNombre.trim() || !newPointCoords) return;
+
+    setSavingPoint(true);
+    try {
+      const iconos = {
+        medica: '🚑',
+        agua: '💧',
+        puerta: '🚪',
+        altar: '✝️',
+        mando: '🛡️',
+        cuadrilla: '📍'
+      };
+
+      const colores = {
+        medica: '#E11D48',
+        agua: '#2563EB',
+        puerta: '#059669',
+        altar: '#B5871D',
+        mando: '#6B0D12',
+        cuadrilla: '#9B1C22'
+      };
+
+      const nuevo = {
+        sede_id: selectedSedeId,
+        tipo: newPointTipo,
+        nombre: newPointNombre.trim(),
+        descripcion: newPointDesc.trim() || null,
+        lat: Number(newPointCoords.lat.toFixed(6)),
+        lng: Number(newPointCoords.lng.toFixed(6)),
+        icono: iconos[newPointTipo] || '📍',
+        color: colores[newPointTipo] || '#9B1C22',
+        cuadrilla_codigo: newPointTipo === 'cuadrilla' ? newPointCuadrilla.trim() : null
+      };
+
+      const { data, error } = await supabase.from('puntos_tacticos').insert([nuevo]).select();
+      if (error) throw error;
+
+      setPuntosDb(prev => [...prev, ...(data || [nuevo])]);
+      setShowAddModal(false);
+      setFeedbackMsg(`✓ Punto "${nuevo.nombre}" creado con éxito.`);
+      setTimeout(() => setFeedbackMsg(null), 4000);
+    } catch (err) {
+      alert(`Error al guardar punto: ${err.message}`);
+    } finally {
+      setSavingPoint(false);
+    }
+  };
+
+  // Eliminar un punto de Supabase
+  const handleEliminarPunto = async (id, nombre) => {
+    if (!confirm(`¿Estás seguro de eliminar el punto "${nombre}"?`)) return;
+
+    try {
+      const { error } = await supabase.from('puntos_tacticos').delete().eq('id', id);
+      if (error) throw error;
+
+      setPuntosDb(prev => prev.filter(p => p.id !== id));
+      setFeedbackMsg(`Punto "${nombre}" eliminado.`);
+      setTimeout(() => setFeedbackMsg(null), 3000);
+    } catch (err) {
+      alert(`Error al eliminar: ${err.message}`);
+    }
+  };
+
+  // Actualizar posición de un punto al arrastrarlo
+  const handleActualizarPosicion = async (id, lat, lng, nombre) => {
+    try {
+      const { error } = await supabase
+        .from('puntos_tacticos')
+        .update({ 
+          lat: Number(lat.toFixed(6)), 
+          lng: Number(lng.toFixed(6)),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setPuntosDb(prev => prev.map(p => p.id === id ? { ...p, lat, lng } : p));
+      setFeedbackMsg(`✓ Posición de "${nombre}" actualizada.`);
+      setTimeout(() => setFeedbackMsg(null), 3000);
+    } catch (err) {
+      console.error('Error actualizando posición:', err.message);
+    }
   };
 
   // Dibujar marcadores reales en el mapa
@@ -242,28 +356,63 @@ export default function MapaTactico({
       `);
     markersLayerRef.current.addLayer(sedeMarker);
 
-    // 2. Marcadores de Auxilio (POIs: Carpas Médicas, Agua, Puertas)
-    if (activePoiFilter && currentSede.pois) {
-      currentSede.pois.forEach(poi => {
-        const poiColor = poi.tipo === 'medica' ? '#E11D48' : poi.tipo === 'agua' ? '#2563EB' : '#059669';
+    // 2. Marcadores Dinámicos de Supabase para esta Sede
+    const puntosSede = puntosDb.filter(p => p.sede_id === selectedSedeId);
+
+    if (activePoiFilter && puntosSede.length > 0) {
+      puntosSede.forEach(poi => {
         const poiIcon = L.divIcon({
           className: 'custom-poi-icon',
           html: `
-            <div style="background-color: ${poiColor}; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">
-              ${poi.icono}
+            <div style="background-color: ${poi.color || '#2563EB'}; color: white; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.35); cursor: ${isEditorMode ? 'grab' : 'pointer'};">
+              ${poi.icono || '📍'}
             </div>
           `,
-          iconSize: [32, 32],
-          iconAnchor: [16, 16]
+          iconSize: [34, 34],
+          iconAnchor: [17, 17]
         });
 
-        const poiMarker = L.marker([poi.lat, poi.lng], { icon: poiIcon })
-          .bindPopup(`
-            <div style="font-family: sans-serif;">
-              <strong>${poi.nombre}</strong><br/>
-              <span style="font-size: 11px; color: #666;">Punto de Asistencia Táctica</span>
-            </div>
-          `);
+        const poiMarker = L.marker([Number(poi.lat), Number(poi.lng)], { 
+          icon: poiIcon,
+          draggable: isEditorMode
+        });
+
+        // Evento arrastrar si está en modo editor
+        if (isEditorMode) {
+          poiMarker.on('dragend', (e) => {
+            const { lat, lng } = e.target.getLatLng();
+            handleActualizarPosicion(poi.id, lat, lng, poi.nombre);
+          });
+        }
+
+        // Popup con opción de eliminar si es Administrador
+        const popupContent = document.createElement('div');
+        popupContent.style.fontFamily = 'sans-serif';
+        popupContent.style.minWidth = '180px';
+        popupContent.innerHTML = `
+          <strong style="color: #6B0D12; font-size: 13px; display: block;">${poi.nombre}</strong>
+          <span style="font-size: 11px; color: #555; display: block; margin-top: 2px;">${poi.descripcion || 'Punto táctico de campo'}</span>
+          <span style="font-size: 10px; color: #888; font-family: monospace; display: block; margin-top: 4px;">Coord: ${Number(poi.lat).toFixed(5)}, ${Number(poi.lng).toFixed(5)}</span>
+        `;
+
+        if (canEdit && isEditorMode) {
+          const deleteBtn = document.createElement('button');
+          deleteBtn.innerText = '🗑️ Eliminar Punto';
+          deleteBtn.style.marginTop = '8px';
+          deleteBtn.style.padding = '4px 8px';
+          deleteBtn.style.fontSize = '11px';
+          deleteBtn.style.fontWeight = 'bold';
+          deleteBtn.style.color = 'white';
+          deleteBtn.style.backgroundColor = '#E11D48';
+          deleteBtn.style.border = 'none';
+          deleteBtn.style.borderRadius = '6px';
+          deleteBtn.style.cursor = 'pointer';
+          deleteBtn.style.width = '100%';
+          deleteBtn.onclick = () => handleEliminarPunto(poi.id, poi.nombre);
+          popupContent.appendChild(deleteBtn);
+        }
+
+        poiMarker.bindPopup(popupContent);
         markersLayerRef.current.addLayer(poiMarker);
       });
     }
@@ -282,7 +431,6 @@ export default function MapaTactico({
     ];
 
     cuadrillas.forEach((c, idx) => {
-      // Offset geográfico si no tienen lat/lng propio
       const cLat = c.lat || (currentSede.lat + (Math.sin(idx * 0.8) * 0.0012));
       const cLng = c.lng || (currentSede.lng + (Math.cos(idx * 0.8) * 0.0014));
       const isConfirmed = c.estado_dia_d === 'presente' || gpsConfirmed;
@@ -317,12 +465,11 @@ export default function MapaTactico({
     });
   };
 
-  // Re-renderizar marcadores si cambia el filtro de auxilio o confirmación GPS
   useEffect(() => {
     renderMarkers();
-  }, [activePoiFilter, gpsConfirmed]);
+  }, [puntosDb, activePoiFilter, isEditorMode, gpsConfirmed]);
 
-  // Centrar en ubicación GPS del usuario
+  // Centrar en ubicación GPS
   const handleLocateMe = () => {
     setGpsLoading(true);
     if (!('geolocation' in navigator)) {
@@ -346,11 +493,10 @@ export default function MapaTactico({
         if (mapInstanceRef.current) {
           mapInstanceRef.current.flyTo([lat, lng], 18);
 
-          // Marcador de Mi Ubicación
           const myPosIcon = L.divIcon({
             className: 'my-location-icon',
             html: `
-              <div style="background-color: #2563EB; border: 3px solid white; width: 22px; height: 22px; border-radius: 50%; box-shadow: 0 0 0 8px rgba(37,99,235,0.3); animation: pulse 2s infinite;"></div>
+              <div style="background-color: #2563EB; border: 3px solid white; width: 22px; height: 22px; border-radius: 50%; box-shadow: 0 0 0 8px rgba(37,99,235,0.3);"></div>
             `,
             iconSize: [22, 22],
             iconAnchor: [11, 11]
@@ -363,7 +509,6 @@ export default function MapaTactico({
         }
       },
       () => {
-        // Fallback centrando en la sede
         setGpsConfirmed(true);
         setGpsLoading(false);
         if (mapInstanceRef.current) {
@@ -374,6 +519,8 @@ export default function MapaTactico({
     );
   };
 
+  const puntosDeEstaSede = puntosDb.filter(p => p.sede_id === selectedSedeId);
+
   return (
     <div className="bg-white rounded-3xl border-2 border-diocesis-mustard/40 shadow-md overflow-hidden flex flex-col font-sans">
       
@@ -382,7 +529,7 @@ export default function MapaTactico({
         <div>
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-diocesis-mustard text-diocesis-redDark tracking-wider">
-              Mapa Geográfico Oficial
+              {canEdit ? 'Panel Táctico del Administrador' : 'Mapa Oficial'}
             </span>
             <span className="text-xs text-diocesis-mustardLight font-semibold">
               Región Lambayeque • Diócesis de Chiclayo
@@ -393,14 +540,32 @@ export default function MapaTactico({
             Mapa Real de Despliegue Papal
           </h3>
           <p className="text-xs text-stone-200">
-            {rol === 'guia' 
-              ? `Calles, accesos y puntos de auxilio en ${currentSede.nombre}` 
-              : `Supervisión geográfica en tiempo real en las sedes de Chiclayo, Zaña, Santuario y Santa Cruz`}
+            {canEdit 
+              ? isEditorMode 
+                ? '👉 MODO EDITOR ACTIVO: Haz clic en el mapa para añadir un punto o arrástralo para moverlo'
+                : `Planifica y ubica ambulancias, puntos de agua y zonas en ${currentSede.nombre}` 
+              : `Calles, accesos y puntos de auxilio en ${currentSede.nombre}`}
           </p>
         </div>
 
         {/* Acciones de Cabecera */}
         <div className="flex items-center gap-2 flex-wrap">
+          
+          {/* BOTÓN MODO EDITOR (EXCLUSIVO ADMINISTRADOR / COMISIÓN) */}
+          {canEdit && (
+            <button
+              onClick={() => setIsEditorMode(!isEditorMode)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-sm cursor-pointer border ${
+                isEditorMode 
+                  ? 'bg-amber-400 text-diocesis-redDark border-amber-300 ring-2 ring-amber-300 animate-pulse' 
+                  : 'bg-white/15 hover:bg-white/25 text-white border-white/20'
+              }`}
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              {isEditorMode ? 'Editor Activo (Clic en mapa)' : 'Activar Modo Editor'}
+            </button>
+          )}
+
           {/* Alternar Callejero vs Satélite */}
           <div className="bg-black/25 p-1 rounded-xl flex items-center border border-white/10 text-xs">
             <button
@@ -435,27 +600,26 @@ export default function MapaTactico({
             }`}
           >
             <Navigation className={`w-4 h-4 ${gpsLoading ? 'animate-spin' : ''}`} />
-            {gpsLoading ? 'Ubicando...' : gpsConfirmed ? '✓ Ubicado en Mapa' : 'Mi Ubicación GPS'}
+            {gpsLoading ? 'Ubicando...' : gpsConfirmed ? '✓ Mi Ubicación' : 'GPS'}
           </button>
-
-          <a
-            href={`https://maps.google.com/?q=${currentSede.lat},${currentSede.lng}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-3 py-2 text-xs font-bold bg-white/10 hover:bg-white/20 text-white rounded-xl transition border border-white/20 flex items-center gap-1.5"
-            title="Abrir en App de Google Maps"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Google Maps</span>
-          </a>
         </div>
       </div>
+
+      {/* FEEDBACK BANNER (SI SE CREA O MUEVE UN PUNTO) */}
+      {feedbackMsg && (
+        <div className="bg-emerald-50 border-b border-emerald-300 text-emerald-900 px-4 py-2 text-xs font-bold flex items-center justify-between">
+          <span>{feedbackMsg}</span>
+          <button onClick={() => setFeedbackMsg(null)} className="text-emerald-700 hover:text-emerald-950">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* SELECTOR DE SEDES DIOCESANAS */}
       <div className="p-3 bg-diocesis-cream border-b border-diocesis-mustard/30 overflow-x-auto">
         <div className="flex items-center gap-2 min-w-max">
           <span className="text-[11px] font-extrabold uppercase text-stone-500 mr-1 flex items-center gap-1">
-            <Building className="w-3.5 h-3.5" /> Seleccionar Sede:
+            <Building className="w-3.5 h-3.5" /> Sede:
           </span>
           {SEDES_DIOCESIS.map((sede) => (
             <button
@@ -486,6 +650,9 @@ export default function MapaTactico({
         </div>
 
         <div className="flex items-center gap-3">
+          <span className="font-mono text-stone-600 text-xs">
+            Puntos guardados en sede: <strong className="text-stone-900">{puntosDeEstaSede.length}</strong>
+          </span>
           <button
             onClick={() => setActivePoiFilter(!activePoiFilter)}
             className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition cursor-pointer border ${
@@ -494,7 +661,7 @@ export default function MapaTactico({
                 : 'bg-white text-stone-600 border-stone-300'
             }`}
           >
-            {activePoiFilter ? '✓ Auxilios Visibles (Médico/Agua)' : 'Mostrar Auxilios'}
+            {activePoiFilter ? '✓ Auxilios Visibles' : 'Mostrar Auxilios'}
           </button>
         </div>
       </div>
@@ -503,47 +670,147 @@ export default function MapaTactico({
       <div 
         ref={mapContainerRef} 
         className="w-full relative z-10"
-        style={{ height: '480px', minHeight: '480px' }}
+        style={{ height: '500px', minHeight: '500px' }}
       />
 
-      {/* DETALLES DE CUADRILLA SELECCIONADA */}
-      {selectedCuadrilla && (
-        <div className="p-4 bg-amber-50/80 border-t border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-diocesis-redDark text-white flex items-center justify-center font-mono font-black text-sm">
-              {selectedCuadrilla.cuadrilla_codigo || 'CUA'}
-            </div>
-            <div>
+      {/* MODAL PARA AGREGAR NUEVO PUNTO TÁCTICO (AL HACER CLIC EN EL MAPA EN MODO EDITOR) */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border-2 border-diocesis-mustard space-y-4">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-sm text-stone-900">
-                  {selectedCuadrilla.guia_nombre || 'Guía Asignado'}
-                </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white text-stone-700 border border-stone-300 font-bold">
-                  {selectedCuadrilla.cuadrilla_codigo}
-                </span>
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-lg">
+                  📍
+                </div>
+                <div>
+                  <h4 className="font-title font-bold text-base text-diocesis-redDark">
+                    Agregar Punto en {currentSede.nombre}
+                  </h4>
+                  <span className="text-[11px] text-stone-500 font-mono">
+                    Lat: {newPointCoords?.lat.toFixed(5)}, Lng: {newPointCoords?.lng.toFixed(5)}
+                  </span>
+                </div>
               </div>
-              <p className="text-xs text-stone-600 mt-0.5">
-                Ubicado en: <strong>{currentSede.nombre}</strong> • Líder: <strong>{selectedCuadrilla.lider_nombre || liderNombre}</strong>
-              </p>
+              <button onClick={() => setShowAddModal(false)} className="text-stone-400 hover:text-stone-700">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            {selectedCuadrilla.telefono && (
-              <a
-                href={`tel:${selectedCuadrilla.telefono}`}
-                className="px-3 py-1.5 rounded-xl bg-white hover:bg-stone-100 text-stone-800 text-xs font-bold border border-stone-300 flex items-center gap-1.5"
-              >
-                <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                Llamar
-              </a>
-            )}
-            <button
-              onClick={() => setSelectedCuadrilla(null)}
-              className="px-3 py-1.5 rounded-xl bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs font-bold cursor-pointer"
-            >
-              Cerrar Detalle
-            </button>
+            <form onSubmit={handleGuardarPunto} className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-stone-700 block mb-1">Tipo de Punto</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewPointTipo('medica')}
+                    className={`p-2 rounded-xl font-bold border transition flex flex-col items-center justify-center gap-1 ${
+                      newPointTipo === 'medica' ? 'bg-rose-100 text-rose-900 border-rose-400' : 'bg-stone-50 border-stone-200'
+                    }`}
+                  >
+                    <span className="text-base">🚑</span> Médica
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewPointTipo('agua')}
+                    className={`p-2 rounded-xl font-bold border transition flex flex-col items-center justify-center gap-1 ${
+                      newPointTipo === 'agua' ? 'bg-blue-100 text-blue-900 border-blue-400' : 'bg-stone-50 border-stone-200'
+                    }`}
+                  >
+                    <span className="text-base">💧</span> Hidratación
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewPointTipo('puerta')}
+                    className={`p-2 rounded-xl font-bold border transition flex flex-col items-center justify-center gap-1 ${
+                      newPointTipo === 'puerta' ? 'bg-emerald-100 text-emerald-900 border-emerald-400' : 'bg-stone-50 border-stone-200'
+                    }`}
+                  >
+                    <span className="text-base">🚪</span> Evacuación
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewPointTipo('altar')}
+                    className={`p-2 rounded-xl font-bold border transition flex flex-col items-center justify-center gap-1 ${
+                      newPointTipo === 'altar' ? 'bg-amber-100 text-amber-900 border-amber-400' : 'bg-stone-50 border-stone-200'
+                    }`}
+                  >
+                    <span className="text-base">✝️</span> Altar / Misa
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewPointTipo('mando')}
+                    className={`p-2 rounded-xl font-bold border transition flex flex-col items-center justify-center gap-1 ${
+                      newPointTipo === 'mando' ? 'bg-purple-100 text-purple-900 border-purple-400' : 'bg-stone-50 border-stone-200'
+                    }`}
+                  >
+                    <span className="text-base">🛡️</span> Mando
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewPointTipo('cuadrilla')}
+                    className={`p-2 rounded-xl font-bold border transition flex flex-col items-center justify-center gap-1 ${
+                      newPointTipo === 'cuadrilla' ? 'bg-diocesis-cream text-diocesis-redDark border-diocesis-mustard' : 'bg-stone-50 border-stone-200'
+                    }`}
+                  >
+                    <span className="text-base">📍</span> Cuadrilla
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-stone-700 block mb-1">Nombre del Punto *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej: Ambulancia SAMU - Puerta 3"
+                  value={newPointNombre}
+                  onChange={(e) => setNewPointNombre(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-diocesis-red"
+                />
+              </div>
+
+              {newPointTipo === 'cuadrilla' && (
+                <div>
+                  <label className="font-bold text-stone-700 block mb-1">Código de Cuadrilla (Opcional)</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: CUA-014"
+                    value={newPointCuadrilla}
+                    onChange={(e) => setNewPointCuadrilla(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-diocesis-red"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="font-bold text-stone-700 block mb-1">Descripción / Referencia</label>
+                <textarea
+                  rows={2}
+                  placeholder="Ej: Personal con botiquín y 2 camillas para emergencias"
+                  value={newPointDesc}
+                  onChange={(e) => setNewPointDesc(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-diocesis-red"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl font-bold transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingPoint}
+                  className="px-4 py-2 bg-diocesis-red hover:bg-diocesis-redLight text-white rounded-xl font-extrabold transition shadow-sm cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  {savingPoint ? 'Guardando...' : 'Guardar en Supabase'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

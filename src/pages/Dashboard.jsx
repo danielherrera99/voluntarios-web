@@ -32,9 +32,11 @@ import {
   Trash2,
   Mail,
   Shield,
-  FileSpreadsheet
+  FileSpreadsheet,
+  MapPin
 } from 'lucide-react';
 import * as xlsx from 'xlsx';
+import MapaTactico from '../components/MapaTactico';
 
 // Portal Oficial de Consulta Pública
 const PORTAL_CONSULTA_URL = "https://amigosdeleoncix.onrender.com/";
@@ -1089,6 +1091,19 @@ export default function Dashboard() {
                   {stats.sinFase2}
                 </span>
               </button>
+
+              <button
+                onClick={() => { setActiveTab('mapa'); }}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs md:text-sm font-bold transition ${
+                  activeTab === 'mapa'
+                    ? 'bg-diocesis-redDark text-white shadow'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+                title="Planificador Táctico de Puntos en Sedes y Campo"
+              >
+                <MapPin className="w-4 h-4 text-diocesis-mustard" />
+                Mapa Táctico & Sedes
+              </button>
             </div>
 
             {/* Acciones Rápidas */}
@@ -1264,7 +1279,20 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* TABLA DE REGISTROS */}
+        {/* VISTA MAPA TÁCTICO & SEDES */}
+        {activeTab === 'mapa' && (
+          <div className="space-y-4">
+            <MapaTactico 
+              rol="admin"
+              isAdmin={true}
+              guiaNombre={user?.nombre || "Comisión Central"}
+              liderNombre="Comisión Central"
+            />
+          </div>
+        )}
+
+        {/* TABLA DE REGISTROS (Fase 1, Fase 2, Sin Fase 2) */}
+        {activeTab !== 'mapa' && (
         <div className="bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden">
           
           {/* Header de la Tabla */}
@@ -1684,6 +1712,7 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+        )}
 
       </main>
 
