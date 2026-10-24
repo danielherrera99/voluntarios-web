@@ -300,7 +300,7 @@ export default function Dashboard() {
     try {
       const token = localStorage.getItem('token');
       if (!token) return;
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
       fetch(`${apiUrl}/api/auditoria`, {
         method: 'POST',
         headers: {
@@ -608,7 +608,7 @@ export default function Dashboard() {
     setSyncing(true);
     setSyncMsg('Sincronizando con Google Sheets...');
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
       const token = localStorage.getItem('token');
       const res = await fetch(`${apiUrl}/api/sync-fase2`, {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
@@ -637,7 +637,7 @@ export default function Dashboard() {
   const fetchCollaboratorsStats = useCallback(async () => {
     setLoadingCollabStats(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
       const res = await fetch(`${apiUrl}/api/collaborators-stats`);
       const data = await res.json();
       if (res.ok) {
@@ -672,7 +672,7 @@ export default function Dashboard() {
     setDistributing(true);
     setDistributeMsg({ type: 'info', text: `Repartiendo equitativamente entre ${names.length} colaboradores...` });
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
       const token = localStorage.getItem('token');
       const res = await fetch(`${apiUrl}/api/distribute-voluntarios`, {
         method: 'POST',
@@ -714,7 +714,7 @@ export default function Dashboard() {
     try {
       const token = localStorage.getItem('token');
       if (!token) return;
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
       const res = await fetch(`${apiUrl}/api/auth/solicitudes`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -734,7 +734,7 @@ export default function Dashboard() {
       setLoadingAudit(true);
       const token = localStorage.getItem('token');
       if (!token) return;
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
       const res = await fetch(`${apiUrl}/api/auditoria?limit=150`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -761,7 +761,7 @@ export default function Dashboard() {
       setLoadingSolicitudes(true);
       setSolicitudActionMsg(null);
       const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
       const res = await fetch(`${apiUrl}/api/auth/solicitudes/${id}/aprobar`, {
         method: 'PUT',
         headers: {
@@ -791,7 +791,7 @@ export default function Dashboard() {
       setLoadingSolicitudes(true);
       setSolicitudActionMsg(null);
       const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
       const res = await fetch(`${apiUrl}/api/auth/solicitudes/${id}/rechazar`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${token}` }
@@ -816,7 +816,7 @@ export default function Dashboard() {
     try {
       setLoadingSolicitudes(true);
       const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
       const res = await fetch(`${apiUrl}/api/auth/usuarios/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }

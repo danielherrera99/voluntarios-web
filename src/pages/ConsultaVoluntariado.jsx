@@ -90,7 +90,7 @@ export default function ConsultaVoluntariado() {
     setLoading(true);
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
 
       // 1. Intentar a través del Endpoint Seguro del Backend (con Rate Limiting y Sanitización)
       try {

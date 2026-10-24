@@ -83,7 +83,7 @@ export default function Login() {
     if (clean.length === 8) {
       setVerifyingDni(true);
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+        const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
         const res = await fetch(`${apiUrl}/api/auth/verificar-dni/${clean}`);
         if (res.ok) {
           const data = await res.json();
@@ -225,7 +225,7 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
       const res = await fetch(`${apiUrl}/api/auth/recuperar-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -263,7 +263,7 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
       const res = await fetch(`${apiUrl}/api/auth/verificar-codigo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -301,7 +301,7 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
       const res = await fetch(`${apiUrl}/api/auth/reset-password`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },

@@ -28,7 +28,7 @@ export default function ResponsableDashboard() {
   ]);
 
   const responsableNombre = user?.responsable_nombre || user?.nombre || 'Responsable General';
-  const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+  const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
 
   const fetchData = async () => {
     setLoading(true);

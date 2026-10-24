@@ -32,7 +32,7 @@ export default function LiderDashboard() {
   const liderNombre = user?.lider_nombre || user?.nombre || 'Líder de Sector';
   const responsableNombre = user?.responsable_nombre || 'Responsable General';
 
-  const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.onrender.com';
+  const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
 
   const fetchData = async () => {
     setLoading(true);
