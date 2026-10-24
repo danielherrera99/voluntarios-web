@@ -210,9 +210,6 @@ export default function ConsultaVoluntariado() {
         status: 'NOT_FOUND',
         dni: cleanDni
       });
-    } finally {
-      setLoading(false);
-      scrollIntoResult();
       // Resetear widget de reCAPTCHA para la siguiente consulta
       if (widgetIdRef.current !== null && window.grecaptcha) {
         try {
@@ -223,14 +220,22 @@ export default function ConsultaVoluntariado() {
     }
   };
 
-  const scrollIntoResult = () => {
-    setTimeout(() => {
-      const el = document.getElementById('resultAnchor');
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-    }, 100);
-  };
+  // Bloquear scroll de fondo y permitir cerrar con tecla Escape cuando el modal está abierto
+  useEffect(() => {
+    if (result) {
+      document.body.style.overflow = 'hidden';
+      const handleKeyDown = (e) => {
+        if (e.key === 'Escape') setResult(null);
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.body.style.overflow = 'auto';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+  }, [result]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -413,15 +418,29 @@ export default function ConsultaVoluntariado() {
           </div>
         </div>
 
-        <div id="resultAnchor"></div>
-
-        {/* RESULTADOS DINÁMICOS */}
+        {/* MODAL DE RESULTADO DINÁMICO */}
         {result && (
-          <div className="space-y-6 animate-fade-in">
+          <div 
+            className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-fade-in modal-backdrop-print"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setResult(null);
+            }}
+          >
+            <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden my-auto border border-stone-200 animate-in fade-in zoom-in-95 duration-200">
 
-            {/* ESTADO 1: SELECCIONADO / PASA A FASE 3 */}
-            {result.status === 'SELECTED' && (
-              <div id="constanciaImprimible" className="bg-white rounded-3xl border-2 border-emerald-500 card-shadow overflow-hidden">
+              {/* Botón flotante para cerrar (X) */}
+              <button
+                type="button"
+                onClick={() => setResult(null)}
+                className="absolute top-4 right-4 z-30 w-9 h-9 rounded-full bg-black/30 hover:bg-black/50 text-white flex items-center justify-center transition backdrop-blur-xs cursor-pointer shadow-md no-print"
+                title="Cerrar ventana (Esc)"
+              >
+                <i className="fa-solid fa-xmark text-lg"></i>
+              </button>
+
+              {/* ESTADO 1: SELECCIONADO / PASA A FASE 3 */}
+              {result.status === 'SELECTED' && (
+                <div id="constanciaImprimible" className="bg-white overflow-hidden">
 
                 {/* CABECERA EXCLUSIVA PARA IMPRESIÓN OFICIAL */}
                 <div className="print-only p-6 border-b-2 border-emerald-600 bg-emerald-50 text-center">
@@ -492,10 +511,18 @@ export default function ConsultaVoluntariado() {
                     </p>
                   </div>
 
-                  <div className="pt-4 border-t border-stone-200 flex justify-center no-print">
+                  <div className="pt-4 border-t border-stone-200 flex flex-col sm:flex-row items-center justify-between gap-3 no-print">
                     <button
+                      type="button"
+                      onClick={() => setResult(null)}
+                      className="w-full sm:w-auto px-5 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold rounded-xl transition text-sm cursor-pointer"
+                    >
+                      Cerrar
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => window.print()}
-                      className="px-6 py-3 bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold rounded-xl transition text-sm flex items-center gap-2 border border-stone-300 cursor-pointer"
+                      className="w-full sm:w-auto px-6 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl transition text-sm flex items-center justify-center gap-2 shadow-sm cursor-pointer"
                     >
                       <i className="fa-solid fa-print"></i> Imprimir Constancia de Selección
                     </button>
@@ -506,7 +533,7 @@ export default function ConsultaVoluntariado() {
 
             {/* ESTADO 2: ETAPA 2 EN REVISIÓN */}
             {result.status === 'PENDING' && (
-              <div className="bg-white rounded-3xl border-2 border-diocesis-mustard card-shadow overflow-hidden">
+              <div className="bg-white overflow-hidden">
                 <div className="bg-gradient-to-r from-amber-600 to-diocesis-mustard p-6 md:p-8 text-white text-center">
                   <div className="inline-flex items-center justify-center w-16 h-16 bg-white text-diocesis-mustardDark rounded-full text-3xl shadow-lg mb-3">
                     <i className="fa-solid fa-clock-rotate-left"></i>
@@ -586,13 +613,23 @@ export default function ConsultaVoluntariado() {
                       <span>Escribir al Soporte Diocesano (+51 945 854 083)</span>
                     </a>
                   </div>
+
+                  <div className="pt-3 border-t border-stone-200 flex justify-end no-print">
+                    <button
+                      type="button"
+                      onClick={() => setResult(null)}
+                      className="w-full sm:w-auto px-5 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold rounded-xl text-sm transition cursor-pointer"
+                    >
+                      Cerrar Consulta
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
 
             {/* ESTADO 2.5: REGISTRADO EN PADRÓN GENERAL (FASE 1) */}
             {result.status === 'FASE1' && (
-              <div className="bg-white rounded-3xl border-2 border-sky-500 card-shadow overflow-hidden">
+              <div className="bg-white overflow-hidden">
                 <div className="bg-gradient-to-r from-sky-800 to-indigo-900 p-6 md:p-8 text-white text-center">
                   <div className="inline-flex items-center justify-center w-16 h-16 bg-white text-sky-800 rounded-full text-3xl shadow-lg mb-3">
                     <i className="fa-solid fa-clipboard-check"></i>
@@ -688,13 +725,23 @@ export default function ConsultaVoluntariado() {
                       <span>Consultar con el Equipo Diocesano (+51 945 854 083)</span>
                     </a>
                   </div>
+
+                  <div className="pt-2 border-t border-stone-200 flex justify-end no-print">
+                    <button
+                      type="button"
+                      onClick={() => setResult(null)}
+                      className="w-full sm:w-auto px-5 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold rounded-xl text-sm transition cursor-pointer"
+                    >
+                      Cerrar Consulta
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
 
             {/* ESTADO 3: NO SELECCIONADO */}
             {result.status === 'NOT_SELECTED' && (
-              <div className="bg-white rounded-3xl border-2 border-stone-300 card-shadow overflow-hidden">
+              <div className="bg-white overflow-hidden">
                 <div className="bg-diocesis-redDark p-6 md:p-8 text-white text-center">
                   <div className="inline-flex items-center justify-center w-16 h-16 bg-white/10 text-diocesis-mustard rounded-full text-3xl shadow-lg mb-3">
                     <i className="fa-solid fa-heart"></i>
@@ -720,13 +767,23 @@ export default function ConsultaVoluntariado() {
                       </div>
                     )}
                   </div>
+
+                  <div className="pt-4 border-t border-stone-200 flex justify-center no-print">
+                    <button
+                      type="button"
+                      onClick={() => setResult(null)}
+                      className="px-6 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold rounded-xl text-sm transition cursor-pointer"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
 
             {/* ESTADO 4: NO ENCONTRADO */}
             {result.status === 'NOT_FOUND' && (
-              <div className="bg-white rounded-3xl border-2 border-rose-300 card-shadow overflow-hidden">
+              <div className="bg-white overflow-hidden">
                 <div className="p-8 text-center space-y-4">
                   <div className="inline-flex items-center justify-center w-16 h-16 bg-rose-100 text-rose-700 rounded-full text-3xl">
                     <i className="fa-solid fa-magnifying-glass-minus"></i>
@@ -743,10 +800,21 @@ export default function ConsultaVoluntariado() {
                       <li>Si acabas de completar el formulario, espera unos minutos a que el sistema sincronice los datos.</li>
                     </ul>
                   </div>
+
+                  <div className="pt-4 flex justify-center no-print">
+                    <button
+                      type="button"
+                      onClick={() => setResult(null)}
+                      className="px-6 py-2.5 bg-stone-800 hover:bg-stone-900 text-white font-bold rounded-xl text-sm transition cursor-pointer shadow-sm"
+                    >
+                      Cerrar e Intentar de Nuevo
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
 
+            </div>
           </div>
         )}
 

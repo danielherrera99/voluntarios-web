@@ -301,6 +301,14 @@ tr:hover {
   }
 
   /* Mostrar exclusivamente la constancia */
+  .modal-backdrop-print {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
   #constanciaImprimible {
     display: block !important;
     position: static !important;
