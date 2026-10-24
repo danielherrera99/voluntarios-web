@@ -54,10 +54,10 @@ export default function Login() {
   // Mostrar mensaje si se cerró sesión automáticamente (ej. expiración de 8 horas)
   useEffect(() => {
     const reason = sessionStorage.getItem('logout_reason');
-    if (reason) {
+    if (reason && reason !== '[object Object]' && typeof reason === 'string') {
       setError(reason);
-      sessionStorage.removeItem('logout_reason');
     }
+    sessionStorage.removeItem('logout_reason');
   }, []);
 
   // Validación de seguridad de contraseña en tiempo real

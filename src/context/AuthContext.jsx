@@ -44,8 +44,10 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
-    if (reason) {
+    if (reason && typeof reason === 'string') {
       sessionStorage.setItem('logout_reason', reason);
+    } else {
+      sessionStorage.removeItem('logout_reason');
     }
   }, []);
 
