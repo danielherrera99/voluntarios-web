@@ -6,7 +6,7 @@ import {
   HeartPulse, Droplets, ShieldAlert, Coffee, ExternalLink, RefreshCw,
   Eye, Phone, MessageCircle, Layers, ZoomIn, ZoomOut, Compass, Info,
   Building, Church, Landmark, Mountain, Car, Globe, Map as MapIcon, Plus, Trash2, Edit3, X, Check,
-  Search, Users, ChevronDown, UserCheck, ArrowLeft
+  Search, Users, ChevronDown, UserCheck, ArrowLeft, GraduationCap, UserCog
 } from 'lucide-react';
 
 // Sedes oficiales de la Visita Papal en la Diócesis de Chiclayo (Coordenadas Reales de Lambayeque)
@@ -14,24 +14,24 @@ export const SEDES_DIOCESIS = [
   {
     id: 'misa-central',
     nombre: 'Explanada Misa Multitudinaria',
-    ciudad: 'Chiclayo',
+    ciudad: 'Chiclayo / Pimentel',
     tipo: 'Misa Central de la Juventud y Familias',
-    capacidadCuadrillas: 450,
-    voluntariosEstimados: 4050,
+    capacidadCuadrillas: 401,
+    voluntariosEstimados: 3609,
     lat: -6.778500,
     lng: -79.851000,
     zoom: 16,
     icono: '⛪',
     color: '#9B1C22',
-    descripcion: 'Zona de mayor concentración, altar monumental, anillos de contención y cuadrillas de seguridad.'
+    descripcion: 'Zona de mayor concentración en Pimentel, altar monumental, anillos de contención y cuadrillas de seguridad.'
   },
   {
     id: 'catedral-chiclayo',
-    nombre: 'Catedral Santa María & Plaza Mayor',
+    nombre: 'Santa María Catedral & Plaza Mayor',
     ciudad: 'Chiclayo Centro',
     tipo: 'Encuentro con Clero, Religiosos y Autoridades',
-    capacidadCuadrillas: 85,
-    voluntariosEstimados: 765,
+    capacidadCuadrillas: 84,
+    voluntariosEstimados: 756,
     lat: -6.771944,
     lng: -79.839167,
     zoom: 17,
@@ -41,7 +41,7 @@ export const SEDES_DIOCESIS = [
   },
   {
     id: 'santuario-paz',
-    nombre: 'Santuario Diocesano',
+    nombre: 'Santuario Diocesano de la Paz',
     ciudad: 'Chiclayo / Monsefú',
     tipo: 'Momento Mariano y Oración con Enfermos',
     capacidadCuadrillas: 65,
@@ -54,26 +54,40 @@ export const SEDES_DIOCESIS = [
     descripcion: 'Atención especial para personas con discapacidad, adultos mayores y pastoral de salud.'
   },
   {
+    id: 'usat-chiclayo',
+    nombre: 'USAT - Universidad Católica Santo Toribio',
+    ciudad: 'Chiclayo (Campus Principal)',
+    tipo: 'Encuentro Universitario, Académico y Juventud Estudiantil',
+    capacidadCuadrillas: 53,
+    voluntariosEstimados: 477,
+    lat: -6.760456,
+    lng: -79.863203,
+    zoom: 17,
+    icono: '🎓',
+    color: '#0284C7',
+    descripcion: 'Campus universitario USAT (Av. San Josemaría Escrivá 855), auditorio principal, plazoletas y accesos.'
+  },
+  {
     id: 'zana-historica',
-    nombre: 'Zaña - Valle Histórico',
-    ciudad: 'Zaña (Patrimonio)',
+    nombre: 'Saña - Valle Histórico',
+    ciudad: 'Saña (Patrimonio)',
     tipo: 'Homenaje a Santo Toribio de Mogrovejo',
-    capacidadCuadrillas: 75,
-    voluntariosEstimados: 675,
+    capacidadCuadrillas: 67,
+    voluntariosEstimados: 603,
     lat: -6.924722,
     lng: -79.584722,
     zoom: 16,
     icono: '🏺',
     color: '#8B5CF6',
-    descripcion: 'Ruinas del Convento San Agustín, Plaza Mayor de Zaña y ruta histórica papal.'
+    descripcion: 'Ruinas del Convento San Agustín, Plaza Mayor de Saña y ruta histórica papal.'
   },
   {
     id: 'santa-cruz',
     nombre: 'Santa Cruz (Jurisdicción Diocesana)',
     ciudad: 'Santa Cruz',
     tipo: 'Encuentro con Parroquias Andinas de la Diócesis',
-    capacidadCuadrillas: 58,
-    voluntariosEstimados: 522,
+    capacidadCuadrillas: 63,
+    voluntariosEstimados: 567,
     lat: -6.626389,
     lng: -78.945833,
     zoom: 16,
@@ -83,13 +97,14 @@ export const SEDES_DIOCESIS = [
   }
 ];
 
-// Helper para determinar a qué sede corresponde cada cuadrilla
+// Helper para determinar a qué sede corresponde cada cuadrilla (distribución oficial en 6 sedes)
 export const getSedeIdByCuadrilla = (cuadrillaCodigo) => {
   const num = parseInt((cuadrillaCodigo || '').replace(/\D/g, ''), 10) || 0;
-  if (num <= 450) return 'misa-central';
-  if (num <= 535) return 'catedral-chiclayo';
-  if (num <= 600) return 'santuario-paz';
-  if (num <= 675) return 'zana-historica';
+  if (num <= 401) return 'misa-central';
+  if (num <= 485) return 'catedral-chiclayo';
+  if (num <= 550) return 'santuario-paz';
+  if (num <= 603) return 'usat-chiclayo';
+  if (num <= 670) return 'zana-historica';
   return 'santa-cruz';
 };
 
@@ -110,8 +125,9 @@ export default function MapaTactico({
   const [gpsConfirmed, setGpsConfirmed] = useState(false);
   const [activePoiFilter, setActivePoiFilter] = useState(true);
 
-  // Filtro táctico de Líderes y Búsqueda para el Administrador
-  const [selectedLider, setSelectedLider] = useState(''); // '' = Vista de Puestos de Mando de Líderes; o nombre específico; o 'TODOS'
+  // Jerarquía de Filtros para el Administrador: Responsable -> Líder -> Guías
+  const [selectedResponsable, setSelectedResponsable] = useState(''); // '' = Todos los responsables de la sede
+  const [selectedLider, setSelectedLider] = useState(''); // '' = Puestos de Mando de Líderes; o nombre específico; o 'TODOS'
   const [searchTerm, setSearchTerm] = useState('');
   const [mandosDb, setMandosDb] = useState([]);
   const [loadingMandos, setLoadingMandos] = useState(false);
@@ -209,13 +225,14 @@ export default function MapaTactico({
     fetchMandos();
   }, [canEdit]);
 
-  // Al cambiar de Sede, reiniciar el filtro de Líder y buscador
+  // Al cambiar de Sede, reiniciar filtros de Responsable, Líder y buscador
   useEffect(() => {
+    setSelectedResponsable('');
     setSelectedLider('');
     setSearchTerm('');
   }, [selectedSedeId]);
 
-  // Agrupación y partición de mandos de la Sede actual
+  // Cuadrillas / Guías que pertenecen a la Sede actual
   const mandosDeEstaSede = useMemo(() => {
     if (!canEdit && cuadrillasLista.length > 0) {
       return cuadrillasLista;
@@ -224,9 +241,40 @@ export default function MapaTactico({
     return source.filter(m => getSedeIdByCuadrilla(m.cuadrilla_codigo) === selectedSedeId);
   }, [mandosDb, cuadrillasLista, selectedSedeId, canEdit]);
 
-  const lideresDeEstaSede = useMemo(() => {
+  // 1er Nivel Jerárquico: Responsables Generales de esta Sede
+  const responsablesDeEstaSede = useMemo(() => {
     const groups = {};
     mandosDeEstaSede.forEach(m => {
+      const respName = (m.responsable_nombre || 'Sin Responsable').trim();
+      if (!groups[respName]) {
+        groups[respName] = {
+          responsable_nombre: respName,
+          responsable_dni: m.responsable_dni,
+          lideresSet: new Set(),
+          guiasCount: 0
+        };
+      }
+      if (m.lider_nombre) {
+        groups[respName].lideresSet.add(m.lider_nombre.trim());
+      }
+      groups[respName].guiasCount++;
+    });
+    return Object.values(groups).map(g => ({
+      ...g,
+      lideresCount: g.lideresSet.size
+    }));
+  }, [mandosDeEstaSede]);
+
+  // Filtrar mandos si el Administrador seleccionó un Responsable General
+  const mandosFiltradosPorResponsable = useMemo(() => {
+    if (!selectedResponsable) return mandosDeEstaSede;
+    return mandosDeEstaSede.filter(m => (m.responsable_nombre || '').trim() === selectedResponsable);
+  }, [mandosDeEstaSede, selectedResponsable]);
+
+  // 2do Nivel Jerárquico: Líderes de Sector (filtrados según el Responsable elegido o todos los de la sede)
+  const lideresDeEstaSede = useMemo(() => {
+    const groups = {};
+    mandosFiltradosPorResponsable.forEach(m => {
       const lidName = (m.lider_nombre || 'Sin Líder').trim();
       if (!groups[lidName]) {
         groups[lidName] = {
@@ -239,9 +287,9 @@ export default function MapaTactico({
       groups[lidName].guias.push(m);
     });
     return Object.values(groups);
-  }, [mandosDeEstaSede]);
+  }, [mandosFiltradosPorResponsable]);
 
-  // Búsqueda rápida de Guías / Cuadrillas / Líderes
+  // Búsqueda rápida de Responsables / Líderes / Guías / Cuadrillas
   const searchResults = useMemo(() => {
     if (!searchTerm.trim() || searchTerm.length < 2) return [];
     const query = searchTerm.toLowerCase().trim();
@@ -278,7 +326,6 @@ export default function MapaTactico({
       return;
     }
 
-    // Prevenir error Leaflet si el contenedor ya tenía un mapa asociado
     if (mapContainerRef.current._leaflet_id) {
       mapContainerRef.current._leaflet_id = null;
     }
@@ -566,11 +613,11 @@ export default function MapaTactico({
     const isCustomSede = !!customSedesCoords[currentSede.id];
     const sedePopupContent = document.createElement('div');
     sedePopupContent.style.fontFamily = 'sans-serif';
-    sedePopupContent.style.minWidth = '190px';
+    sedePopupContent.style.minWidth = '200px';
     sedePopupContent.innerHTML = `
       <strong style="color: #6B0D12; font-size: 14px; display: block;">${currentSede.nombre}</strong>
       <span style="font-size: 11px; color: #666; display: block; margin-top: 2px;">${currentSede.tipo}</span>
-      <span style="font-size: 11px; font-weight: bold; color: #B5871D; display: block; margin-top: 2px;">Capacidad: ${currentSede.capacidadCuadrillas} cuadrillas (${lideresDeEstaSede.length} Líderes)</span>
+      <span style="font-size: 11px; font-weight: bold; color: #B5871D; display: block; margin-top: 2px;">Capacidad: ${currentSede.capacidadCuadrillas} cuadrillas (${responsablesDeEstaSede.length} Responsables • ${lideresDeEstaSede.length} Líderes)</span>
       <span style="font-size: 10px; color: #888; font-family: monospace; display: block; margin-top: 4px;">Coord: ${currentSede.lat.toFixed(5)}, ${currentSede.lng.toFixed(5)}</span>
       ${isEditorMode ? `
         <div style="margin-top: 6px; padding: 4px 6px; background-color: #FEF3C7; color: #92400E; font-size: 10px; font-weight: bold; border-radius: 4px;">
@@ -702,11 +749,10 @@ export default function MapaTactico({
       return;
     }
 
-    // Para el ADMINISTRADOR: Filtrado táctico para no saturar el mapa
-    // CASO A: Sin filtro de líder -> Mostramos los Puestos de Mando de los Líderes de la Sede
+    // Para el ADMINISTRADOR: Filtrado táctico por Responsable y Líder
+    // CASO A: Sin filtro de líder -> Mostramos los Puestos de Mando de los Líderes (filtrados por Responsable si aplica)
     if (selectedLider === '') {
       lideresDeEstaSede.forEach((lid, idx) => {
-        // Buscar posición guardada en puntos_tacticos o calcular en anillo concéntrico
         const savedLidPoint = puntosDb.find(p => p.tipo === 'mando' && p.nombre === lid.lider_nombre && p.sede_id === selectedSedeId);
         
         let lLat, lLng;
@@ -757,7 +803,7 @@ export default function MapaTactico({
             </div>
           </div>
           <span style="font-size: 10px; color: #666; display: block;">DNI: <strong>${lid.lider_dni || 'N/A'}</strong></span>
-          <span style="font-size: 10px; color: #666; display: block;">Coordinador: <strong>${lid.responsable_nombre || 'Comisión Central'}</strong></span>
+          <span style="font-size: 10px; color: #666; display: block;">Coordinador/Responsable: <strong>${lid.responsable_nombre || 'Comisión Central'}</strong></span>
           <div style="margin-top: 6px; padding: 4px 8px; background-color: #FEF3C7; border-radius: 6px; font-size: 11px; font-weight: bold; color: #92400E;">
             👥 ${lid.guias.length} Guías a cargo (~${lid.guias.length * 10} voluntarios)
           </div>
@@ -781,6 +827,9 @@ export default function MapaTactico({
         deployBtn.style.cursor = 'pointer';
         deployBtn.style.width = '100%';
         deployBtn.onclick = () => {
+          if (!selectedResponsable && lid.responsable_nombre) {
+            setSelectedResponsable(lid.responsable_nombre);
+          }
           setSelectedLider(lid.lider_nombre);
           if (mapInstanceRef.current) {
             mapInstanceRef.current.flyTo([lLat, lLng], 17, { duration: 1 });
@@ -843,7 +892,7 @@ export default function MapaTactico({
           <div style="font-family: sans-serif; min-width: 200px;">
             <strong style="color: #6B0D12; font-size: 13px;">Puesto de Mando del Líder</strong><br/>
             <span style="font-size: 12px; font-weight: bold;">${lid.lider_nombre}</span><br/>
-            <span style="font-size: 11px; color: #666;">Coordinador: ${lid.responsable_nombre || 'Comisión Central'}</span><br/>
+            <span style="font-size: 11px; color: #666;">Coordinador/Responsable: <strong>${lid.responsable_nombre || 'Comisión Central'}</strong></span><br/>
             <span style="font-size: 11px; color: #666;">Cuadrillas bajo su mando: <strong>${lid.guias.length} Guías</strong></span>
           </div>
         `);
@@ -858,7 +907,6 @@ export default function MapaTactico({
             gLat = Number(savedGuiaPoint.lat);
             gLng = Number(savedGuiaPoint.lng);
           } else {
-            // Irradiar en círculo táctico alrededor de su Líder
             const totalGuias = Math.max(lid.guias.length, 1);
             const gAngle = gIdx * (2 * Math.PI / totalGuias);
             const gRadius = 0.00065;
@@ -902,7 +950,7 @@ export default function MapaTactico({
               <span style="font-size: 12px; font-weight: bold; display: block; color: #111;">${g.guia_nombre}</span>
               <span style="font-size: 10px; color: #666; display: block;">DNI: ${g.guia_dni || 'N/A'}</span>
               <span style="font-size: 10px; color: #666; display: block; margin-top: 2px;">Líder: <strong>${g.lider_nombre}</strong></span>
-              <span style="font-size: 10px; color: #666; display: block;">Coordinador: <strong>${g.responsable_nombre}</strong></span>
+              <span style="font-size: 10px; color: #666; display: block;">Coordinador/Responsable: <strong>${g.responsable_nombre}</strong></span>
               <div style="margin-top: 6px; font-size: 10px; font-weight: bold; color: ${g.guia_carta ? '#065F46' : '#92400E'};">
                 ${g.guia_carta ? '✓ Carta Compromiso Firmada' : '⏳ Carta Pendiente'}
               </div>
@@ -923,7 +971,7 @@ export default function MapaTactico({
 
   useEffect(() => {
     renderMarkers();
-  }, [puntosDb, activePoiFilter, isEditorMode, gpsConfirmed, customSedesCoords, selectedSedeId, selectedLider, mandosDb, cuadrillasLista]);
+  }, [puntosDb, activePoiFilter, isEditorMode, gpsConfirmed, customSedesCoords, selectedSedeId, selectedResponsable, selectedLider, mandosDb, cuadrillasLista]);
 
   // Centrar en ubicación GPS
   const handleLocateMe = () => {
@@ -980,10 +1028,10 @@ export default function MapaTactico({
     if (targetSede !== selectedSedeId) {
       setSelectedSedeId(targetSede);
     }
-    setSelectedLider(mando.lider_nombre);
+    setSelectedResponsable(mando.responsable_nombre || '');
+    setSelectedLider(mando.lider_nombre || '');
     setSearchTerm('');
 
-    // Si tiene coordenadas fijas o aproximadas, centrar allí
     const savedGuiaPoint = puntosDb.find(p => p.tipo === 'cuadrilla' && p.cuadrilla_codigo === mando.cuadrilla_codigo);
     const targetSedeObj = SEDES_DIOCESIS.find(s => s.id === targetSede) || currentSede;
     const destLat = savedGuiaPoint ? Number(savedGuiaPoint.lat) : targetSedeObj.lat;
@@ -996,8 +1044,8 @@ export default function MapaTactico({
     }
   };
 
-  const puntosDeEstaSede = puntosDb.filter(p => p.sede_id === selectedSedeId);
   const currentLiderData = lideresDeEstaSede.find(l => l.lider_nombre === selectedLider);
+  const currentResponsableData = responsablesDeEstaSede.find(r => r.responsable_nombre === selectedResponsable);
 
   return (
     <div className="bg-white rounded-3xl border-2 border-diocesis-mustard/40 shadow-md overflow-hidden flex flex-col font-sans">
@@ -1021,7 +1069,7 @@ export default function MapaTactico({
             {canEdit 
               ? isEditorMode 
                 ? '👉 MODO EDITOR ACTIVO: Arrastra puestos de mando de Líderes o Guías para fijar su posición en campo'
-                : `Organización táctica por Líderes y Guías en ${currentSede.nombre}` 
+                : `Cadena de Mando: Responsables Generales → Líderes de Sector → Guías de Cuadrilla en ${currentSede.nombre}` 
               : `Calles, accesos y puestos de auxilio en ${currentSede.nombre}`}
           </p>
         </div>
@@ -1093,7 +1141,7 @@ export default function MapaTactico({
         </div>
       )}
 
-      {/* SELECTOR DE SEDES DIOCESANAS */}
+      {/* SELECTOR DE LAS 6 SEDES DIOCESANAS OFICIALES */}
       <div className="p-3 bg-diocesis-cream border-b border-diocesis-mustard/30 overflow-x-auto">
         <div className="flex items-center gap-2 min-w-max">
           <span className="text-[11px] font-extrabold uppercase text-stone-500 mr-1 flex items-center gap-1">
@@ -1119,41 +1167,68 @@ export default function MapaTactico({
         </div>
       </div>
 
-      {/* BARRA TÁCTICA DE FILTRO POR LÍDER Y BÚSQUEDA RÁPIDA (PARA EL ADMINISTRADOR) */}
+      {/* BARRA TÁCTICA DE FILTROS JERÁRQUICOS (RESPONSABLE -> LÍDER -> GUÍAS) */}
       {canEdit && (
-        <div className="p-3 bg-stone-50 border-b border-stone-200 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 text-xs">
+        <div className="p-3 bg-stone-50 border-b border-stone-200 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 text-xs">
           
-          {/* Selector de Líder */}
-          <div className="flex items-center gap-2 flex-1">
-            <div className="flex items-center gap-1.5 text-stone-700 font-bold shrink-0">
-              <Shield className="w-4 h-4 text-diocesis-red" />
-              <span>Filtrar por Líder:</span>
-            </div>
-            <select
-              value={selectedLider}
-              onChange={(e) => setSelectedLider(e.target.value)}
-              className="w-full max-w-md p-2 rounded-xl border border-stone-300 bg-white font-medium text-stone-800 focus:outline-none focus:ring-2 focus:ring-diocesis-red"
-            >
-              <option value="">
-                🛡️ Puestos de Mando ({lideresDeEstaSede.length} Líderes en esta sede)
-              </option>
-              {lideresDeEstaSede.map((lid, idx) => (
-                <option key={idx} value={lid.lider_nombre}>
-                  👤 Líder: {lid.lider_nombre} ({lid.guias.length} Guías a cargo)
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1">
+            {/* 1. Selector de Responsable General */}
+            <div className="flex items-center gap-1.5 flex-1">
+              <span className="font-bold text-stone-700 shrink-0 flex items-center gap-1">
+                <UserCog className="w-3.5 h-3.5 text-diocesis-redDark" />
+                <span>Responsable:</span>
+              </span>
+              <select
+                value={selectedResponsable}
+                onChange={(e) => {
+                  setSelectedResponsable(e.target.value);
+                  setSelectedLider('');
+                }}
+                className="w-full p-2 rounded-xl border border-stone-300 bg-white font-medium text-stone-800 focus:outline-none focus:ring-2 focus:ring-diocesis-red text-xs"
+              >
+                <option value="">
+                  👔 Todos los Responsables ({responsablesDeEstaSede.length} en sede)
                 </option>
-              ))}
-              <option value="TODOS">
-                ⚠️ Mostrar todos los Guías de la Sede juntos ({mandosDeEstaSede.length} Guías)
-              </option>
-            </select>
+                {responsablesDeEstaSede.map((resp, idx) => (
+                  <option key={idx} value={resp.responsable_nombre}>
+                    👔 {resp.responsable_nombre} ({resp.lideresCount} Líderes • {resp.guiasCount} Guías)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 2. Selector de Líder de Sector */}
+            <div className="flex items-center gap-1.5 flex-1">
+              <span className="font-bold text-stone-700 shrink-0 flex items-center gap-1">
+                <Shield className="w-3.5 h-3.5 text-diocesis-red" />
+                <span>Líder:</span>
+              </span>
+              <select
+                value={selectedLider}
+                onChange={(e) => setSelectedLider(e.target.value)}
+                className="w-full p-2 rounded-xl border border-stone-300 bg-white font-medium text-stone-800 focus:outline-none focus:ring-2 focus:ring-diocesis-red text-xs"
+              >
+                <option value="">
+                  🛡️ Puestos de Mando ({lideresDeEstaSede.length} Líderes)
+                </option>
+                {lideresDeEstaSede.map((lid, idx) => (
+                  <option key={idx} value={lid.lider_nombre}>
+                    👤 {lid.lider_nombre} ({lid.guias.length} Guías a cargo)
+                  </option>
+                ))}
+                <option value="TODOS">
+                  ⚠️ Mostrar todos los Guías de la selección ({mandosFiltradosPorResponsable.length} Guías)
+                </option>
+              </select>
+            </div>
           </div>
 
-          {/* Buscador Rápido de Guía o Cuadrilla */}
-          <div className="relative w-full md:w-80">
+          {/* 3. Buscador Rápido de Cuadrilla, Guía, Líder o Responsable */}
+          <div className="relative w-full lg:w-72">
             <div className="relative">
               <input
                 type="text"
-                placeholder="🔍 Buscar Guía, Cuadrilla (ej. CUA-015)..."
+                placeholder="🔍 Buscar Guía, Líder o CUA..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-8 pr-3 py-2 rounded-xl border border-stone-300 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-diocesis-red"
@@ -1177,7 +1252,7 @@ export default function MapaTactico({
                     key={idx}
                     type="button"
                     onClick={() => handleSelectSearchResult(m)}
-                    className="w-full text-left p-2.5 hover:bg-amber-50/80 transition flex items-center justify-between text-xs"
+                    className="w-full text-left p-2.5 hover:bg-amber-50/80 transition flex items-center justify-between text-xs cursor-pointer"
                   >
                     <div>
                       <div className="flex items-center gap-1.5 font-bold text-stone-900">
@@ -1187,7 +1262,7 @@ export default function MapaTactico({
                         <span>{m.guia_nombre}</span>
                       </div>
                       <div className="text-[10px] text-stone-500 mt-0.5">
-                        Líder: <span className="font-semibold">{m.lider_nombre}</span> • Sede: <span className="font-semibold uppercase">{getSedeIdByCuadrilla(m.cuadrilla_codigo).replace('-', ' ')}</span>
+                        Líder: <span className="font-semibold">{m.lider_nombre}</span> • Resp: <span className="font-semibold">{m.responsable_nombre}</span>
                       </div>
                     </div>
                     <span className="text-[10px] text-diocesis-red font-bold">Ver →</span>
@@ -1200,27 +1275,66 @@ export default function MapaTactico({
         </div>
       )}
 
-      {/* BANNER DE LÍDER ACTIVO (SI HAY UN LÍDER SELECCIONADO) */}
-      {canEdit && selectedLider !== '' && selectedLider !== 'TODOS' && currentLiderData && (
-        <div className="px-5 py-2.5 bg-gradient-to-r from-amber-100 via-amber-50 to-stone-50 border-b border-amber-200 flex items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">👑</span>
-            <div>
-              <span className="font-bold text-stone-900">
-                Desplegando sector de: <span className="text-diocesis-redDark font-extrabold">{currentLiderData.lider_nombre}</span>
+      {/* BREADCRUMB / BANNER DE FILTRO ACTIVO */}
+      {canEdit && (selectedResponsable || selectedLider) && (
+        <div className="px-5 py-2.5 bg-gradient-to-r from-amber-100 via-amber-50 to-stone-50 border-b border-amber-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-stone-500 font-bold">Nivel Activo:</span>
+            
+            {/* Chip de Responsable */}
+            {selectedResponsable && (
+              <span className="px-2.5 py-1 rounded-lg bg-diocesis-redDark text-white font-bold flex items-center gap-1.5">
+                <span>👔 Resp: {selectedResponsable}</span>
+                <button
+                  onClick={() => {
+                    setSelectedResponsable('');
+                    setSelectedLider('');
+                  }}
+                  className="hover:text-amber-200 text-white cursor-pointer ml-1"
+                  title="Quitar filtro de responsable"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </span>
-              <span className="text-stone-500 ml-2">
-                ({currentLiderData.guias.length} Guías • ~{currentLiderData.guias.length * 10} voluntarios)
+            )}
+
+            {/* Chip de Líder */}
+            {selectedLider && selectedLider !== 'TODOS' && currentLiderData && (
+              <span className="px-2.5 py-1 rounded-lg bg-amber-500 text-stone-950 font-bold flex items-center gap-1.5">
+                <span>👑 Líder: {currentLiderData.lider_nombre} ({currentLiderData.guias.length} Guías)</span>
+                <button
+                  onClick={() => setSelectedLider('')}
+                  className="hover:text-red-900 text-stone-950 cursor-pointer ml-1"
+                  title="Quitar filtro de líder"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </span>
-            </div>
+            )}
           </div>
-          <button
-            onClick={() => setSelectedLider('')}
-            className="px-3 py-1 bg-white hover:bg-amber-100 text-stone-700 font-bold rounded-lg border border-amber-300 transition flex items-center gap-1 cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Ver todos los Líderes
-          </button>
+
+          <div className="flex items-center gap-2">
+            {selectedLider && (
+              <button
+                onClick={() => setSelectedLider('')}
+                className="px-3 py-1 bg-white hover:bg-amber-100 text-stone-700 font-bold rounded-lg border border-amber-300 transition flex items-center gap-1 cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Ver todos los Líderes
+              </button>
+            )}
+            {selectedResponsable && (
+              <button
+                onClick={() => {
+                  setSelectedResponsable('');
+                  setSelectedLider('');
+                }}
+                className="px-3 py-1 bg-white hover:bg-stone-100 text-stone-700 font-bold rounded-lg border border-stone-300 transition cursor-pointer"
+              >
+                Ver todos los Responsables
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -1234,7 +1348,7 @@ export default function MapaTactico({
 
         <div className="flex items-center gap-3">
           <span className="font-mono text-stone-600 text-xs">
-            Líderes: <strong className="text-stone-900">{lideresDeEstaSede.length}</strong> | Guías: <strong className="text-stone-900">{mandosDeEstaSede.length}</strong>
+            Resp: <strong className="text-stone-900">{responsablesDeEstaSede.length}</strong> | Líderes: <strong className="text-stone-900">{lideresDeEstaSede.length}</strong> | Guías: <strong className="text-stone-900">{mandosFiltradosPorResponsable.length}</strong>
           </span>
           <button
             onClick={() => setActivePoiFilter(!activePoiFilter)}
