@@ -5,7 +5,7 @@ import {
   MapPin, Navigation, Shield, AlertTriangle, CheckCircle2, Clock, 
   HeartPulse, Droplets, ShieldAlert, Coffee, ExternalLink, RefreshCw,
   Eye, Phone, MessageCircle, Layers, ZoomIn, ZoomOut, Compass, Info,
-  Building, Church, Landmark, Mountain, Car, Globe, Map, Plus, Trash2, Edit3, X, Check,
+  Building, Church, Landmark, Mountain, Car, Globe, Map as MapIcon, Plus, Trash2, Edit3, X, Check,
   Search, Users, ChevronDown, UserCheck, ArrowLeft
 } from 'lucide-react';
 
@@ -225,20 +225,20 @@ export default function MapaTactico({
   }, [mandosDb, cuadrillasLista, selectedSedeId, canEdit]);
 
   const lideresDeEstaSede = useMemo(() => {
-    const map = new Map();
+    const groups = {};
     mandosDeEstaSede.forEach(m => {
       const lidName = (m.lider_nombre || 'Sin Líder').trim();
-      if (!map.has(lidName)) {
-        map.set(lidName, {
+      if (!groups[lidName]) {
+        groups[lidName] = {
           lider_nombre: lidName,
           lider_dni: m.lider_dni,
           responsable_nombre: m.responsable_nombre,
           guias: []
-        });
+        };
       }
-      map.get(lidName).guias.push(m);
+      groups[lidName].guias.push(m);
     });
-    return Array.from(map.values());
+    return Object.values(groups);
   }, [mandosDeEstaSede]);
 
   // Búsqueda rápida de Guías / Cuadrillas / Líderes
@@ -266,7 +266,7 @@ export default function MapaTactico({
     }
   };
 
-  // Inicializar o centrar mapa Leaflet
+  // Inicializar o centrar mapa Leaflet de forma segura
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
@@ -276,6 +276,11 @@ export default function MapaTactico({
       });
       renderMarkers();
       return;
+    }
+
+    // Prevenir error Leaflet si el contenedor ya tenía un mapa asociado
+    if (mapContainerRef.current._leaflet_id) {
+      mapContainerRef.current._leaflet_id = null;
     }
 
     const map = L.map(mapContainerRef.current, {
@@ -1049,7 +1054,7 @@ export default function MapaTactico({
                   : 'text-stone-300 hover:text-white'
               }`}
             >
-              <Map className="w-3.5 h-3.5" /> Callejero
+              <MapIcon className="w-3.5 h-3.5" /> Callejero
             </button>
             <button
               onClick={() => toggleMapType('satelite')}
