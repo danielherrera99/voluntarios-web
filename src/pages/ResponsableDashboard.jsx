@@ -184,7 +184,7 @@ export default function ResponsableDashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img 
-              src="/logos/logo_comision_juventud.png" 
+              src="/voluntariado/logos/logo_comision_juventud.png" 
               alt="Diócesis de Chiclayo" 
               className="w-10 h-10 object-contain drop-shadow"
             />

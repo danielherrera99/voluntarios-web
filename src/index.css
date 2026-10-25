@@ -3,9 +3,9 @@
 /* Soporte oficial para Neulis cuando se cargue el archivo en /fonts/ */
 @font-face {
   font-family: 'Neulis';
-  src: url('/fonts/Neulis.woff2') format('woff2'),
-       url('/fonts/Neulis.otf') format('opentype'),
-       url('/fonts/Neulis.ttf') format('truetype');
+  src: url('/voluntariado/fonts/Neulis.woff2') format('woff2'),
+       url('/voluntariado/fonts/Neulis.otf') format('opentype'),
+       url('/voluntariado/fonts/Neulis.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
@@ -13,9 +13,9 @@
 
 @font-face {
   font-family: 'Neulis Cursive';
-  src: url('/fonts/Neulis-Cursive.woff2') format('woff2'),
-       url('/fonts/Neulis-Cursive.otf') format('opentype'),
-       url('/fonts/Neulis-Cursive.ttf') format('truetype');
+  src: url('/voluntariado/fonts/Neulis-Cursive.woff2') format('woff2'),
+       url('/voluntariado/fonts/Neulis-Cursive.otf') format('opentype'),
+       url('/voluntariado/fonts/Neulis-Cursive.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
