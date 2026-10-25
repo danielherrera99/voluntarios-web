@@ -1,11 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import L from 'leaflet';
 import { supabase } from '../supabase';
 import { 
   MapPin, Navigation, Shield, AlertTriangle, CheckCircle2, Clock, 
   HeartPulse, Droplets, ShieldAlert, Coffee, ExternalLink, RefreshCw,
   Eye, Phone, MessageCircle, Layers, ZoomIn, ZoomOut, Compass, Info,
-  Building, Church, Landmark, Mountain, Car, Globe, Map, Plus, Trash2, Edit3, X, Check
+  Building, Church, Landmark, Mountain, Car, Globe, Map, Plus, Trash2, Edit3, X, Check,
+  Search, Users, ChevronDown, UserCheck, ArrowLeft
 } from 'lucide-react';
 
 // Sedes oficiales de la Visita Papal en la Diócesis de Chiclayo (Coordenadas Reales de Lambayeque)
@@ -82,6 +83,16 @@ export const SEDES_DIOCESIS = [
   }
 ];
 
+// Helper para determinar a qué sede corresponde cada cuadrilla
+export const getSedeIdByCuadrilla = (cuadrillaCodigo) => {
+  const num = parseInt((cuadrillaCodigo || '').replace(/\D/g, ''), 10) || 0;
+  if (num <= 450) return 'misa-central';
+  if (num <= 535) return 'catedral-chiclayo';
+  if (num <= 600) return 'santuario-paz';
+  if (num <= 675) return 'zana-historica';
+  return 'santa-cruz';
+};
+
 export default function MapaTactico({ 
   rol = 'guia', 
   isAdmin = false,
@@ -99,7 +110,13 @@ export default function MapaTactico({
   const [gpsConfirmed, setGpsConfirmed] = useState(false);
   const [activePoiFilter, setActivePoiFilter] = useState(true);
 
-  // Estados del Editor de Puntos (Exclusivo Administrador)
+  // Filtro táctico de Líderes y Búsqueda para el Administrador
+  const [selectedLider, setSelectedLider] = useState(''); // '' = Vista de Puestos de Mando de Líderes; o nombre específico; o 'TODOS'
+  const [searchTerm, setSearchTerm] = useState('');
+  const [mandosDb, setMandosDb] = useState([]);
+  const [loadingMandos, setLoadingMandos] = useState(false);
+
+  // Estados del Editor de Puntos (Exclusivo Administrador / Comisión)
   const canEdit = isAdmin || rol === 'admin' || rol === 'comision';
   const [isEditorMode, setIsEditorMode] = useState(false);
   const [puntosDb, setPuntosDb] = useState([]);
@@ -150,7 +167,7 @@ export default function MapaTactico({
     setTimeout(() => setFeedbackMsg(null), 3000);
   };
 
-  // 1. Cargar Puntos Tácticos de Supabase
+  // 1. Cargar Puntos Tácticos de Supabase (Hospitales, Agua, Puertas, Altar)
   const fetchPuntosTacticos = async () => {
     setLoadingPuntos(true);
     try {
@@ -168,9 +185,74 @@ export default function MapaTactico({
     }
   };
 
+  // 2. Cargar Estructura de Mandos (733 cuadrillas, 87 líderes, 18 responsables)
+  const fetchMandos = async () => {
+    if (!canEdit && cuadrillasLista.length > 0) return;
+    setLoadingMandos(true);
+    try {
+      const { data, error } = await supabase
+        .from('estructura_mandos')
+        .select('*')
+        .order('id', { ascending: true });
+
+      if (error) throw error;
+      setMandosDb(data || []);
+    } catch (err) {
+      console.error('Error cargando mandos:', err.message);
+    } finally {
+      setLoadingMandos(false);
+    }
+  };
+
   useEffect(() => {
     fetchPuntosTacticos();
-  }, []);
+    fetchMandos();
+  }, [canEdit]);
+
+  // Al cambiar de Sede, reiniciar el filtro de Líder y buscador
+  useEffect(() => {
+    setSelectedLider('');
+    setSearchTerm('');
+  }, [selectedSedeId]);
+
+  // Agrupación y partición de mandos de la Sede actual
+  const mandosDeEstaSede = useMemo(() => {
+    if (!canEdit && cuadrillasLista.length > 0) {
+      return cuadrillasLista;
+    }
+    const source = mandosDb.length > 0 ? mandosDb : cuadrillasLista;
+    return source.filter(m => getSedeIdByCuadrilla(m.cuadrilla_codigo) === selectedSedeId);
+  }, [mandosDb, cuadrillasLista, selectedSedeId, canEdit]);
+
+  const lideresDeEstaSede = useMemo(() => {
+    const map = new Map();
+    mandosDeEstaSede.forEach(m => {
+      const lidName = (m.lider_nombre || 'Sin Líder').trim();
+      if (!map.has(lidName)) {
+        map.set(lidName, {
+          lider_nombre: lidName,
+          lider_dni: m.lider_dni,
+          responsable_nombre: m.responsable_nombre,
+          guias: []
+        });
+      }
+      map.get(lidName).guias.push(m);
+    });
+    return Array.from(map.values());
+  }, [mandosDeEstaSede]);
+
+  // Búsqueda rápida de Guías / Cuadrillas / Líderes
+  const searchResults = useMemo(() => {
+    if (!searchTerm.trim() || searchTerm.length < 2) return [];
+    const query = searchTerm.toLowerCase().trim();
+    const source = mandosDb.length > 0 ? mandosDb : mandosDeEstaSede;
+    return source.filter(m => 
+      (m.cuadrilla_codigo && m.cuadrilla_codigo.toLowerCase().includes(query)) ||
+      (m.guia_nombre && m.guia_nombre.toLowerCase().includes(query)) ||
+      (m.lider_nombre && m.lider_nombre.toLowerCase().includes(query)) ||
+      (m.responsable_nombre && m.responsable_nombre.toLowerCase().includes(query))
+    ).slice(0, 8);
+  }, [searchTerm, mandosDb, mandosDeEstaSede]);
 
   // Configuración de capas de mapas gratuitos
   const TILE_LAYERS = {
@@ -358,6 +440,83 @@ export default function MapaTactico({
     }
   };
 
+  // Guardar posición personalizada de un Líder de Sector
+  const handleGuardarPosicionLider = async (liderNombre, lat, lng) => {
+    try {
+      const latNum = Number(lat.toFixed(6));
+      const lngNum = Number(lng.toFixed(6));
+      const existing = puntosDb.find(p => p.tipo === 'mando' && p.nombre === liderNombre && p.sede_id === selectedSedeId);
+      
+      if (existing) {
+        await supabase.from('puntos_tacticos').update({ 
+          lat: latNum, 
+          lng: lngNum, 
+          updated_at: new Date().toISOString() 
+        }).eq('id', existing.id);
+        
+        setPuntosDb(prev => prev.map(p => p.id === existing.id ? { ...p, lat: latNum, lng: lngNum } : p));
+      } else {
+        const nuevo = {
+          sede_id: selectedSedeId,
+          tipo: 'mando',
+          nombre: liderNombre,
+          descripcion: `Puesto de Mando - Líder ${liderNombre}`,
+          lat: latNum,
+          lng: lngNum,
+          icono: '🛡️',
+          color: '#6B0D12'
+        };
+        const { data, error } = await supabase.from('puntos_tacticos').insert([nuevo]).select();
+        if (!error && data) {
+          setPuntosDb(prev => [...prev, ...data]);
+        }
+      }
+      setFeedbackMsg(`✓ Posición táctica del Líder "${liderNombre}" guardada.`);
+      setTimeout(() => setFeedbackMsg(null), 3000);
+    } catch (err) {
+      console.error('Error guardando posición de líder:', err);
+    }
+  };
+
+  // Guardar posición personalizada de un Guía (Cuadrilla)
+  const handleGuardarPosicionGuia = async (guia, lat, lng) => {
+    try {
+      const latNum = Number(lat.toFixed(6));
+      const lngNum = Number(lng.toFixed(6));
+      const existing = puntosDb.find(p => p.tipo === 'cuadrilla' && p.cuadrilla_codigo === guia.cuadrilla_codigo);
+      
+      if (existing) {
+        await supabase.from('puntos_tacticos').update({ 
+          lat: latNum, 
+          lng: lngNum, 
+          updated_at: new Date().toISOString() 
+        }).eq('id', existing.id);
+        
+        setPuntosDb(prev => prev.map(p => p.id === existing.id ? { ...p, lat: latNum, lng: lngNum } : p));
+      } else {
+        const nuevo = {
+          sede_id: selectedSedeId,
+          tipo: 'cuadrilla',
+          nombre: `Guía: ${guia.guia_nombre}`,
+          descripcion: `Cuadrilla ${guia.cuadrilla_codigo} - Líder: ${guia.lider_nombre}`,
+          cuadrilla_codigo: guia.cuadrilla_codigo,
+          lat: latNum,
+          lng: lngNum,
+          icono: '📍',
+          color: '#9B1C22'
+        };
+        const { data, error } = await supabase.from('puntos_tacticos').insert([nuevo]).select();
+        if (!error && data) {
+          setPuntosDb(prev => [...prev, ...data]);
+        }
+      }
+      setFeedbackMsg(`✓ Posición de ${guia.cuadrilla_codigo} (${guia.guia_nombre}) guardada.`);
+      setTimeout(() => setFeedbackMsg(null), 3000);
+    } catch (err) {
+      console.error('Error guardando posición de guía:', err);
+    }
+  };
+
   // Dibujar marcadores reales en el mapa
   const renderMarkers = () => {
     if (!mapInstanceRef.current || !markersLayerRef.current) return;
@@ -406,7 +565,7 @@ export default function MapaTactico({
     sedePopupContent.innerHTML = `
       <strong style="color: #6B0D12; font-size: 14px; display: block;">${currentSede.nombre}</strong>
       <span style="font-size: 11px; color: #666; display: block; margin-top: 2px;">${currentSede.tipo}</span>
-      <span style="font-size: 11px; font-weight: bold; color: #B5871D; display: block; margin-top: 2px;">Capacidad: ${currentSede.capacidadCuadrillas} cuadrillas</span>
+      <span style="font-size: 11px; font-weight: bold; color: #B5871D; display: block; margin-top: 2px;">Capacidad: ${currentSede.capacidadCuadrillas} cuadrillas (${lideresDeEstaSede.length} Líderes)</span>
       <span style="font-size: 10px; color: #888; font-family: monospace; display: block; margin-top: 4px;">Coord: ${currentSede.lat.toFixed(5)}, ${currentSede.lng.toFixed(5)}</span>
       ${isEditorMode ? `
         <div style="margin-top: 6px; padding: 4px 6px; background-color: #FEF3C7; color: #92400E; font-size: 10px; font-weight: bold; border-radius: 4px;">
@@ -435,30 +594,20 @@ export default function MapaTactico({
     sedeMarker.bindPopup(sedePopupContent);
     markersLayerRef.current.addLayer(sedeMarker);
 
-    // 2. Marcadores Dinámicos de Supabase para esta Sede
-    const puntosSede = puntosDb.filter(p => p.sede_id === selectedSedeId);
+    // 2. Marcadores de Emergencia / Logística (Puntos Tácticos de Supabase)
+    const puntosSede = puntosDb.filter(p => p.sede_id === selectedSedeId && p.tipo !== 'mando' && p.tipo !== 'cuadrilla');
 
     if (activePoiFilter && puntosSede.length > 0) {
       puntosSede.forEach(poi => {
-        const isCuadrilla = poi.tipo === 'cuadrilla';
-        const poiHtml = isCuadrilla && poi.cuadrilla_codigo
-          ? `
-            <div style="background-color: #9B1C22; color: #FFF; width: 36px; height: 36px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px solid #B5871D; box-shadow: 0 3px 8px rgba(0,0,0,0.4); cursor: ${isEditorMode ? 'grab' : 'pointer'};">
-              <span style="font-size: 10px; font-weight: 900; line-height: 1;">${poi.cuadrilla_codigo.replace('CUA-', 'C-')}</span>
-              <span style="font-size: 7px; opacity: 0.9; font-weight: bold;">CUAD.</span>
-            </div>
-          `
-          : `
+        const poiIcon = L.divIcon({
+          className: 'custom-poi-icon',
+          html: `
             <div style="background-color: ${poi.color || '#2563EB'}; color: white; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.35); cursor: ${isEditorMode ? 'grab' : 'pointer'};">
               ${poi.icono || '📍'}
             </div>
-          `;
-
-        const poiIcon = L.divIcon({
-          className: 'custom-poi-icon',
-          html: poiHtml,
-          iconSize: [36, 36],
-          iconAnchor: [18, 18]
+          `,
+          iconSize: [34, 34],
+          iconAnchor: [17, 17]
         });
 
         const poiMarker = L.marker([Number(poi.lat), Number(poi.lng)], { 
@@ -466,7 +615,6 @@ export default function MapaTactico({
           draggable: isEditorMode
         });
 
-        // Evento arrastrar si está en modo editor
         if (isEditorMode) {
           poiMarker.on('dragend', (e) => {
             const { lat, lng } = e.target.getLatLng();
@@ -474,14 +622,12 @@ export default function MapaTactico({
           });
         }
 
-        // Popup con opción de eliminar si es Administrador
         const popupContent = document.createElement('div');
         popupContent.style.fontFamily = 'sans-serif';
         popupContent.style.minWidth = '180px';
         popupContent.innerHTML = `
           <strong style="color: #6B0D12; font-size: 13px; display: block;">${poi.nombre}</strong>
-          ${poi.cuadrilla_codigo ? `<span style="font-size: 11px; font-weight: bold; color: #B5871D; display: block;">Código: ${poi.cuadrilla_codigo}</span>` : ''}
-          <span style="font-size: 11px; color: #555; display: block; margin-top: 2px;">${poi.descripcion || 'Punto táctico de campo'}</span>
+          <span style="font-size: 11px; color: #555; display: block; margin-top: 2px;">${poi.descripcion || 'Punto de apoyo'}</span>
           <span style="font-size: 10px; color: #888; font-family: monospace; display: block; margin-top: 4px;">Coord: ${Number(poi.lat).toFixed(5)}, ${Number(poi.lng).toFixed(5)}</span>
           ${isEditorMode ? `
             <div style="margin-top: 4px; padding: 2px 4px; background-color: #FEF3C7; color: #92400E; font-size: 9px; font-weight: bold; border-radius: 4px;">
@@ -512,62 +658,267 @@ export default function MapaTactico({
       });
     }
 
-    // 3. Marcadores de Cuadrillas en la zona
-    const cuadrillas = cuadrillasLista.length > 0 
-      ? cuadrillasLista 
-      : (!isAdmin && rol !== 'admin' ? [
-          {
-            id: 1,
-            cuadrilla_codigo: cuadrillaCodigo,
-            guia_nombre: guiaNombre,
-            lider_nombre: liderNombre,
-            lat: currentSede.lat + 0.0008,
-            lng: currentSede.lng + 0.0006,
-            estado_dia_d: gpsConfirmed ? 'presente' : 'pendiente'
-          }
-        ] : []);
+    // 3. VISTA JERÁRQUICA DE MANDOS (LÍDERES Y GUÍAS)
+    // Para Guías no-admin que traen su propia cuadrilla
+    if (!canEdit && cuadrillasLista.length > 0) {
+      cuadrillasLista.forEach((c, idx) => {
+        const cLat = c.lat || (currentSede.lat + (Math.sin(idx * 0.8) * 0.0012));
+        const cLng = c.lng || (currentSede.lng + (Math.cos(idx * 0.8) * 0.0014));
+        const isConfirmed = c.estado_dia_d === 'presente' || gpsConfirmed;
+        const isMyCuadrilla = (c.cuadrilla_codigo === cuadrillaCodigo) || (rol === 'guia');
 
-    cuadrillas.forEach((c, idx) => {
-      const cLat = c.lat || (currentSede.lat + (Math.sin(idx * 0.8) * 0.0012));
-      const cLng = c.lng || (currentSede.lng + (Math.cos(idx * 0.8) * 0.0014));
-      const isConfirmed = c.estado_dia_d === 'presente' || gpsConfirmed;
-      const isMyCuadrilla = (c.cuadrilla_codigo === cuadrillaCodigo) || (rol === 'guia');
+        const pinBg = isConfirmed ? '#059669' : isMyCuadrilla ? '#9B1C22' : '#64748B';
+        const cIcon = L.divIcon({
+          className: 'custom-cua-icon',
+          html: `
+            <div style="background-color: ${pinBg}; border: 2px solid white; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; font-family: monospace; box-shadow: 0 2px 6px rgba(0,0,0,0.35);">
+              ${c.cuadrilla_codigo ? c.cuadrilla_codigo.replace('CUA-', '') : idx + 1}
+            </div>
+          `,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14]
+        });
 
-      const pinBg = isConfirmed ? '#059669' : isMyCuadrilla ? '#9B1C22' : '#64748B';
-      const cIcon = L.divIcon({
-        className: 'custom-cua-icon',
-        html: `
-          <div style="background-color: ${pinBg}; border: 2px solid white; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; font-family: monospace; box-shadow: 0 2px 6px rgba(0,0,0,0.35); cursor: ${isEditorMode ? 'grab' : 'pointer'};">
-            ${c.cuadrilla_codigo ? c.cuadrilla_codigo.replace('CUA-', '') : idx + 1}
-          </div>
-        `,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14]
+        const cuaMarker = L.marker([cLat, cLng], { icon: cIcon })
+          .bindPopup(`
+            <div style="font-family: sans-serif; min-width: 160px;">
+              <strong style="color: #6B0D12; font-size: 13px;">${c.cuadrilla_codigo || 'CUA'}</strong><br/>
+              <span style="font-size: 12px; font-weight: bold;">${c.guia_nombre || 'Guía Asignado'}</span><br/>
+              <span style="font-size: 11px; color: #666;">Líder: ${c.lider_nombre || liderNombre}</span><br/>
+              <span style="display: inline-block; margin-top: 4px; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; background-color: ${isConfirmed ? '#D1FAE5' : '#FEF3C7'}; color: ${isConfirmed ? '#065F46' : '#92400E'};">
+                ${isConfirmed ? '✓ EN POSICIÓN' : '⏳ PENDIENTE'}
+              </span>
+            </div>
+          `);
+
+        cuaMarker.on('click', () => setSelectedCuadrilla(c));
+        markersLayerRef.current.addLayer(cuaMarker);
       });
+      return;
+    }
 
-      const cuaMarker = L.marker([cLat, cLng], { 
-        icon: cIcon,
-        draggable: isEditorMode 
-      })
-        .bindPopup(`
-          <div style="font-family: sans-serif; min-width: 160px;">
-            <strong style="color: #6B0D12; font-size: 13px;">${c.cuadrilla_codigo || 'CUA'}</strong><br/>
-            <span style="font-size: 12px; font-weight: bold;">${c.guia_nombre || 'Guía Asignado'}</span><br/>
-            <span style="font-size: 11px; color: #666;">Líder: ${c.lider_nombre || liderNombre}</span><br/>
-            <span style="display: inline-block; margin-top: 4px; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; background-color: ${isConfirmed ? '#D1FAE5' : '#FEF3C7'}; color: ${isConfirmed ? '#065F46' : '#92400E'};">
-              ${isConfirmed ? '✓ EN POSICIÓN' : '⏳ PENDIENTE'}
-            </span>
+    // Para el ADMINISTRADOR: Filtrado táctico para no saturar el mapa
+    // CASO A: Sin filtro de líder -> Mostramos los Puestos de Mando de los Líderes de la Sede
+    if (selectedLider === '') {
+      lideresDeEstaSede.forEach((lid, idx) => {
+        // Buscar posición guardada en puntos_tacticos o calcular en anillo concéntrico
+        const savedLidPoint = puntosDb.find(p => p.tipo === 'mando' && p.nombre === lid.lider_nombre && p.sede_id === selectedSedeId);
+        
+        let lLat, lLng;
+        if (savedLidPoint) {
+          lLat = Number(savedLidPoint.lat);
+          lLng = Number(savedLidPoint.lng);
+        } else {
+          const totalLids = Math.max(lideresDeEstaSede.length, 1);
+          const angle = (idx * (2 * Math.PI / totalLids)) - (Math.PI / 2);
+          const ringRadius = 0.0016 + ((idx % 3) * 0.0008);
+          lLat = currentSede.lat + (ringRadius * Math.sin(angle));
+          lLng = currentSede.lng + (ringRadius * 1.35 * Math.cos(angle));
+        }
+
+        const lidIcon = L.divIcon({
+          className: 'custom-lider-icon',
+          html: `
+            <div style="background-color: #6B0D12; border: 2.5px solid #F59E0B; color: #FFF; width: 38px; height: 38px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(107,13,18,0.5); cursor: ${isEditorMode ? 'grab' : 'pointer'};">
+              <span style="font-size: 13px; line-height: 1;">🛡️</span>
+              <span style="font-size: 8px; font-weight: 800; color: #FDE68A; margin-top: 1px;">${lid.guias.length}G</span>
+            </div>
+          `,
+          iconSize: [38, 38],
+          iconAnchor: [19, 19]
+        });
+
+        const lidMarker = L.marker([lLat, lLng], {
+          icon: lidIcon,
+          draggable: isEditorMode
+        });
+
+        if (isEditorMode) {
+          lidMarker.on('dragend', (e) => {
+            const { lat, lng } = e.target.getLatLng();
+            handleGuardarPosicionLider(lid.lider_nombre, lat, lng);
+          });
+        }
+
+        const lidPopup = document.createElement('div');
+        lidPopup.style.fontFamily = 'sans-serif';
+        lidPopup.style.minWidth = '210px';
+        lidPopup.innerHTML = `
+          <div style="display: flex; items-center; gap: 6px; border-bottom: 1px solid #E5E7EB; padding-bottom: 4px; margin-bottom: 6px;">
+            <span style="font-size: 16px;">🛡️</span>
+            <div>
+              <strong style="color: #6B0D12; font-size: 13px; display: block;">Líder de Sector</strong>
+              <span style="font-size: 11px; font-weight: 700; color: #111;">${lid.lider_nombre}</span>
+            </div>
+          </div>
+          <span style="font-size: 10px; color: #666; display: block;">DNI: <strong>${lid.lider_dni || 'N/A'}</strong></span>
+          <span style="font-size: 10px; color: #666; display: block;">Coordinador: <strong>${lid.responsable_nombre || 'Comisión Central'}</strong></span>
+          <div style="margin-top: 6px; padding: 4px 8px; background-color: #FEF3C7; border-radius: 6px; font-size: 11px; font-weight: bold; color: #92400E;">
+            👥 ${lid.guias.length} Guías a cargo (~${lid.guias.length * 10} voluntarios)
+          </div>
+          ${isEditorMode ? `
+            <div style="margin-top: 6px; padding: 3px 6px; background-color: #EFF6FF; color: #1E40AF; font-size: 9px; font-weight: bold; border-radius: 4px;">
+              🖐️ MODO EDITOR: Arrastra este puesto de mando para ubicarlo
+            </div>
+          ` : ''}
+        `;
+
+        const deployBtn = document.createElement('button');
+        deployBtn.innerText = `👁️ Desplegar sus ${lid.guias.length} Guías`;
+        deployBtn.style.marginTop = '8px';
+        deployBtn.style.padding = '6px 10px';
+        deployBtn.style.fontSize = '11px';
+        deployBtn.style.fontWeight = 'bold';
+        deployBtn.style.color = 'white';
+        deployBtn.style.backgroundColor = '#9B1C22';
+        deployBtn.style.border = 'none';
+        deployBtn.style.borderRadius = '6px';
+        deployBtn.style.cursor = 'pointer';
+        deployBtn.style.width = '100%';
+        deployBtn.onclick = () => {
+          setSelectedLider(lid.lider_nombre);
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.flyTo([lLat, lLng], 17, { duration: 1 });
+          }
+        };
+        lidPopup.appendChild(deployBtn);
+
+        lidMarker.bindPopup(lidPopup);
+        markersLayerRef.current.addLayer(lidMarker);
+      });
+    }
+
+    // CASO B: Un Líder Seleccionado (O 'TODOS')
+    if (selectedLider !== '') {
+      const activeLideres = selectedLider === 'TODOS' 
+        ? lideresDeEstaSede 
+        : lideresDeEstaSede.filter(l => l.lider_nombre === selectedLider);
+
+      activeLideres.forEach((lid, lIdx) => {
+        // Posición del Líder
+        const savedLidPoint = puntosDb.find(p => p.tipo === 'mando' && p.nombre === lid.lider_nombre && p.sede_id === selectedSedeId);
+        let lLat, lLng;
+        if (savedLidPoint) {
+          lLat = Number(savedLidPoint.lat);
+          lLng = Number(savedLidPoint.lng);
+        } else {
+          const totalLids = Math.max(lideresDeEstaSede.length, 1);
+          const angle = (lIdx * (2 * Math.PI / totalLids)) - (Math.PI / 2);
+          const ringRadius = 0.0016 + ((lIdx % 3) * 0.0008);
+          lLat = currentSede.lat + (ringRadius * Math.sin(angle));
+          lLng = currentSede.lng + (ringRadius * 1.35 * Math.cos(angle));
+        }
+
+        // Marcador destacado del Líder
+        const lidIcon = L.divIcon({
+          className: 'custom-lider-active-icon',
+          html: `
+            <div style="background-color: #6B0D12; border: 3px solid #F59E0B; color: #FFF; width: 44px; height: 44px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.35), 0 4px 12px rgba(0,0,0,0.5); cursor: ${isEditorMode ? 'grab' : 'pointer'};">
+              <span style="font-size: 16px; line-height: 1;">👑</span>
+              <span style="font-size: 8px; font-weight: 900; color: #FDE68A;">LÍDER</span>
+            </div>
+          `,
+          iconSize: [44, 44],
+          iconAnchor: [22, 22]
+        });
+
+        const lidMarker = L.marker([lLat, lLng], {
+          icon: lidIcon,
+          draggable: isEditorMode
+        });
+
+        if (isEditorMode) {
+          lidMarker.on('dragend', (e) => {
+            const { lat, lng } = e.target.getLatLng();
+            handleGuardarPosicionLider(lid.lider_nombre, lat, lng);
+          });
+        }
+
+        lidMarker.bindPopup(`
+          <div style="font-family: sans-serif; min-width: 200px;">
+            <strong style="color: #6B0D12; font-size: 13px;">Puesto de Mando del Líder</strong><br/>
+            <span style="font-size: 12px; font-weight: bold;">${lid.lider_nombre}</span><br/>
+            <span style="font-size: 11px; color: #666;">Coordinador: ${lid.responsable_nombre || 'Comisión Central'}</span><br/>
+            <span style="font-size: 11px; color: #666;">Cuadrillas bajo su mando: <strong>${lid.guias.length} Guías</strong></span>
           </div>
         `);
+        markersLayerRef.current.addLayer(lidMarker);
 
-      cuaMarker.on('click', () => setSelectedCuadrilla(c));
-      markersLayerRef.current.addLayer(cuaMarker);
-    });
+        // Marcadores de cada Guía bajo este Líder
+        lid.guias.forEach((g, gIdx) => {
+          const savedGuiaPoint = puntosDb.find(p => p.tipo === 'cuadrilla' && p.cuadrilla_codigo === g.cuadrilla_codigo);
+          
+          let gLat, gLng;
+          if (savedGuiaPoint) {
+            gLat = Number(savedGuiaPoint.lat);
+            gLng = Number(savedGuiaPoint.lng);
+          } else {
+            // Irradiar en círculo táctico alrededor de su Líder
+            const totalGuias = Math.max(lid.guias.length, 1);
+            const gAngle = gIdx * (2 * Math.PI / totalGuias);
+            const gRadius = 0.00065;
+            gLat = lLat + (gRadius * Math.sin(gAngle));
+            gLng = lLng + (gRadius * 1.35 * Math.cos(gAngle));
+          }
+
+          const gNum = g.cuadrilla_codigo ? g.cuadrilla_codigo.replace('CUA-', '') : gIdx + 1;
+          const guiaIcon = L.divIcon({
+            className: 'custom-guia-tactico-icon',
+            html: `
+              <div style="background-color: #9B1C22; border: 2px solid white; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.35); cursor: ${isEditorMode ? 'grab' : 'pointer'};">
+                <span style="font-size: 9px; font-weight: 900; line-height: 1; font-family: monospace;">${gNum}</span>
+                <span style="font-size: 6px; font-weight: 700; opacity: 0.9;">GUÍA</span>
+              </div>
+            `,
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+          });
+
+          const guiaMarker = L.marker([gLat, gLng], {
+            icon: guiaIcon,
+            draggable: isEditorMode
+          });
+
+          if (isEditorMode) {
+            guiaMarker.on('dragend', (e) => {
+              const { lat, lng } = e.target.getLatLng();
+              handleGuardarPosicionGuia(g, lat, lng);
+            });
+          }
+
+          guiaMarker.bindPopup(`
+            <div style="font-family: sans-serif; min-width: 190px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #E5E7EB; padding-bottom: 4px; margin-bottom: 4px;">
+                <strong style="color: #6B0D12; font-size: 13px;">${g.cuadrilla_codigo}</strong>
+                <span style="font-size: 9px; font-weight: bold; padding: 2px 5px; border-radius: 4px; background-color: #EFF6FF; color: #1E40AF;">
+                  10 Voluntarios
+                </span>
+              </div>
+              <span style="font-size: 12px; font-weight: bold; display: block; color: #111;">${g.guia_nombre}</span>
+              <span style="font-size: 10px; color: #666; display: block;">DNI: ${g.guia_dni || 'N/A'}</span>
+              <span style="font-size: 10px; color: #666; display: block; margin-top: 2px;">Líder: <strong>${g.lider_nombre}</strong></span>
+              <span style="font-size: 10px; color: #666; display: block;">Coordinador: <strong>${g.responsable_nombre}</strong></span>
+              <div style="margin-top: 6px; font-size: 10px; font-weight: bold; color: ${g.guia_carta ? '#065F46' : '#92400E'};">
+                ${g.guia_carta ? '✓ Carta Compromiso Firmada' : '⏳ Carta Pendiente'}
+              </div>
+              ${isEditorMode ? `
+                <div style="margin-top: 4px; padding: 2px 4px; background-color: #FEF3C7; color: #92400E; font-size: 9px; font-weight: bold; border-radius: 4px;">
+                  🖐️ Arrástrame para asignar posición fija al Guía
+                </div>
+              ` : ''}
+            </div>
+          `);
+
+          guiaMarker.on('click', () => setSelectedCuadrilla(g));
+          markersLayerRef.current.addLayer(guiaMarker);
+        });
+      });
+    }
   };
 
   useEffect(() => {
     renderMarkers();
-  }, [puntosDb, activePoiFilter, isEditorMode, gpsConfirmed, customSedesCoords, selectedSedeId]);
+  }, [puntosDb, activePoiFilter, isEditorMode, gpsConfirmed, customSedesCoords, selectedSedeId, selectedLider, mandosDb, cuadrillasLista]);
 
   // Centrar en ubicación GPS
   const handleLocateMe = () => {
@@ -619,7 +970,29 @@ export default function MapaTactico({
     );
   };
 
+  const handleSelectSearchResult = (mando) => {
+    const targetSede = getSedeIdByCuadrilla(mando.cuadrilla_codigo);
+    if (targetSede !== selectedSedeId) {
+      setSelectedSedeId(targetSede);
+    }
+    setSelectedLider(mando.lider_nombre);
+    setSearchTerm('');
+
+    // Si tiene coordenadas fijas o aproximadas, centrar allí
+    const savedGuiaPoint = puntosDb.find(p => p.tipo === 'cuadrilla' && p.cuadrilla_codigo === mando.cuadrilla_codigo);
+    const targetSedeObj = SEDES_DIOCESIS.find(s => s.id === targetSede) || currentSede;
+    const destLat = savedGuiaPoint ? Number(savedGuiaPoint.lat) : targetSedeObj.lat;
+    const destLng = savedGuiaPoint ? Number(savedGuiaPoint.lng) : targetSedeObj.lng;
+
+    if (mapInstanceRef.current) {
+      setTimeout(() => {
+        mapInstanceRef.current.flyTo([destLat, destLng], 18, { duration: 1.2 });
+      }, 300);
+    }
+  };
+
   const puntosDeEstaSede = puntosDb.filter(p => p.sede_id === selectedSedeId);
+  const currentLiderData = lideresDeEstaSede.find(l => l.lider_nombre === selectedLider);
 
   return (
     <div className="bg-white rounded-3xl border-2 border-diocesis-mustard/40 shadow-md overflow-hidden flex flex-col font-sans">
@@ -642,9 +1015,9 @@ export default function MapaTactico({
           <p className="text-xs text-stone-200">
             {canEdit 
               ? isEditorMode 
-                ? '👉 MODO EDITOR ACTIVO: Haz clic en el mapa para añadir un punto o arrástralo para moverlo'
-                : `Planifica y ubica ambulancias, puntos de agua y zonas en ${currentSede.nombre}` 
-              : `Calles, accesos y puntos de auxilio en ${currentSede.nombre}`}
+                ? '👉 MODO EDITOR ACTIVO: Arrastra puestos de mando de Líderes o Guías para fijar su posición en campo'
+                : `Organización táctica por Líderes y Guías en ${currentSede.nombre}` 
+              : `Calles, accesos y puestos de auxilio en ${currentSede.nombre}`}
           </p>
         </div>
 
@@ -662,7 +1035,7 @@ export default function MapaTactico({
               }`}
             >
               <Edit3 className="w-3.5 h-3.5" />
-              {isEditorMode ? 'Editor Activo (Clic en mapa)' : 'Activar Modo Editor'}
+              {isEditorMode ? 'Editor Activo (Arrastra puntos)' : 'Activar Modo Editor'}
             </button>
           )}
 
@@ -734,15 +1107,120 @@ export default function MapaTactico({
               <span>{sede.icono}</span>
               <span>{sede.nombre}</span>
               <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/10">
-                {sede.ciudad}
+                {sede.capacidadCuadrillas} CUA
               </span>
             </button>
           ))}
         </div>
       </div>
 
+      {/* BARRA TÁCTICA DE FILTRO POR LÍDER Y BÚSQUEDA RÁPIDA (PARA EL ADMINISTRADOR) */}
+      {canEdit && (
+        <div className="p-3 bg-stone-50 border-b border-stone-200 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 text-xs">
+          
+          {/* Selector de Líder */}
+          <div className="flex items-center gap-2 flex-1">
+            <div className="flex items-center gap-1.5 text-stone-700 font-bold shrink-0">
+              <Shield className="w-4 h-4 text-diocesis-red" />
+              <span>Filtrar por Líder:</span>
+            </div>
+            <select
+              value={selectedLider}
+              onChange={(e) => setSelectedLider(e.target.value)}
+              className="w-full max-w-md p-2 rounded-xl border border-stone-300 bg-white font-medium text-stone-800 focus:outline-none focus:ring-2 focus:ring-diocesis-red"
+            >
+              <option value="">
+                🛡️ Puestos de Mando ({lideresDeEstaSede.length} Líderes en esta sede)
+              </option>
+              {lideresDeEstaSede.map((lid, idx) => (
+                <option key={idx} value={lid.lider_nombre}>
+                  👤 Líder: {lid.lider_nombre} ({lid.guias.length} Guías a cargo)
+                </option>
+              ))}
+              <option value="TODOS">
+                ⚠️ Mostrar todos los Guías de la Sede juntos ({mandosDeEstaSede.length} Guías)
+              </option>
+            </select>
+          </div>
+
+          {/* Buscador Rápido de Guía o Cuadrilla */}
+          <div className="relative w-full md:w-80">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="🔍 Buscar Guía, Cuadrilla (ej. CUA-015)..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-8 pr-3 py-2 rounded-xl border border-stone-300 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-diocesis-red"
+              />
+              <Search className="w-4 h-4 text-stone-400 absolute left-2.5 top-2.5" />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2.5 top-2.5 text-stone-400 hover:text-stone-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Resultados de Búsqueda Flotantes */}
+            {searchResults.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-2xl shadow-xl border border-stone-200 z-50 max-h-60 overflow-y-auto divide-y divide-stone-100">
+                {searchResults.map((m, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleSelectSearchResult(m)}
+                    className="w-full text-left p-2.5 hover:bg-amber-50/80 transition flex items-center justify-between text-xs"
+                  >
+                    <div>
+                      <div className="flex items-center gap-1.5 font-bold text-stone-900">
+                        <span className="px-1.5 py-0.5 rounded bg-diocesis-red/10 text-diocesis-red font-mono text-[10px]">
+                          {m.cuadrilla_codigo}
+                        </span>
+                        <span>{m.guia_nombre}</span>
+                      </div>
+                      <div className="text-[10px] text-stone-500 mt-0.5">
+                        Líder: <span className="font-semibold">{m.lider_nombre}</span> • Sede: <span className="font-semibold uppercase">{getSedeIdByCuadrilla(m.cuadrilla_codigo).replace('-', ' ')}</span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-diocesis-red font-bold">Ver →</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+        </div>
+      )}
+
+      {/* BANNER DE LÍDER ACTIVO (SI HAY UN LÍDER SELECCIONADO) */}
+      {canEdit && selectedLider !== '' && selectedLider !== 'TODOS' && currentLiderData && (
+        <div className="px-5 py-2.5 bg-gradient-to-r from-amber-100 via-amber-50 to-stone-50 border-b border-amber-200 flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">👑</span>
+            <div>
+              <span className="font-bold text-stone-900">
+                Desplegando sector de: <span className="text-diocesis-redDark font-extrabold">{currentLiderData.lider_nombre}</span>
+              </span>
+              <span className="text-stone-500 ml-2">
+                ({currentLiderData.guias.length} Guías • ~{currentLiderData.guias.length * 10} voluntarios)
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => setSelectedLider('')}
+            className="px-3 py-1 bg-white hover:bg-amber-100 text-stone-700 font-bold rounded-lg border border-amber-300 transition flex items-center gap-1 cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Ver todos los Líderes
+          </button>
+        </div>
+      )}
+
       {/* BARRA DE ESTADO Y PUNTOS DE AUXILIO */}
-      <div className="px-5 py-3 bg-stone-50 border-b border-stone-200 flex flex-wrap items-center justify-between gap-3 text-xs text-stone-600">
+      <div className="px-5 py-2.5 bg-stone-50 border-b border-stone-200 flex flex-wrap items-center justify-between gap-3 text-xs text-stone-600">
         <div className="flex items-center gap-2">
           <strong className="text-diocesis-redDark font-extrabold text-sm">{currentSede.nombre}</strong>
           <span className="text-stone-400">•</span>
@@ -751,7 +1229,7 @@ export default function MapaTactico({
 
         <div className="flex items-center gap-3">
           <span className="font-mono text-stone-600 text-xs">
-            Puntos guardados en sede: <strong className="text-stone-900">{puntosDeEstaSede.length}</strong>
+            Líderes: <strong className="text-stone-900">{lideresDeEstaSede.length}</strong> | Guías: <strong className="text-stone-900">{mandosDeEstaSede.length}</strong>
           </span>
           <button
             onClick={() => setActivePoiFilter(!activePoiFilter)}
@@ -770,7 +1248,7 @@ export default function MapaTactico({
       <div 
         ref={mapContainerRef} 
         className="w-full relative z-10"
-        style={{ height: '500px', minHeight: '500px' }}
+        style={{ height: '520px', minHeight: '520px' }}
       />
 
       {/* MODAL PARA AGREGAR NUEVO PUNTO TÁCTICO (AL HACER CLIC EN EL MAPA EN MODO EDITOR) */}
@@ -852,7 +1330,7 @@ export default function MapaTactico({
                       newPointTipo === 'cuadrilla' ? 'bg-diocesis-cream text-diocesis-redDark border-diocesis-mustard' : 'bg-stone-50 border-stone-200'
                     }`}
                   >
-                    <span className="text-base">📍</span> Cuadrilla
+                    <span className="text-base">📍</span> Guía / Cuad.
                   </button>
                 </div>
               </div>
