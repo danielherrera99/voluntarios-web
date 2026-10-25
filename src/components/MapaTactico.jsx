@@ -6,7 +6,7 @@ import {
   HeartPulse, Droplets, ShieldAlert, Coffee, ExternalLink, RefreshCw,
   Eye, Phone, MessageCircle, Layers, ZoomIn, ZoomOut, Compass, Info,
   Building, Church, Landmark, Mountain, Car, Globe, Map as MapIcon, Plus, Trash2, Edit3, X, Check,
-  Search, Users, ChevronDown, UserCheck, ArrowLeft, GraduationCap, UserCog
+  Search, Users, ChevronDown, UserCheck, ArrowLeft, GraduationCap, UserCog, MoveRight, ArrowRightLeft
 } from 'lucide-react';
 
 // Sedes oficiales de la Visita Papal en la Diócesis de Chiclayo (Coordenadas Reales de Lambayeque)
@@ -97,7 +97,7 @@ export const SEDES_DIOCESIS = [
   }
 ];
 
-// Helper para determinar a qué sede corresponde cada cuadrilla (distribución oficial en 6 sedes)
+// Helper fallback de sede según código de cuadrilla
 export const getSedeIdByCuadrilla = (cuadrillaCodigo) => {
   const num = parseInt((cuadrillaCodigo || '').replace(/\D/g, ''), 10) || 0;
   if (num <= 401) return 'misa-central';
@@ -145,6 +145,15 @@ export default function MapaTactico({
   const [newPointCuadrilla, setNewPointCuadrilla] = useState('');
   const [savingPoint, setSavingPoint] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState(null);
+
+  // Modal de Reasignación Dinámica de Sedes
+  const [showReasignarModal, setShowReasignarModal] = useState(false);
+  const [reasignarTab, setReasignarTab] = useState('responsable'); // 'responsable' | 'lider' | 'guia'
+  const [reasignarTargetResp, setReasignarTargetResp] = useState('');
+  const [reasignarTargetLid, setReasignarTargetLid] = useState('');
+  const [reasignarTargetGuiaCode, setReasignarTargetGuiaCode] = useState('');
+  const [reasignarDestinoSede, setReasignarDestinoSede] = useState('catedral-chiclayo');
+  const [savingReasignacion, setSavingReasignacion] = useState(false);
 
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -201,7 +210,7 @@ export default function MapaTactico({
     }
   };
 
-  // 2. Cargar Estructura de Mandos (733 cuadrillas, 87 líderes, 18 responsables)
+  // 2. Cargar Estructura de Mandos (733 cuadrillas con sede_id persistente)
   const fetchMandos = async () => {
     if (!canEdit && cuadrillasLista.length > 0) return;
     setLoadingMandos(true);
@@ -232,13 +241,13 @@ export default function MapaTactico({
     setSearchTerm('');
   }, [selectedSedeId]);
 
-  // Cuadrillas / Guías que pertenecen a la Sede actual
+  // Cuadrillas / Guías que pertenecen a la Sede actual (según sede_id en BD)
   const mandosDeEstaSede = useMemo(() => {
     if (!canEdit && cuadrillasLista.length > 0) {
       return cuadrillasLista;
     }
     const source = mandosDb.length > 0 ? mandosDb : cuadrillasLista;
-    return source.filter(m => getSedeIdByCuadrilla(m.cuadrilla_codigo) === selectedSedeId);
+    return source.filter(m => (m.sede_id || getSedeIdByCuadrilla(m.cuadrilla_codigo)) === selectedSedeId);
   }, [mandosDb, cuadrillasLista, selectedSedeId, canEdit]);
 
   // 1er Nivel Jerárquico: Responsables Generales de esta Sede
@@ -288,6 +297,23 @@ export default function MapaTactico({
     });
     return Object.values(groups);
   }, [mandosFiltradosPorResponsable]);
+
+  // Listas globales para el modal de reasignación
+  const todosLosResponsables = useMemo(() => {
+    const set = new Set();
+    mandosDb.forEach(m => {
+      if (m.responsable_nombre) set.add(m.responsable_nombre.trim());
+    });
+    return Array.from(set).sort();
+  }, [mandosDb]);
+
+  const todosLosLideres = useMemo(() => {
+    const set = new Set();
+    mandosDb.forEach(m => {
+      if (m.lider_nombre) set.add(m.lider_nombre.trim());
+    });
+    return Array.from(set).sort();
+  }, [mandosDb]);
 
   // Búsqueda rápida de Responsables / Líderes / Guías / Cuadrillas
   const searchResults = useMemo(() => {
@@ -569,6 +595,79 @@ export default function MapaTactico({
     }
   };
 
+  // FUNCIONES DE REASIGNACIÓN DINÁMICA DE SEDES
+  const handleReasignarCuadrilla = async (cuadrillaId, cuadrillaCodigo, nuevaSedeId) => {
+    try {
+      const { error } = await supabase
+        .from('estructura_mandos')
+        .update({ sede_id: nuevaSedeId, updated_at: new Date().toISOString() })
+        .eq('id', cuadrillaId);
+
+      if (error) throw error;
+
+      await supabase
+        .from('puntos_tacticos')
+        .update({ sede_id: nuevaSedeId })
+        .eq('cuadrilla_codigo', cuadrillaCodigo);
+
+      setMandosDb(prev => prev.map(m => m.id === cuadrillaId ? { ...m, sede_id: nuevaSedeId } : m));
+      setPuntosDb(prev => prev.map(p => p.cuadrilla_codigo === cuadrillaCodigo ? { ...p, sede_id: nuevaSedeId } : p));
+
+      const nombreSede = SEDES_DIOCESIS.find(s => s.id === nuevaSedeId)?.nombre || nuevaSedeId;
+      setFeedbackMsg(`✓ Cuadrilla ${cuadrillaCodigo} reasignada a: ${nombreSede}`);
+      setTimeout(() => setFeedbackMsg(null), 4000);
+    } catch (err) {
+      alert(`Error al reasignar cuadrilla: ${err.message}`);
+    }
+  };
+
+  const handleReasignarLider = async (liderNombreTarget, nuevaSedeId) => {
+    try {
+      const { error } = await supabase
+        .from('estructura_mandos')
+        .update({ sede_id: nuevaSedeId, updated_at: new Date().toISOString() })
+        .eq('lider_nombre', liderNombreTarget);
+
+      if (error) throw error;
+
+      await supabase
+        .from('puntos_tacticos')
+        .update({ sede_id: nuevaSedeId })
+        .eq('tipo', 'mando')
+        .eq('nombre', liderNombreTarget);
+
+      setMandosDb(prev => prev.map(m => m.lider_nombre === liderNombreTarget ? { ...m, sede_id: nuevaSedeId } : m));
+      setPuntosDb(prev => prev.map(p => (p.tipo === 'mando' && p.nombre === liderNombreTarget) ? { ...p, sede_id: nuevaSedeId } : p));
+
+      const nombreSede = SEDES_DIOCESIS.find(s => s.id === nuevaSedeId)?.nombre || nuevaSedeId;
+      setFeedbackMsg(`✓ Líder "${liderNombreTarget}" y todas sus cuadrillas reasignados a: ${nombreSede}`);
+      setShowReasignarModal(false);
+      setTimeout(() => setFeedbackMsg(null), 4000);
+    } catch (err) {
+      alert(`Error al reasignar líder: ${err.message}`);
+    }
+  };
+
+  const handleReasignarResponsable = async (responsableNombreTarget, nuevaSedeId) => {
+    try {
+      const { error } = await supabase
+        .from('estructura_mandos')
+        .update({ sede_id: nuevaSedeId, updated_at: new Date().toISOString() })
+        .eq('responsable_nombre', responsableNombreTarget);
+
+      if (error) throw error;
+
+      setMandosDb(prev => prev.map(m => m.responsable_nombre === responsableNombreTarget ? { ...m, sede_id: nuevaSedeId } : m));
+
+      const nombreSede = SEDES_DIOCESIS.find(s => s.id === nuevaSedeId)?.nombre || nuevaSedeId;
+      setFeedbackMsg(`✓ Responsable "${responsableNombreTarget}" y toda su dotación reasignados a: ${nombreSede}`);
+      setShowReasignarModal(false);
+      setTimeout(() => setFeedbackMsg(null), 4000);
+    } catch (err) {
+      alert(`Error al reasignar responsable: ${err.message}`);
+    }
+  };
+
   // Dibujar marcadores reales en el mapa
   const renderMarkers = () => {
     if (!mapInstanceRef.current || !markersLayerRef.current) return;
@@ -617,7 +716,7 @@ export default function MapaTactico({
     sedePopupContent.innerHTML = `
       <strong style="color: #6B0D12; font-size: 14px; display: block;">${currentSede.nombre}</strong>
       <span style="font-size: 11px; color: #666; display: block; margin-top: 2px;">${currentSede.tipo}</span>
-      <span style="font-size: 11px; font-weight: bold; color: #B5871D; display: block; margin-top: 2px;">Capacidad: ${currentSede.capacidadCuadrillas} cuadrillas (${responsablesDeEstaSede.length} Responsables • ${lideresDeEstaSede.length} Líderes)</span>
+      <span style="font-size: 11px; font-weight: bold; color: #B5871D; display: block; margin-top: 2px;">Dotación asignada: ${mandosDeEstaSede.length} cuadrillas (${responsablesDeEstaSede.length} Responsables • ${lideresDeEstaSede.length} Líderes)</span>
       <span style="font-size: 10px; color: #888; font-family: monospace; display: block; margin-top: 4px;">Coord: ${currentSede.lat.toFixed(5)}, ${currentSede.lng.toFixed(5)}</span>
       ${isEditorMode ? `
         <div style="margin-top: 6px; padding: 4px 6px; background-color: #FEF3C7; color: #92400E; font-size: 10px; font-weight: bold; border-radius: 4px;">
@@ -793,7 +892,7 @@ export default function MapaTactico({
 
         const lidPopup = document.createElement('div');
         lidPopup.style.fontFamily = 'sans-serif';
-        lidPopup.style.minWidth = '210px';
+        lidPopup.style.minWidth = '220px';
         lidPopup.innerHTML = `
           <div style="display: flex; items-center; gap: 6px; border-bottom: 1px solid #E5E7EB; padding-bottom: 4px; margin-bottom: 6px;">
             <span style="font-size: 16px;">🛡️</span>
@@ -836,6 +935,28 @@ export default function MapaTactico({
           }
         };
         lidPopup.appendChild(deployBtn);
+
+        // Botón rápido para reasignar este líder a otra sede
+        if (canEdit) {
+          const moveLidBtn = document.createElement('button');
+          moveLidBtn.innerText = `🏛️ Reasignar Líder y sus ${lid.guias.length} Guías`;
+          moveLidBtn.style.marginTop = '6px';
+          moveLidBtn.style.padding = '5px 8px';
+          moveLidBtn.style.fontSize = '10px';
+          moveLidBtn.style.fontWeight = 'bold';
+          moveLidBtn.style.color = '#1E3A8A';
+          moveLidBtn.style.backgroundColor = '#DBEAFE';
+          moveLidBtn.style.border = '1px solid #93C5FD';
+          moveLidBtn.style.borderRadius = '6px';
+          moveLidBtn.style.cursor = 'pointer';
+          moveLidBtn.style.width = '100%';
+          moveLidBtn.onclick = () => {
+            setReasignarTab('lider');
+            setReasignarTargetLid(lid.lider_nombre);
+            setShowReasignarModal(true);
+          };
+          lidPopup.appendChild(moveLidBtn);
+        }
 
         lidMarker.bindPopup(lidPopup);
         markersLayerRef.current.addLayer(lidMarker);
@@ -939,29 +1060,63 @@ export default function MapaTactico({
             });
           }
 
-          guiaMarker.bindPopup(`
-            <div style="font-family: sans-serif; min-width: 190px;">
-              <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #E5E7EB; padding-bottom: 4px; margin-bottom: 4px;">
-                <strong style="color: #6B0D12; font-size: 13px;">${g.cuadrilla_codigo}</strong>
-                <span style="font-size: 9px; font-weight: bold; padding: 2px 5px; border-radius: 4px; background-color: #EFF6FF; color: #1E40AF;">
-                  10 Voluntarios
-                </span>
-              </div>
-              <span style="font-size: 12px; font-weight: bold; display: block; color: #111;">${g.guia_nombre}</span>
-              <span style="font-size: 10px; color: #666; display: block;">DNI: ${g.guia_dni || 'N/A'}</span>
-              <span style="font-size: 10px; color: #666; display: block; margin-top: 2px;">Líder: <strong>${g.lider_nombre}</strong></span>
-              <span style="font-size: 10px; color: #666; display: block;">Coordinador/Responsable: <strong>${g.responsable_nombre}</strong></span>
-              <div style="margin-top: 6px; font-size: 10px; font-weight: bold; color: ${g.guia_carta ? '#065F46' : '#92400E'};">
-                ${g.guia_carta ? '✓ Carta Compromiso Firmada' : '⏳ Carta Pendiente'}
-              </div>
-              ${isEditorMode ? `
-                <div style="margin-top: 4px; padding: 2px 4px; background-color: #FEF3C7; color: #92400E; font-size: 9px; font-weight: bold; border-radius: 4px;">
-                  🖐️ Arrástrame para asignar posición fija al Guía
-                </div>
-              ` : ''}
+          const guiaPopupContent = document.createElement('div');
+          guiaPopupContent.style.fontFamily = 'sans-serif';
+          guiaPopupContent.style.minWidth = '200px';
+          guiaPopupContent.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #E5E7EB; padding-bottom: 4px; margin-bottom: 4px;">
+              <strong style="color: #6B0D12; font-size: 13px;">${g.cuadrilla_codigo}</strong>
+              <span style="font-size: 9px; font-weight: bold; padding: 2px 5px; border-radius: 4px; background-color: #EFF6FF; color: #1E40AF;">
+                10 Voluntarios
+              </span>
             </div>
-          `);
+            <span style="font-size: 12px; font-weight: bold; display: block; color: #111;">${g.guia_nombre}</span>
+            <span style="font-size: 10px; color: #666; display: block;">DNI: ${g.guia_dni || 'N/A'}</span>
+            <span style="font-size: 10px; color: #666; display: block; margin-top: 2px;">Líder: <strong>${g.lider_nombre}</strong></span>
+            <span style="font-size: 10px; color: #666; display: block;">Coordinador/Responsable: <strong>${g.responsable_nombre}</strong></span>
+            <div style="margin-top: 6px; font-size: 10px; font-weight: bold; color: ${g.guia_carta ? '#065F46' : '#92400E'};">
+              ${g.guia_carta ? '✓ Carta Compromiso Firmada' : '⏳ Carta Pendiente'}
+            </div>
+          `;
 
+          // Control rápido para reasignar este Guía individual a otra sede
+          if (canEdit) {
+            const reasignarBox = document.createElement('div');
+            reasignarBox.style.marginTop = '8px';
+            reasignarBox.style.paddingTop = '6px';
+            reasignarBox.style.borderTop = '1px dashed #D1D5DB';
+            reasignarBox.innerHTML = `
+              <span style="font-size: 9px; font-weight: bold; color: #6B7280; display: block; margin-bottom: 3px;">Reasignar a otra Sede:</span>
+            `;
+
+            const selectSede = document.createElement('select');
+            selectSede.style.width = '100%';
+            selectSede.style.padding = '4px 6px';
+            selectSede.style.fontSize = '10px';
+            selectSede.style.borderRadius = '6px';
+            selectSede.style.border = '1px solid #D1D5DB';
+            selectSede.style.backgroundColor = '#F9FAFB';
+
+            SEDES_DIOCESIS.forEach(s => {
+              const opt = document.createElement('option');
+              opt.value = s.id;
+              opt.innerText = `${s.icono} ${s.nombre}`;
+              if (s.id === selectedSedeId) opt.selected = true;
+              selectSede.appendChild(opt);
+            });
+
+            selectSede.onchange = (e) => {
+              const nueva = e.target.value;
+              if (nueva !== selectedSedeId) {
+                handleReasignarCuadrilla(g.id, g.cuadrilla_codigo, nueva);
+              }
+            };
+
+            reasignarBox.appendChild(selectSede);
+            guiaPopupContent.appendChild(reasignarBox);
+          }
+
+          guiaMarker.bindPopup(guiaPopupContent);
           guiaMarker.on('click', () => setSelectedCuadrilla(g));
           markersLayerRef.current.addLayer(guiaMarker);
         });
@@ -1024,7 +1179,7 @@ export default function MapaTactico({
   };
 
   const handleSelectSearchResult = (mando) => {
-    const targetSede = getSedeIdByCuadrilla(mando.cuadrilla_codigo);
+    const targetSede = mando.sede_id || getSedeIdByCuadrilla(mando.cuadrilla_codigo);
     if (targetSede !== selectedSedeId) {
       setSelectedSedeId(targetSede);
     }
@@ -1077,6 +1232,18 @@ export default function MapaTactico({
         {/* Acciones de Cabecera */}
         <div className="flex items-center gap-2 flex-wrap">
           
+          {/* BOTÓN REASIGNAR SEDES (EXCLUSIVO ADMINISTRADOR / COMISIÓN) */}
+          {canEdit && (
+            <button
+              onClick={() => setShowReasignarModal(true)}
+              className="px-3.5 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-sm cursor-pointer border bg-white/15 hover:bg-white/25 text-white border-white/20"
+              title="Reasignar Responsables, Líderes o Guías entre Sedes"
+            >
+              <ArrowRightLeft className="w-3.5 h-3.5 text-diocesis-mustardLight" />
+              Reasignar Sedes
+            </button>
+          )}
+
           {/* BOTÓN MODO EDITOR (EXCLUSIVO ADMINISTRADOR / COMISIÓN) */}
           {canEdit && (
             <button
@@ -1147,23 +1314,29 @@ export default function MapaTactico({
           <span className="text-[11px] font-extrabold uppercase text-stone-500 mr-1 flex items-center gap-1">
             <Building className="w-3.5 h-3.5" /> Sede:
           </span>
-          {SEDES_DIOCESIS.map((sede) => (
-            <button
-              key={sede.id}
-              onClick={() => setSelectedSedeId(sede.id)}
-              className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer border ${
-                selectedSedeId === sede.id
-                  ? 'bg-diocesis-redDark text-white border-diocesis-redDark shadow-sm'
-                  : 'bg-white text-stone-700 border-stone-200 hover:border-diocesis-mustard hover:bg-amber-50'
-              }`}
-            >
-              <span>{sede.icono}</span>
-              <span>{sede.nombre}</span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/10">
-                {sede.capacidadCuadrillas} CUA
-              </span>
-            </button>
-          ))}
+          {SEDES_DIOCESIS.map((sede) => {
+            const countEnSede = mandosDb.length > 0 
+              ? mandosDb.filter(m => (m.sede_id || getSedeIdByCuadrilla(m.cuadrilla_codigo)) === sede.id).length 
+              : sede.capacidadCuadrillas;
+
+            return (
+              <button
+                key={sede.id}
+                onClick={() => setSelectedSedeId(sede.id)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer border ${
+                  selectedSedeId === sede.id
+                    ? 'bg-diocesis-redDark text-white border-diocesis-redDark shadow-sm'
+                    : 'bg-white text-stone-700 border-stone-200 hover:border-diocesis-mustard hover:bg-amber-50'
+                }`}
+              >
+                <span>{sede.icono}</span>
+                <span>{sede.nombre}</span>
+                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-extrabold ${selectedSedeId === sede.id ? 'bg-amber-400 text-diocesis-redDark' : 'bg-stone-100 text-stone-800'}`}>
+                  {countEnSede} CUA
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -1369,6 +1542,242 @@ export default function MapaTactico({
         className="w-full relative z-10"
         style={{ height: '520px', minHeight: '520px' }}
       />
+
+      {/* MODAL PARA REASIGNAR SEDES (RESPONSABLE -> LÍDER -> GUÍA) */}
+      {showReasignarModal && (
+        <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border-2 border-diocesis-mustard space-y-4">
+            
+            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-diocesis-redDark flex items-center justify-center font-bold text-lg">
+                  🏛️
+                </div>
+                <div>
+                  <h4 className="font-title font-bold text-base text-diocesis-redDark">
+                    Reasignación Táctica de Sedes
+                  </h4>
+                  <span className="text-[11px] text-stone-500">
+                    Mueve Responsables, Líderes o Guías a otra sede diocesana
+                  </span>
+                </div>
+              </div>
+              <button onClick={() => setShowReasignarModal(false)} className="text-stone-400 hover:text-stone-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Selector de nivel a reasignar */}
+            <div className="grid grid-cols-3 gap-2 bg-stone-100 p-1.5 rounded-2xl text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setReasignarTab('responsable')}
+                className={`py-2 px-3 rounded-xl transition flex items-center justify-center gap-1.5 ${
+                  reasignarTab === 'responsable' ? 'bg-diocesis-red text-white shadow-xs' : 'text-stone-600 hover:text-stone-900'
+                }`}
+              >
+                <UserCog className="w-3.5 h-3.5" /> Responsable
+              </button>
+              <button
+                type="button"
+                onClick={() => setReasignarTab('lider')}
+                className={`py-2 px-3 rounded-xl transition flex items-center justify-center gap-1.5 ${
+                  reasignarTab === 'lider' ? 'bg-diocesis-red text-white shadow-xs' : 'text-stone-600 hover:text-stone-900'
+                }`}
+              >
+                <Shield className="w-3.5 h-3.5" /> Líder
+              </button>
+              <button
+                type="button"
+                onClick={() => setReasignarTab('guia')}
+                className={`py-2 px-3 rounded-xl transition flex items-center justify-center gap-1.5 ${
+                  reasignarTab === 'guia' ? 'bg-diocesis-red text-white shadow-xs' : 'text-stone-600 hover:text-stone-900'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" /> Guía (CUA)
+              </button>
+            </div>
+
+            {/* TAB 1: REASIGNAR POR RESPONSABLE */}
+            {reasignarTab === 'responsable' && (
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="font-bold text-stone-700 block mb-1">
+                    1. Selecciona el Responsable General a trasladar:
+                  </label>
+                  <select
+                    value={reasignarTargetResp}
+                    onChange={(e) => setReasignarTargetResp(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-stone-300 font-medium text-stone-800"
+                  >
+                    <option value="">-- Elige un Responsable --</option>
+                    {todosLosResponsables.map((r, i) => (
+                      <option key={i} value={r}>👔 {r}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-stone-700 block mb-1">
+                    2. Sede de Destino (trasladará todos sus líderes y guías):
+                  </label>
+                  <select
+                    value={reasignarDestinoSede}
+                    onChange={(e) => setReasignarDestinoSede(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-stone-300 font-medium text-stone-800"
+                  >
+                    {SEDES_DIOCESIS.map(s => (
+                      <option key={s.id} value={s.id}>{s.icono} {s.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="pt-2 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowReasignarModal(false)}
+                    className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl font-bold transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!reasignarTargetResp || savingReasignacion}
+                    onClick={() => handleReasignarResponsable(reasignarTargetResp, reasignarDestinoSede)}
+                    className="px-4 py-2 bg-diocesis-red hover:bg-diocesis-redDark text-white rounded-xl font-extrabold transition shadow-sm disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Check className="w-4 h-4" />
+                    Reasignar Toda la Dotación
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: REASIGNAR POR LÍDER */}
+            {reasignarTab === 'lider' && (
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="font-bold text-stone-700 block mb-1">
+                    1. Selecciona el Líder de Sector a trasladar:
+                  </label>
+                  <select
+                    value={reasignarTargetLid}
+                    onChange={(e) => setReasignarTargetLid(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-stone-300 font-medium text-stone-800"
+                  >
+                    <option value="">-- Elige un Líder --</option>
+                    {todosLosLideres.map((l, i) => (
+                      <option key={i} value={l}>👤 {l}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-stone-700 block mb-1">
+                    2. Sede de Destino (trasladará al líder y sus ~9 guías):
+                  </label>
+                  <select
+                    value={reasignarDestinoSede}
+                    onChange={(e) => setReasignarDestinoSede(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-stone-300 font-medium text-stone-800"
+                  >
+                    {SEDES_DIOCESIS.map(s => (
+                      <option key={s.id} value={s.id}>{s.icono} {s.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="pt-2 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowReasignarModal(false)}
+                    className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl font-bold transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!reasignarTargetLid || savingReasignacion}
+                    onClick={() => handleReasignarLider(reasignarTargetLid, reasignarDestinoSede)}
+                    className="px-4 py-2 bg-diocesis-red hover:bg-diocesis-redDark text-white rounded-xl font-extrabold transition shadow-sm disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Check className="w-4 h-4" />
+                    Reasignar Líder y Guías
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: REASIGNAR POR GUÍA / CUADRILLA INDIVIDUAL */}
+            {reasignarTab === 'guia' && (
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="font-bold text-stone-700 block mb-1">
+                    1. Escribe o selecciona el Código de Cuadrilla (ej: CUA-015):
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: CUA-014"
+                    value={reasignarTargetGuiaCode}
+                    onChange={(e) => setReasignarTargetGuiaCode(e.target.value.toUpperCase())}
+                    className="w-full p-2.5 rounded-xl border border-stone-300 font-mono text-xs focus:ring-2 focus:ring-diocesis-red uppercase"
+                  />
+                  {reasignarTargetGuiaCode && (
+                    <span className="text-[10px] text-stone-500 block mt-1">
+                      {mandosDb.find(m => m.cuadrilla_codigo === reasignarTargetGuiaCode.trim())
+                        ? `✓ Guía encontrado: ${mandosDb.find(m => m.cuadrilla_codigo === reasignarTargetGuiaCode.trim()).guia_nombre}`
+                        : 'Buscando cuadrilla en el padrón...'}
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <label className="font-bold text-stone-700 block mb-1">
+                    2. Sede de Destino para esta cuadrilla:
+                  </label>
+                  <select
+                    value={reasignarDestinoSede}
+                    onChange={(e) => setReasignarDestinoSede(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-stone-300 font-medium text-stone-800"
+                  >
+                    {SEDES_DIOCESIS.map(s => (
+                      <option key={s.id} value={s.id}>{s.icono} {s.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="pt-2 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowReasignarModal(false)}
+                    className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl font-bold transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!reasignarTargetGuiaCode.trim() || savingReasignacion}
+                    onClick={() => {
+                      const found = mandosDb.find(m => m.cuadrilla_codigo === reasignarTargetGuiaCode.trim());
+                      if (found) {
+                        handleReasignarCuadrilla(found.id, found.cuadrilla_codigo, reasignarDestinoSede);
+                        setShowReasignarModal(false);
+                      } else {
+                        alert('No se encontró una cuadrilla con ese código.');
+                      }
+                    }}
+                    className="px-4 py-2 bg-diocesis-red hover:bg-diocesis-redDark text-white rounded-xl font-extrabold transition shadow-sm disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Check className="w-4 h-4" />
+                    Reasignar Cuadrilla
+                  </button>
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
 
       {/* MODAL PARA AGREGAR NUEVO PUNTO TÁCTICO (AL HACER CLIC EN EL MAPA EN MODO EDITOR) */}
       {showAddModal && (
