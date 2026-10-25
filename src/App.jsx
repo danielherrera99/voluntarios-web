@@ -48,7 +48,7 @@ function AppRoutes() {
 function App() {
   return (
     <AuthProvider>
-      <Router>
+      <Router basename="/voluntariado">
         <AppRoutes />
       </Router>
     </AuthProvider>
