@@ -275,7 +275,7 @@ export default function ConsultaVoluntariado() {
             {/* Logo 1: Diócesis de Chiclayo */}
             <div className="flex items-center gap-2 hover:scale-105 transition-transform duration-200">
               <img 
-                src="/voluntariado/logos/logo_diocesis.png" 
+                src={import.meta.env.BASE_URL + 'logos/logo_diocesis.png'} 
                 alt="Diócesis de Chiclayo" 
                 className="h-10 sm:h-12 md:h-14 w-auto object-contain"
               />
@@ -286,7 +286,7 @@ export default function ConsultaVoluntariado() {
             {/* Logo 2: Pastoral Juvenil */}
             <div className="flex items-center gap-2 hover:scale-105 transition-transform duration-200">
               <img 
-                src="/voluntariado/logos/logo_pastoral_juvenil.png" 
+                src={import.meta.env.BASE_URL + 'logos/logo_pastoral_juvenil.png'} 
                 alt="Pastoral Juvenil - Diócesis de Chiclayo" 
                 className="h-10 sm:h-12 md:h-14 w-auto object-contain"
               />
@@ -297,7 +297,7 @@ export default function ConsultaVoluntariado() {
             {/* Logo 3: Comisión Diocesana de Juventud */}
             <div className="flex items-center gap-2.5 hover:scale-105 transition-transform duration-200">
               <img 
-                src="/voluntariado/logos/logo_comision_juventud.png" 
+                src={import.meta.env.BASE_URL + 'logos/logo_comision_juventud.png'} 
                 alt="Comisión Diocesana de Juventud" 
                 className="h-10 sm:h-12 md:h-14 w-auto object-contain drop-shadow-sm"
               />
@@ -312,7 +312,7 @@ export default function ConsultaVoluntariado() {
             {/* Logo 4: Área Diocesana de Laicos */}
             <div className="flex items-center gap-2 hover:scale-105 transition-transform duration-200">
               <img 
-                src="/voluntariado/logos/logo_laicos.png" 
+                src={import.meta.env.BASE_URL + 'logos/logo_laicos.png'} 
                 alt="Área Diocesana de Laicos" 
                 className="h-10 sm:h-12 md:h-14 w-auto object-contain"
               />
@@ -452,9 +452,9 @@ export default function ConsultaVoluntariado() {
                 {/* CABECERA EXCLUSIVA PARA IMPRESIÓN OFICIAL */}
                 <div className="print-only p-6 border-b-2 border-emerald-600 bg-emerald-50 text-center">
                   <div className="flex items-center justify-center gap-6 mb-3">
-                    <img src="/voluntariado/logos/logo_diocesis.png" alt="Diócesis de Chiclayo" className="h-12 w-auto object-contain" />
-                    <img src="/voluntariado/logos/logo_comision_juventud.png" alt="Comisión Diocesana de Juventud" className="h-12 w-auto object-contain" />
-                    <img src="/voluntariado/logos/logo_pastoral_juvenil.png" alt="Pastoral Juvenil" className="h-12 w-auto object-contain" />
+                    <img src={import.meta.env.BASE_URL + 'logos/logo_diocesis.png'} alt="Diócesis de Chiclayo" className="h-12 w-auto object-contain" />
+                    <img src={import.meta.env.BASE_URL + 'logos/logo_comision_juventud.png'} alt="Comisión Diocesana de Juventud" className="h-12 w-auto object-contain" />
+                    <img src={import.meta.env.BASE_URL + 'logos/logo_pastoral_juvenil.png'} alt="Pastoral Juvenil" className="h-12 w-auto object-contain" />
                   </div>
                   <p className="text-xs font-bold text-emerald-800 tracking-widest uppercase mb-1">
                     ✞ DIÓCESIS DE CHICLAYO "CHICLAYO Y SANTA CRUZ" ✞

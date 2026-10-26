@@ -843,7 +843,7 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img 
-              src="/voluntariado/logos/logo_comision_juventud.png" 
+              src={import.meta.env.BASE_URL + 'logos/logo_comision_juventud.png'} 
               alt="Comisión Diocesana de Juventud" 
               className="w-10 h-10 object-contain drop-shadow"
             />
@@ -859,7 +859,7 @@ export default function Dashboard() {
 
           <div className="flex items-center gap-2 md:gap-4">
             <a
-              href="/voluntariado/"
+              href={import.meta.env.BASE_URL}
               target="_blank"
               rel="noreferrer"
               className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-stone-100 transition"
