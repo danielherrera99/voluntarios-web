@@ -48,7 +48,7 @@ function AppRoutes() {
 function App() {
   return (
     <AuthProvider>
-      <Router basename="/voluntariado">
+      <Router basename={import.meta.env.BASE_URL.replace(/\/$/, "")}>
         <AppRoutes />
       </Router>
     </AuthProvider>

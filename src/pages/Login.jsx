@@ -339,7 +339,7 @@ export default function Login() {
         <div className="text-center mb-6">
           <div className="inline-flex p-3 bg-amber-50 rounded-2xl border border-amber-200 mb-3 shadow-inner">
             <img 
-              src="/voluntariado/logos/logo_comision_juventud.png" 
+              src={import.meta.env.BASE_URL + 'logos/logo_comision_juventud.png'} 
               alt="Comisión Diocesana de Juventud" 
               className="w-14 h-14 object-contain drop-shadow"
             />
