@@ -5,6 +5,7 @@ import {
   LogIn, UserPlus, Clock, CheckCircle2, AlertCircle, Phone, Mail, Lock, User, 
   ShieldCheck, CreditCard, Search, Check, X, ArrowLeft, KeyRound, Eye, EyeOff, RefreshCw 
 } from 'lucide-react';
+import InstallPwaBanner from '../components/InstallPwaBanner';
 
 export default function Login() {
   const [mode, setMode] = useState('login'); // 'login' | 'register' | 'forgot'
@@ -972,6 +973,9 @@ export default function Login() {
         </div>
 
       </div>
+
+      {/* Banner de instalación PWA: solo para móviles y dentro del portal de Login */}
+      <InstallPwaBanner />
     </div>
   );
 }

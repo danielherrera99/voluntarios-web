@@ -6,10 +6,22 @@ export default function InstallPwaBanner() {
   const [showBanner, setShowBanner] = useState(false);
   const [showIosInstructions, setShowIosInstructions] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [installedSuccessfully, setInstalledSuccessfully] = useState(false);
 
   useEffect(() => {
+    // 0. Detectar estrictamente si es un dispositivo móvil (Smartphone / Celular / Tablet)
+    const userAgent = window.navigator.userAgent || window.navigator.vendor || window.opera || '';
+    const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
+    const isIpadOS = /Macintosh/i.test(userAgent) && window.navigator.maxTouchPoints > 1;
+    const isMobileDevice = mobileRegex.test(userAgent) || isIpadOS;
+
+    setIsMobile(isMobileDevice);
+
+    // Si NO es celular/móvil (está en PC o Laptop), NO activar ni mostrar nada
+    if (!isMobileDevice) return;
+
     // 1. Detectar si ya está instalada y ejecutándose en modo app standalone
     const standaloneCheck = 
       window.matchMedia('(display-mode: standalone)').matches || 
@@ -19,8 +31,7 @@ export default function InstallPwaBanner() {
     if (standaloneCheck) return;
 
     // 2. Detectar si el dispositivo es iPhone / iPad (iOS)
-    const userAgent = window.navigator.userAgent || '';
-    const isIosDevice = /iPad|iPhone|iPod/.test(userAgent) && !window.MSStream;
+    const isIosDevice = (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) || isIpadOS;
     setIsIOS(isIosDevice);
 
     // 3. Capturar evento de instalación estándar en Android / Chrome / Edge
@@ -89,8 +100,8 @@ export default function InstallPwaBanner() {
     localStorage.setItem('pwa_prompt_dismissed', Date.now().toString());
   };
 
-  // Si ya corre como App nativa standalone, no mostrar nada
-  if (isStandalone) return null;
+  // Si no es un dispositivo móvil (ej. está en PC/laptop) o si ya corre como App nativa, no mostrar nada
+  if (!isMobile || isStandalone) return null;
 
   return (
     <>
