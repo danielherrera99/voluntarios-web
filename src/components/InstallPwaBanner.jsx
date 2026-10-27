@@ -102,7 +102,7 @@ export default function InstallPwaBanner() {
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-white p-1.5 shadow-md flex items-center justify-center shrink-0">
                 <img 
-                  src="/logos/logo_comision_juventud.png" 
+                  src={import.meta.env.BASE_URL + 'logos/logo_comision_juventud.png'} 
                   alt="App Diocesana" 
                   className="w-full h-full object-contain"
                 />

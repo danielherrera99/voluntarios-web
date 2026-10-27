@@ -4,12 +4,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="icon" type="image/png" href="/favicon.png" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192x192.png" />
-  <link rel="apple-touch-icon" sizes="512x512" href="/icons/icon-512x512.png" />
-  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" type="image/png" href="./favicon.png" />
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="./icons/icon-192x192.png" />
+  <link rel="apple-touch-icon" sizes="512x512" href="./icons/icon-512x512.png" />
+  <link rel="manifest" href="./manifest.webmanifest" />
   
   <!-- PWA & Mobile Web App Meta Tags -->
   <meta name="theme-color" content="#6B0D12" />
@@ -102,9 +102,14 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then((reg) => console.log('✓ Service Worker PWA activo:', reg.scope))
-          .catch((err) => console.warn('Aviso Service Worker:', err));
+        try {
+          const swUrl = new URL('sw.js', window.location.href).href;
+          navigator.serviceWorker.register(swUrl)
+            .then((reg) => console.log('✓ Service Worker PWA activo:', reg.scope))
+            .catch((err) => console.warn('Aviso Service Worker:', err));
+        } catch (e) {
+          navigator.serviceWorker.register('./sw.js');
+        }
       });
     }
   </script>
