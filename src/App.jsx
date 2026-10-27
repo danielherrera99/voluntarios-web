@@ -6,6 +6,7 @@ import ResponsableDashboard from './pages/ResponsableDashboard';
 import LiderDashboard from './pages/LiderDashboard';
 import GuiaDashboard from './pages/GuiaDashboard';
 import ConsultaVoluntariado from './pages/ConsultaVoluntariado';
+import InstallPwaBanner from './components/InstallPwaBanner';
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useAuth();
@@ -50,6 +51,7 @@ function App() {
     <AuthProvider>
       <Router basename={import.meta.env.BASE_URL.replace(/\/$/, "")}>
         <AppRoutes />
+        <InstallPwaBanner />
       </Router>
     </AuthProvider>
   );
