@@ -121,6 +121,11 @@ export default function Dashboard() {
   const [auditLogs, setAuditLogs] = useState([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
 
+  // Modal de Confirmación de Eliminación (Exclusivo Administrador)
+  const [volunteerToDelete, setVolunteerToDelete] = useState(null); // { record, fase }
+  const [deletingVolunteer, setDeletingVolunteer] = useState(false);
+  const [deleteSuccessToast, setDeleteSuccessToast] = useState(null);
+
   // Estadísticas globales (KPIs)
   const [stats, setStats] = useState({
     generalTotal: 7956,
@@ -833,6 +838,59 @@ export default function Dashboard() {
     }
   };
 
+  // Confirmar y procesar eliminación de voluntario (Exclusivo Administrador)
+  const handleConfirmDeleteVolunteer = async () => {
+    if (!volunteerToDelete || deletingVolunteer) return;
+    setDeletingVolunteer(true);
+    try {
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
+      const res = await fetch(`${apiUrl}/api/voluntarios/${volunteerToDelete.fase}/${volunteerToDelete.record.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          motivo: 'Eliminado por Administrador desde Dashboard (depuración de duplicado/postulación)'
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || data.msg || 'No se pudo eliminar el registro');
+      }
+
+      // 1. Quitar registro de la tabla en pantalla
+      setRecords(prev => prev.filter(r => r.id !== volunteerToDelete.record.id));
+      setTotalRecords(prev => Math.max(0, prev - 1));
+
+      // 2. Si la ficha completa estaba abierta con este voluntario, cerrarla
+      if (selectedVoluntario?.id === volunteerToDelete.record.id) {
+        setSelectedVoluntario(null);
+      }
+
+      // 3. Mostrar toast flotante de confirmación
+      setDeleteSuccessToast({
+        nombre: volunteerToDelete.record.nombres_apellidos,
+        dni: volunteerToDelete.record.dni,
+        fase: volunteerToDelete.fase === 'fase2' ? 'Fase 2 (Seleccionados / Oficial)' : 'Fase 1 (Padrón General)'
+      });
+      setTimeout(() => setDeleteSuccessToast(null), 6000);
+
+      // 4. Actualizar contadores globales (KPIs)
+      fetchGlobalStats();
+
+      // 5. Cerrar modal de confirmación
+      setVolunteerToDelete(null);
+    } catch (err) {
+      console.error('Error eliminando voluntario:', err);
+      alert(`⚠️ Error al eliminar: ${err.message}`);
+    } finally {
+      setDeletingVolunteer(false);
+    }
+  };
+
   const totalPages = Math.ceil(totalRecords / pageSize) || 1;
 
   return (
@@ -1520,15 +1578,26 @@ export default function Dashboard() {
                               </div>
                             </td>
 
-                            {/* Ver Detalle */}
-                            <td className="py-3 px-4 text-center">
-                              <button
-                                onClick={() => setSelectedVoluntario(r)}
-                                className="p-1.5 rounded-lg bg-diocesis-red/10 hover:bg-diocesis-red/20 text-diocesis-redDark font-semibold transition"
-                                title="Ver Ficha Completa"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </button>
+                            {/* Ver Detalle y Eliminar (Solo Admin) */}
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                              <div className="inline-flex items-center gap-1.5 justify-center">
+                                <button
+                                  onClick={() => setSelectedVoluntario(r)}
+                                  className="p-1.5 rounded-lg bg-diocesis-red/10 hover:bg-diocesis-red/20 text-diocesis-redDark font-semibold transition cursor-pointer"
+                                  title="Ver Ficha Completa"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                                {user?.rol === 'admin' && (
+                                  <button
+                                    onClick={() => setVolunteerToDelete({ record: r, fase: 'fase2' })}
+                                    className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 transition cursor-pointer border border-rose-200/60"
+                                    title="Eliminar este registro (Fase 2 / Seleccionados / Duplicados)"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </>
                         ) : (
@@ -1645,15 +1714,26 @@ export default function Dashboard() {
                               {r.talla || '-'}
                             </td>
 
-                            {/* Acción: Ver Ficha Completa */}
-                            <td className="py-3 px-4 text-center">
-                              <button
-                                onClick={() => setSelectedVoluntario(r)}
-                                className="p-1.5 rounded-lg bg-diocesis-red/10 hover:bg-diocesis-red/20 text-diocesis-redDark font-semibold transition"
-                                title="Ver Ficha Completa"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </button>
+                            {/* Acción: Ver Ficha Completa y Eliminar (Solo Admin) */}
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                              <div className="inline-flex items-center gap-1.5 justify-center">
+                                <button
+                                  onClick={() => setSelectedVoluntario(r)}
+                                  className="p-1.5 rounded-lg bg-diocesis-red/10 hover:bg-diocesis-red/20 text-diocesis-redDark font-semibold transition cursor-pointer"
+                                  title="Ver Ficha Completa"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                                {user?.rol === 'admin' && (
+                                  <button
+                                    onClick={() => setVolunteerToDelete({ record: r, fase: 'fase1' })}
+                                    className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 transition cursor-pointer border border-rose-200/60"
+                                    title="Eliminar este registro (Fase 1 / Padrón General)"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </>
                         )}
@@ -1971,16 +2051,155 @@ export default function Dashboard() {
               )}
             </div>
 
-            <div className="pt-2 flex justify-end">
+            <div className="pt-2 flex items-center justify-between border-t border-stone-200/70 mt-3">
+              {user?.rol === 'admin' && (
+                <button
+                  onClick={() => {
+                    const targetFase = (activeTab === 'fase2' || selectedVoluntario.fase === '2' || selectedVoluntario.estado === 'SELECCIONADO') ? 'fase2' : 'fase1';
+                    setVolunteerToDelete({
+                      record: selectedVoluntario,
+                      fase: targetFase
+                    });
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl border border-rose-200 transition cursor-pointer"
+                  title="Eliminar definitivamente este registro"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Eliminar Registro</span>
+                </button>
+              )}
               <button
                 onClick={() => setSelectedVoluntario(null)}
-                className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold rounded-xl transition"
+                className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold rounded-xl transition cursor-pointer ml-auto"
               >
                 Cerrar
               </button>
             </div>
 
           </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMACIÓN DE SEGURIDAD PARA ELIMINAR (EXCLUSIVO ADMINISTRADOR) */}
+      {volunteerToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border-2 border-rose-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            
+            {/* Encabezado de Advertencia */}
+            <div className="flex items-start gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 shadow-xs border border-rose-200">
+                <AlertTriangle className="w-6 h-6 text-rose-600 animate-pulse" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-base font-extrabold text-stone-900 leading-snug">
+                  ¿Deseas eliminar este registro?
+                </h3>
+                <p className="text-xs text-rose-600 font-semibold mt-0.5">
+                  Acción irreversible de Administrador
+                </p>
+              </div>
+            </div>
+
+            {/* Ficha Resumen del Voluntario */}
+            <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200/80 space-y-2 text-xs">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 block">
+                  Voluntario / Postulante
+                </span>
+                <span className="font-extrabold text-sm text-stone-900 block leading-tight">
+                  {cleanVolunteerName(volunteerToDelete.record.nombres_apellidos)}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 block">
+                    DNI / Doc.
+                  </span>
+                  <span className="font-mono font-bold text-stone-800 text-xs">
+                    {volunteerToDelete.record.dni}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 block">
+                    Estado Actual
+                  </span>
+                  <span className={`font-bold ${
+                    volunteerToDelete.record.estado === 'SELECCIONADO' ? 'text-emerald-700' :
+                    volunteerToDelete.record.estado === 'NO SELECCIONADO' ? 'text-rose-700' : 'text-amber-700'
+                  }`}>
+                    {volunteerToDelete.record.estado || 'PENDIENTE'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 block">
+                  Origen / Ubicación
+                </span>
+                <span className="font-semibold text-stone-700">
+                  {volunteerToDelete.fase === 'fase2' 
+                    ? '📌 Fase 2 (Formulario Oficial / Seleccionados)' 
+                    : '📋 Fase 1 (Padrón General)'}
+                </span>
+              </div>
+            </div>
+
+            {/* Advertencia explicativa */}
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200/80 text-[11px] text-amber-900 leading-relaxed">
+              ⚠️ <strong>Atención:</strong> Esta acción borrará el registro de la base de datos de la Diócesis. Es ideal para depurar inscripciones duplicadas, errores de DNI o postulaciones repetidas.
+            </div>
+
+            {/* Botones de acción */}
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={deletingVolunteer}
+                onClick={() => setVolunteerToDelete(null)}
+                className="px-4 py-2.5 rounded-xl border border-stone-300 text-stone-700 text-xs font-bold hover:bg-stone-100 transition cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={deletingVolunteer}
+                onClick={handleConfirmDeleteVolunteer}
+                className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md hover:shadow-lg transition cursor-pointer flex items-center gap-2 disabled:opacity-50"
+              >
+                {deletingVolunteer ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Eliminando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Sí, Eliminar Definitivamente</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* NOTIFICACIÓN FLOTANTE TRAS ELIMINAR */}
+      {deleteSuccessToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-stone-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-stone-700 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-200">
+          <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+          <div className="text-xs">
+            <p className="font-bold">Registro eliminado exitosamente</p>
+            <p className="text-stone-300 text-[11px]">
+              {deleteSuccessToast.nombre} (DNI: {deleteSuccessToast.dni}) en {deleteSuccessToast.fase}
+            </p>
+          </div>
+          <button
+            onClick={() => setDeleteSuccessToast(null)}
+            className="text-stone-400 hover:text-white p-1 ml-2 transition cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
