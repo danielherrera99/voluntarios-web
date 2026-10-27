@@ -262,7 +262,7 @@ export default function ConsultaVoluntariado() {
       {/* BARRA SUPERIOR INSTITUCIONAL */}
       <div className="bg-diocesis-mustard text-white px-4 py-2 text-xs md:text-sm font-semibold text-center flex items-center justify-center gap-2 shadow-sm no-print">
         <i className="fa-solid fa-cross"></i>
-        <span className="font-title tracking-wide text-sm md:text-base font-bold">Voluntariado Amigos del Papa</span>
+        <span className="font-title tracking-wide text-sm md:text-base font-bold">Voluntariado Amigos de León</span>
       </div>
 
       {/* CABECERA CON LOGOS OFICIALES */}
