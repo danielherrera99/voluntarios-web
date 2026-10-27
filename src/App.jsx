@@ -22,13 +22,29 @@ const DashboardRouter = () => {
   return <Dashboard />;
 };
 
+// Si se abre desde la App instalada en el celular (PWA standalone), abre directo en Login / Dashboard.
+// Si se abre desde un navegador web normal (Render o diocesischiclayo.org), muestra la Consulta Pública.
+const PublicOrPwaRoot = () => {
+  const { user } = useAuth();
+  
+  const isStandalone = 
+    typeof window !== 'undefined' && 
+    (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true);
+
+  if (isStandalone) {
+    return <Navigate to={user ? "/dashboard" : "/login"} replace />;
+  }
+
+  return <ConsultaVoluntariado />;
+};
+
 function AppRoutes() {
   const { user } = useAuth();
 
   return (
     <Routes>
-      {/* Portal Público de Consulta de Voluntariado */}
-      <Route path="/" element={<ConsultaVoluntariado />} />
+      {/* Portal Público de Consulta (o Login si es la App instalada) */}
+      <Route path="/" element={<PublicOrPwaRoot />} />
       <Route path="/consulta" element={<ConsultaVoluntariado />} />
 
       {/* Acceso Administrativo y Jerárquico */}

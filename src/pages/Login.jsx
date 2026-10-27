@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   LogIn, UserPlus, Clock, CheckCircle2, AlertCircle, Phone, Mail, Lock, User, 
@@ -959,6 +959,17 @@ export default function Login() {
             </button>
           </form>
         )}
+
+        {/* Enlace de Retorno al Portal de Consulta Pública */}
+        <div className="mt-5 text-center">
+          <Link
+            to="/consulta"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-stone-600 hover:text-diocesis-redDark transition bg-white/80 hover:bg-white px-3.5 py-1.5 rounded-xl border border-stone-200/80 shadow-2xs"
+          >
+            <Search className="w-3.5 h-3.5 text-diocesis-red" />
+            <span>¿Deseas validar tu postulación? Consulta por DNI ↗</span>
+          </Link>
+        </div>
 
       </div>
     </div>

@@ -2,7 +2,7 @@
   "name": "Voluntariado Visita Papal - Diócesis de Chiclayo",
   "short_name": "Voluntarios CIX",
   "description": "Plataforma Oficial de Gestión, Consulta y Despliegue Táctico de Voluntarios de la Diócesis de Chiclayo para la Visita Papal 2026.",
-  "start_url": "/",
+  "start_url": "/login?source=pwa",
   "scope": "/",
   "display": "standalone",
   "background_color": "#6B0D12",
