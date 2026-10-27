@@ -19,6 +19,7 @@ export default function LiderDashboard() {
   const [actionLoading, setActionLoading] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [actionMsg, setActionMsg] = useState(null);
+  const [dniStatusMap, setDniStatusMap] = useState({ f2Map: {}, f1Map: {} });
 
   // Estados interactivos Día D del Líder
   const [guiaStatus, setGuiaStatus] = useState({}); // { [guia_dni]: 'presente' | 'demorado' | 'contacto' }
@@ -46,7 +47,41 @@ export default function LiderDashboard() {
         .order('id', { ascending: true });
 
       if (guiasErr) throw guiasErr;
-      setGuias(guiasData || []);
+      const list = guiasData || [];
+      setGuias(list);
+
+      // 1.1 Obtener estado de validación y etapas por DNI de sus Guías
+      const allDnis = [...new Set(list.map(g => g.guia_dni).filter(Boolean).map(d => String(d).trim()))];
+      const f2Map = {};
+      const f1Map = {};
+
+      if (allDnis.length > 0) {
+        // Consultar Fase 2 (voluntarios con ficha y documentación)
+        const { data: f2List, error: f2Err } = await supabase
+          .from('voluntarios')
+          .select('dni, nombres_apellidos, estado, fase, info_validada, archivo_carta_url, archivo_cul_url, archivo_compromiso_url')
+          .in('dni', allDnis);
+
+        if (!f2Err && f2List) {
+          f2List.forEach(v => {
+            if (v.dni) f2Map[String(v.dni).trim()] = v;
+          });
+        }
+
+        // Consultar Fase 1 (voluntarios en padrón general inicial)
+        const { data: f1List, error: f1Err } = await supabase
+          .from('voluntarios_general')
+          .select('dni, nombres_apellidos, estado, fase')
+          .in('dni', allDnis);
+
+        if (!f1Err && f1List) {
+          f1List.forEach(v => {
+            if (v.dni) f1Map[String(v.dni).trim()] = v;
+          });
+        }
+      }
+
+      setDniStatusMap({ f2Map, f1Map });
 
       // 2. Obtener solicitudes pendientes de su equipo de guías
       const token = localStorage.getItem('token');
@@ -78,6 +113,175 @@ export default function LiderDashboard() {
   useEffect(() => {
     fetchData();
   }, [user]);
+
+  // Clasificador de Etapas y Documentación por DNI para Guías del Líder
+  const getDniEtapaInfo = (rawDni, fallbackCarta = false) => {
+    const dni = rawDni ? String(rawDni).trim() : '';
+    if (!dni) {
+      return {
+        etapa: 0,
+        label: 'Sin DNI',
+        sublabel: 'No registrado',
+        badgeClass: 'bg-stone-100 text-stone-500 border-stone-200',
+        tieneCarta: Boolean(fallbackCarta),
+        cartaUrl: null,
+        tieneCul: false,
+        tieneCompromiso: false,
+        docsCount: fallbackCarta ? 1 : 0
+      };
+    }
+
+    const f2 = dniStatusMap.f2Map?.[dni];
+    const f1 = dniStatusMap.f1Map?.[dni];
+
+    if (f2) {
+      const valStr = String(f2.estado || '').toUpperCase();
+      const isRejected = valStr.includes('NO') || valStr.includes('RECHAZ');
+      const isApproved = !isRejected && (f2.info_validada || valStr.includes('SELECCIONAD') || valStr.includes('APROBAD'));
+
+      let docsCount = 0;
+      if (f2.archivo_carta_url || fallbackCarta) docsCount++;
+      if (f2.archivo_cul_url) docsCount++;
+      if (f2.archivo_compromiso_url) docsCount++;
+
+      if (isApproved) {
+        return {
+          etapa: 3,
+          label: 'Fase 3: Aprobado',
+          sublabel: 'Seleccionado Oficial',
+          badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-extrabold',
+          tieneCarta: Boolean(f2.archivo_carta_url || fallbackCarta),
+          cartaUrl: f2.archivo_carta_url || null,
+          tieneCul: Boolean(f2.archivo_cul_url),
+          culUrl: f2.archivo_cul_url || null,
+          tieneCompromiso: Boolean(f2.archivo_compromiso_url),
+          compromisoUrl: f2.archivo_compromiso_url || null,
+          docsCount,
+          estado: f2.estado
+        };
+      }
+
+      if (isRejected) {
+        return {
+          etapa: 2,
+          label: 'Fase 2: No Seleccionado',
+          sublabel: f2.estado || 'Rechazado',
+          badgeClass: 'bg-rose-100 text-rose-800 border-rose-300 font-bold',
+          tieneCarta: Boolean(f2.archivo_carta_url || fallbackCarta),
+          cartaUrl: f2.archivo_carta_url || null,
+          tieneCul: Boolean(f2.archivo_cul_url),
+          culUrl: f2.archivo_cul_url || null,
+          tieneCompromiso: Boolean(f2.archivo_compromiso_url),
+          compromisoUrl: f2.archivo_compromiso_url || null,
+          docsCount,
+          estado: f2.estado
+        };
+      }
+
+      return {
+        etapa: 2,
+        label: 'Fase 2: En Evaluación',
+        sublabel: 'Ficha y Docs Enviados',
+        badgeClass: 'bg-blue-100 text-blue-800 border-blue-300 font-bold',
+        tieneCarta: Boolean(f2.archivo_carta_url || fallbackCarta),
+        cartaUrl: f2.archivo_carta_url || null,
+        tieneCul: Boolean(f2.archivo_cul_url),
+        culUrl: f2.archivo_cul_url || null,
+        tieneCompromiso: Boolean(f2.archivo_compromiso_url),
+        compromisoUrl: f2.archivo_compromiso_url || null,
+        docsCount,
+        estado: f2.estado || 'En Revisión'
+      };
+    }
+
+    if (f1) {
+      return {
+        etapa: 1,
+        label: 'Fase 1: Padrón General',
+        sublabel: 'Falta Ficha 2',
+        badgeClass: 'bg-amber-100 text-amber-900 border-amber-300 font-bold',
+        tieneCarta: Boolean(fallbackCarta),
+        cartaUrl: null,
+        tieneCul: false,
+        culUrl: null,
+        tieneCompromiso: false,
+        compromisoUrl: null,
+        docsCount: fallbackCarta ? 1 : 0,
+        estado: 'Fase 1 Inicial'
+      };
+    }
+
+    return {
+      etapa: 0,
+      label: 'Sin Registro',
+      sublabel: 'Pendiente Formulario',
+      badgeClass: 'bg-stone-100 text-stone-500 border-stone-300 font-medium',
+      tieneCarta: Boolean(fallbackCarta),
+      cartaUrl: null,
+      tieneCul: false,
+      culUrl: null,
+      tieneCompromiso: false,
+      compromisoUrl: null,
+      docsCount: fallbackCarta ? 1 : 0,
+      estado: 'Sin Registro'
+    };
+  };
+
+  const totalGuiasPresentes = Object.values(guiaStatus).filter(p => p === 'presente').length;
+  const totalCapacidad = guias.reduce((acc, g) => acc + (g.total_voluntarios || 9), 0);
+
+  // Estadísticas de fases de Guías para el Líder
+  const statsFases = {
+    fase3: 0,
+    fase2: 0,
+    fase1: 0,
+    sinRegistro: 0
+  };
+
+  guias.forEach(g => {
+    const info = getDniEtapaInfo(g.guia_dni, g.guia_carta);
+    if (info.etapa === 3) statsFases.fase3++;
+    else if (info.etapa === 2) statsFases.fase2++;
+    else if (info.etapa === 1) statsFases.fase1++;
+    else statsFases.sinRegistro++;
+  });
+
+  // Filtro de búsqueda en la tabla de guías
+  const filteredGuias = guias.filter(g => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    const matchNom = String(g.guia_nombre || '').toLowerCase().includes(term);
+    const matchDni = String(g.guia_dni || '').includes(term);
+    const matchCod = String(g.cuadrilla_codigo || '').toLowerCase().includes(term);
+    return matchNom || matchDni || matchCod;
+  });
+
+  // Exportar a Excel
+  const exportToExcel = () => {
+    const data = guias.map((g, idx) => {
+      const gInfo = getDniEtapaInfo(g.guia_dni, g.guia_carta);
+      return {
+        '#': idx + 1,
+        'Cuadrilla': g.cuadrilla_codigo,
+        'Líder': liderNombre,
+        'Guía Oficial': g.guia_nombre,
+        'DNI Guía': g.guia_dni || '',
+        'Etapa / Fase': gInfo.label,
+        'Estado Postulación': gInfo.sublabel,
+        'Carta Respaldo': gInfo.tieneCarta ? 'SÍ' : 'NO',
+        'CUL Adjunto': gInfo.tieneCul ? 'SÍ' : 'NO',
+        'Compromiso Adjunto': gInfo.tieneCompromiso ? 'SÍ' : 'NO',
+        'Cupo Voluntarios': g.total_voluntarios || 9,
+        'Estado Terreno': guiaStatus[g.guia_dni] === 'presente' ? 'EN PUESTO' : 'PENDIENTE',
+        'Sede': g.sede_id || 'Por Definir'
+      };
+    });
+
+    const ws = xlsx.utils.json_to_sheet(data);
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, 'Guias_Sector');
+    xlsx.writeFile(wb, `Guias_${liderNombre.replace(/\s+/g, '_')}.xlsx`);
+  };
 
   const toggleGuiaPresencia = (dni) => {
     setGuiaStatus(prev => ({
@@ -158,38 +362,6 @@ export default function LiderDashboard() {
     } finally {
       setActionLoading(null);
     }
-  };
-
-  const filteredGuias = guias.filter(g => {
-    if (!searchTerm) return true;
-    const term = searchTerm.toLowerCase();
-    return (
-      String(g.guia_nombre || '').toLowerCase().includes(term) ||
-      String(g.guia_dni || '').toLowerCase().includes(term) ||
-      String(g.cuadrilla_codigo || '').toLowerCase().includes(term)
-    );
-  });
-
-  const totalCapacidad = guias.reduce((acc, g) => acc + (g.total_voluntarios || 9), 0);
-  const totalGuiasPresentes = Object.values(guiaStatus).filter(s => s === 'presente').length;
-
-  const exportToExcel = () => {
-    const data = filteredGuias.map((g, idx) => ({
-      '#': idx + 1,
-      'Cuadrilla': g.cuadrilla_codigo,
-      'Líder': g.lider_nombre,
-      'Responsable': g.responsable_nombre,
-      'Nombre del Guía': g.guia_nombre,
-      'DNI Guía': g.guia_dni || '',
-      'Estado Día D': guiaStatus[g.guia_dni] === 'presente' ? 'PRESENTE EN ZONA' : 'PENDIENTE',
-      'Carta de Respaldo': g.guia_carta ? 'SÍ' : 'PENDIENTE',
-      'Cupo Voluntarios': g.total_voluntarios || 9
-    }));
-
-    const ws = xlsx.utils.json_to_sheet(data);
-    const wb = xlsx.utils.book_new();
-    xlsx.utils.book_append_sheet(wb, ws, `Guias_Lider_${liderNombre.slice(0, 15)}`);
-    xlsx.writeFile(wb, `Guias_${liderNombre.replace(/\s+/g, '_')}.xlsx`);
   };
 
   return (
@@ -325,6 +497,61 @@ export default function LiderDashboard() {
             <p className="text-[11px] text-stone-500 mt-1">
               {solicitudes.length > 0 ? 'Esperando tu activación' : 'Todo al día'}
             </p>
+          </div>
+        </div>
+
+        {/* Resumen de Fases y Documentación de Guías del Líder */}
+        <div className="bg-white rounded-2xl border border-diocesis-mustard/40 p-4 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-diocesis-redDark">
+                Estado de Documentación y Validación de tus Guías
+              </span>
+              <p className="text-xs text-stone-500">
+                Seguimiento por DNI del primer formulario (Padrón Inicial), segundo formulario (Ficha y Carta) y aprobación oficial
+              </p>
+            </div>
+            <span className="text-[11px] font-mono font-bold text-stone-500">
+              Total {guias.length} Guías en tu Equipo
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-emerald-50/90 border border-emerald-300 rounded-xl p-3 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase text-emerald-800 block">Fase 3: Aprobados</span>
+                <span className="text-xl sm:text-2xl font-black text-emerald-950 font-mono">{statsFases.fase3}</span>
+                <span className="text-[10px] text-emerald-700 block font-medium">Seleccionados oficiales</span>
+              </div>
+              <div className="w-8 h-8 rounded-xl bg-emerald-200 text-emerald-900 flex items-center justify-center font-bold text-xs shadow-2xs">✓</div>
+            </div>
+
+            <div className="bg-blue-50/90 border border-blue-300 rounded-xl p-3 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase text-blue-800 block">Fase 2: En Evaluación</span>
+                <span className="text-xl sm:text-2xl font-black text-blue-950 font-mono">{statsFases.fase2}</span>
+                <span className="text-[10px] text-blue-700 block font-medium">Docs y Carta enviados</span>
+              </div>
+              <div className="w-8 h-8 rounded-xl bg-blue-200 text-blue-900 flex items-center justify-center font-bold text-xs shadow-2xs">📄</div>
+            </div>
+
+            <div className="bg-amber-50/90 border border-amber-300 rounded-xl p-3 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase text-amber-900 block">Fase 1: Padrón General</span>
+                <span className="text-xl sm:text-2xl font-black text-amber-950 font-mono">{statsFases.fase1}</span>
+                <span className="text-[10px] text-amber-800 block font-medium">Solo 1er formulario</span>
+              </div>
+              <div className="w-8 h-8 rounded-xl bg-amber-200 text-amber-900 flex items-center justify-center font-bold text-xs shadow-2xs">⏳</div>
+            </div>
+
+            <div className="bg-stone-50 border border-stone-300 rounded-xl p-3 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase text-stone-600 block">Sin Registro</span>
+                <span className="text-xl sm:text-2xl font-black text-stone-800 font-mono">{statsFases.sinRegistro}</span>
+                <span className="text-[10px] text-stone-500 block font-medium">Pendiente postular</span>
+              </div>
+              <div className="w-8 h-8 rounded-xl bg-stone-200 text-stone-700 flex items-center justify-center font-bold text-xs shadow-2xs">⚠️</div>
+            </div>
           </div>
         </div>
 
@@ -672,53 +899,126 @@ export default function LiderDashboard() {
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-stone-100/70 border-b border-stone-200 text-stone-600 font-bold uppercase text-[10px] tracking-wider">
-                      <th className="py-3 px-4">#</th>
-                      <th className="py-3 px-4">Cuadrilla</th>
-                      <th className="py-3 px-4">Nombre del Guía</th>
-                      <th className="py-3 px-4">DNI</th>
-                      <th className="py-3 px-4">Estado Terreno</th>
-                      <th className="py-3 px-4">Carta Respaldo</th>
-                      <th className="py-3 px-4">Cupo</th>
+                      <th className="py-3 px-3">#</th>
+                      <th className="py-3 px-3">Cuadrilla</th>
+                      <th className="py-3 px-3">Nombre del Guía</th>
+                      <th className="py-3 px-3">DNI</th>
+                      <th className="py-3 px-3">Etapa / Fase</th>
+                      <th className="py-3 px-3">Documentación</th>
+                      <th className="py-3 px-3">Estado Terreno</th>
+                      <th className="py-3 px-3 text-right">Cupo</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-100">
-                    {filteredGuias.map((g, i) => (
-                      <tr key={g.id || i} className="hover:bg-amber-50/40 transition">
-                        <td className="py-3 px-4 font-bold text-stone-400">{i + 1}</td>
-                        <td className="py-3 px-4">
-                          <span className="font-mono font-bold px-2 py-0.5 rounded-md bg-stone-100 text-diocesis-redDark border border-stone-300">
-                            {g.cuadrilla_codigo}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 font-bold text-stone-900">{g.guia_nombre}</td>
-                        <td className="py-3 px-4 font-mono font-bold text-stone-700">{g.guia_dni || '-'}</td>
-                        <td className="py-3 px-4">
-                          {guiaStatus[g.guia_dni] === 'presente' ? (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                              ✓ EN PUESTO
+                    {filteredGuias.map((g, i) => {
+                      const gInfo = getDniEtapaInfo(g.guia_dni, g.guia_carta);
+                      return (
+                        <tr key={g.id || i} className="hover:bg-amber-50/40 transition">
+                          <td className="py-3 px-3 font-bold text-stone-400">{i + 1}</td>
+                          <td className="py-3 px-3">
+                            <span className="font-mono font-bold px-2 py-0.5 rounded-md bg-stone-100 text-diocesis-redDark border border-stone-300">
+                              {g.cuadrilla_codigo}
                             </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-100 text-stone-600 border border-stone-200">
-                              PENDIENTE
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          {g.guia_carta ? (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                              ✓ ENVIADO
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-100 text-stone-600 border border-stone-300">
-                              PENDIENTE
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 font-bold text-stone-800">
-                          {g.total_voluntarios || 9} cupos
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="py-3 px-3 font-bold text-stone-900">{g.guia_nombre}</td>
+                          <td className="py-3 px-3 font-mono font-bold text-stone-700">{g.guia_dni || '-'}</td>
+                          
+                          {/* Etapa / Fase */}
+                          <td className="py-3 px-3">
+                            <div className="flex flex-col items-start gap-0.5">
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border shadow-2xs ${gInfo.badgeClass}`}>
+                                {gInfo.etapa === 3 && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
+                                {gInfo.etapa === 2 && <Clock className="w-3 h-3 text-blue-600" />}
+                                {gInfo.etapa === 1 && <Clock className="w-3 h-3 text-amber-600" />}
+                                {gInfo.etapa === 0 && <AlertCircle className="w-3 h-3 text-stone-400" />}
+                                {gInfo.label}
+                              </span>
+                              <span className="text-[10px] text-stone-400 font-medium pl-1">
+                                {gInfo.sublabel}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Documentación / Carta */}
+                          <td className="py-3 px-3">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {gInfo.cartaUrl ? (
+                                <a
+                                  href={gInfo.cartaUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300 transition"
+                                  title="Ver Carta de Respaldo enviada"
+                                >
+                                  ✓ Carta ↗
+                                </a>
+                              ) : gInfo.tieneCarta ? (
+                                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                  ✓ Carta
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold text-stone-400 bg-stone-100 px-2 py-0.5 rounded-md border border-stone-200">
+                                  Sin Carta
+                                </span>
+                              )}
+
+                              {gInfo.tieneCul && (
+                                gInfo.culUrl ? (
+                                  <a
+                                    href={gInfo.culUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-[9px] font-bold text-blue-800 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded border border-blue-200 transition"
+                                    title="Ver Certificado Único Laboral"
+                                  >
+                                    CUL ↗
+                                  </a>
+                                ) : (
+                                  <span className="text-[9px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                                    CUL
+                                  </span>
+                                )
+                              )}
+
+                              {gInfo.tieneCompromiso && (
+                                gInfo.compromisoUrl ? (
+                                  <a
+                                    href={gInfo.compromisoUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-[9px] font-bold text-purple-800 bg-purple-50 hover:bg-purple-100 px-1.5 py-0.5 rounded border border-purple-200 transition"
+                                    title="Ver Acta de Compromiso"
+                                  >
+                                    Acta ↗
+                                  </a>
+                                ) : (
+                                  <span className="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                                    Acta
+                                  </span>
+                                )
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Estado Terreno Día D */}
+                          <td className="py-3 px-3">
+                            {guiaStatus[g.guia_dni] === 'presente' ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                ✓ EN PUESTO
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-100 text-stone-600 border border-stone-200">
+                                PENDIENTE
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-3 text-right font-bold text-stone-800">
+                            {g.total_voluntarios || 9} cupos
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

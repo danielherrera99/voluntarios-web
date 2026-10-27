@@ -374,8 +374,25 @@ export default function GuiaDashboard() {
                       <tr key={v.id || i} className="hover:bg-amber-50/20 transition">
                         <td className="py-3.5 px-4 font-bold text-stone-400">{i + 1}</td>
                         <td className="py-3.5 px-4">
-                          <div className="font-bold text-stone-900 text-xs">{v.nombres_apellidos}</div>
-                          <div className="text-[11px] font-mono text-stone-500">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-bold text-stone-900 text-xs">{v.nombres_apellidos}</span>
+                            {(() => {
+                              const isApproved = v.info_validada || v.estado === 'SELECCIONADO' || v.estado === 'APROBADO';
+                              if (isApproved) {
+                                return (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                    ✓ Fase 3: Aprobado
+                                  </span>
+                                );
+                              }
+                              return (
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                                  📄 Fase 2: En Evaluación
+                                </span>
+                              );
+                            })()}
+                          </div>
+                          <div className="text-[11px] font-mono text-stone-500 mt-0.5">
                             DNI: <strong className="text-stone-800">{v.dni}</strong> • Código: {v.codigo || '-'}
                           </div>
                         </td>
