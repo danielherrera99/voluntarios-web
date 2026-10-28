@@ -109,6 +109,7 @@ export default function ConsultaVoluntariado() {
         if (res.ok) {
           const apiData = await res.json();
           if (apiData.found) {
+            const isObserved = Boolean(apiData.esVerificar) || Boolean(apiData.observacion) || (apiData.estado && String(apiData.estado).toUpperCase().includes('REVISI'));
             setResult({
               status: apiData.status === 'FASE1_REGISTRADO' ? 'FASE1' : apiData.status,
               fase: apiData.fase || '1',
@@ -117,7 +118,7 @@ export default function ConsultaVoluntariado() {
               codigo: apiData.codigo,
               comision: apiData.comision || 'Servicio General',
               area: apiData.area || 'Diócesis de Chiclayo y Santa Cruz',
-              esVerificar: apiData.status === 'PENDING' && Boolean(apiData.observacion),
+              esVerificar: apiData.status === 'PENDING' && isObserved,
               observacion: apiData.observacion || null
             });
             return;
@@ -148,7 +149,7 @@ export default function ConsultaVoluntariado() {
         const valStr = String(f2Data.estado || '').toUpperCase();
         const isRejected = valStr.includes('NO') || valStr.includes('RECHAZ');
         const isApproved = !isRejected && (f2Data.info_validada || valStr.includes('SELECCIONAD') || valStr.includes('APROBAD'));
-        const isVerificar = !isRejected && (valStr.includes('REVISI') || valStr.includes('OBSERV') || valStr.includes('VERIFICAR'));
+        const isVerificar = !isRejected && (valStr.includes('REVISI') || valStr.includes('OBSERV') || valStr.includes('VERIFICAR') || Boolean(f2Data.observacion));
 
         let mappedStatus = 'PENDING';
         if (isRejected) {
@@ -538,18 +539,32 @@ export default function ConsultaVoluntariado() {
               </div>
             )}
 
-            {/* ESTADO 2: ETAPA 2 EN REVISIÓN */}
+            {/* ESTADO 2: ETAPA 2 EN REVISIÓN / OBSERVACIÓN */}
             {result.status === 'PENDING' && (
               <div className="bg-white overflow-hidden">
-                <div className="bg-gradient-to-r from-amber-600 to-diocesis-mustard p-6 md:p-8 text-white text-center">
-                  <div className="inline-flex items-center justify-center w-16 h-16 bg-white text-diocesis-mustardDark rounded-full text-3xl shadow-lg mb-3">
-                    <i className="fa-solid fa-clock-rotate-left"></i>
+                {result.esVerificar ? (
+                  /* CABECERA PARA CASO OBSERVADO / EN VERIFICACIÓN */
+                  <div className="bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700 p-6 md:p-8 text-white text-center">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-white text-amber-700 rounded-full text-3xl shadow-lg mb-3">
+                      <i className="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                    <h3 className="text-2xl md:text-3xl font-title font-bold">Documentación en Observación</h3>
+                    <p className="text-amber-100 text-sm md:text-base mt-1 font-medium">
+                      El equipo diocesano ha revisado tu expediente y requiere subsanación para continuar.
+                    </p>
                   </div>
-                  <h3 className="text-2xl md:text-3xl font-title font-bold">Estás en la Etapa 2</h3>
-                  <p className="text-amber-100 text-sm md:text-base mt-1 font-medium">
-                    Tus documentos están siendo revisados por el equipo diocesano.
-                  </p>
-                </div>
+                ) : (
+                  /* CABECERA PARA CASO PENDIENTE DE REVISIÓN REGULAR */
+                  <div className="bg-gradient-to-r from-amber-600 to-diocesis-mustard p-6 md:p-8 text-white text-center">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-white text-diocesis-mustardDark rounded-full text-3xl shadow-lg mb-3">
+                      <i className="fa-solid fa-clock-rotate-left"></i>
+                    </div>
+                    <h3 className="text-2xl md:text-3xl font-title font-bold">Estás en la Etapa 2</h3>
+                    <p className="text-amber-100 text-sm md:text-base mt-1 font-medium">
+                      Tus documentos están siendo revisados por el equipo diocesano.
+                    </p>
+                  </div>
+                )}
 
                 <div className="p-6 md:p-8 space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-amber-50/70 rounded-2xl p-5 border border-amber-200">
@@ -563,9 +578,15 @@ export default function ConsultaVoluntariado() {
                     </div>
                     <div>
                       <span className="text-xs text-amber-900 uppercase font-bold block">Estado de Etapa</span>
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-200 text-amber-900 rounded-lg text-xs font-bold mt-1">
-                        <i className="fa-solid fa-file-circle-check"></i> Etapa 2: Documentos en Revisión
-                      </span>
+                      {result.esVerificar ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-200 text-amber-950 border border-amber-400 rounded-lg text-xs font-black mt-1">
+                          <i className="fa-solid fa-triangle-exclamation text-amber-800"></i> Etapa 2: Observada / Por Subsanar
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-200 text-amber-900 rounded-lg text-xs font-bold mt-1">
+                          <i className="fa-solid fa-file-circle-check"></i> Etapa 2: Documentos en Revisión
+                        </span>
+                      )}
                     </div>
                     <div>
                       <span className="text-xs text-amber-900 uppercase font-bold block">Asignación de Comisión</span>
@@ -575,23 +596,36 @@ export default function ConsultaVoluntariado() {
                     </div>
                   </div>
 
-                  {result.esVerificar && result.observacion ? (
-                    <div className="bg-white border-l-4 border-amber-500 p-4 rounded-r-2xl shadow-sm bg-stone-50 space-y-2">
-                      <h4 className="font-title font-bold text-amber-900 text-sm md:text-base flex items-center gap-2">
-                        <i className="fa-solid fa-folder-open text-amber-600"></i> Observación registrada por la comisión:
+                  {result.esVerificar ? (
+                    <div className="bg-amber-50/90 border-2 border-amber-400 p-5 rounded-2xl shadow-sm space-y-3">
+                      <h4 className="font-title font-bold text-amber-950 text-sm md:text-base flex items-center gap-2">
+                        <i className="fa-solid fa-folder-open text-amber-700 text-lg"></i> Observación registrada por la comisión diocesana:
                       </h4>
-                      <p className="text-sm text-stone-700 font-medium">
-                        {result.observacion}
+                      <div className="bg-white p-3.5 rounded-xl border border-amber-200 font-extrabold text-amber-900 text-sm md:text-base flex items-center gap-2 shadow-2xs">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>
+                        <span>{result.observacion || 'Documentación en observación pendiente de subsanar'}</span>
+                      </div>
+                      <p className="text-xs text-amber-900 font-medium leading-relaxed">
+                        Para continuar con tu proceso hacia la Visita del Santo Padre, por favor ingresa al formulario oficial y vuelve a adjuntar o actualizar el documento indicado.
                       </p>
-                      <div className="pt-2">
+                      <div className="pt-2 flex flex-wrap gap-2">
                         <a
                           href={GOOGLE_FORM_URL}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-2 bg-diocesis-mustard hover:bg-diocesis-mustardDark text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow-sm"
+                          className="inline-flex items-center gap-2 bg-diocesis-redDark hover:bg-diocesis-red text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-md hover:shadow-lg"
                         >
                           <i className="fa-solid fa-cloud-arrow-up"></i>
-                          <span>Subsanar Documento en Google Forms</span>
+                          <span>Subsanar Documentos en Google Forms ↗</span>
+                        </a>
+                        <a
+                          href={CARTA_RECOMENDACION_URL}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 bg-white hover:bg-stone-100 text-stone-800 text-xs font-bold px-3.5 py-2.5 rounded-xl border border-stone-300 transition shadow-2xs"
+                        >
+                          <i className="fa-solid fa-download text-diocesis-mustard"></i>
+                          <span>Descargar Formato Carta ↗</span>
                         </a>
                       </div>
                     </div>
