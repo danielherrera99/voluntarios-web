@@ -266,6 +266,8 @@ export default function LiderDashboard() {
         'Líder': liderNombre,
         'Guía Oficial': g.guia_nombre,
         'DNI Guía': g.guia_dni || '',
+        'Teléfono': g.guia_telefono || '',
+        'Correo': g.guia_correo || '',
         'Etapa / Fase': gInfo.label,
         'Estado Postulación': gInfo.sublabel,
         'Carta Respaldo': gInfo.tieneCarta ? 'SÍ' : 'NO',
@@ -920,7 +922,28 @@ export default function LiderDashboard() {
                               {g.cuadrilla_codigo}
                             </span>
                           </td>
-                          <td className="py-3 px-3 font-bold text-stone-900">{g.guia_nombre}</td>
+                          <td className="py-3 px-3">
+                            <div className="font-bold text-stone-900">{g.guia_nombre}</div>
+                            <div className="flex flex-wrap items-center gap-2 text-[10px] text-stone-500 mt-0.5">
+                              {g.guia_telefono && (
+                                <a 
+                                  href={`https://wa.me/51${String(g.guia_telefono).replace(/\D/g, '')}`}
+                                  target="_blank" 
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-bold"
+                                  title="Escribir por WhatsApp"
+                                >
+                                  <Phone className="w-2.5 h-2.5" />
+                                  <span>{g.guia_telefono}</span>
+                                </a>
+                              )}
+                              {g.guia_correo && (
+                                <span className="text-stone-400 truncate max-w-[150px]" title={g.guia_correo}>
+                                  {g.guia_correo}
+                                </span>
+                              )}
+                            </div>
+                          </td>
                           <td className="py-3 px-3 font-mono font-bold text-stone-700">{g.guia_dni || '-'}</td>
                           
                           {/* Etapa / Fase */}
