@@ -13,19 +13,12 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-const resolveImageUrl = (url) => {
-  if (!url) return '';
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  const clean = url.startsWith('/') ? url.slice(1) : url;
-  return import.meta.env.BASE_URL + clean;
-};
-
 const DEFAULT_CONFIG = {
   id: 'capacitaciones',
   activo: true,
   titulo: 'Jornadas Oficiales de Capacitación',
   subtitulo: 'Voluntariado Diocesano • Visita del Santo Padre',
-  fb_diocesis_url: 'https://www.facebook.com/DiocesisChiclayo',
+  fb_diocesis_url: '',
   fb_pastoral_url: 'https://www.facebook.com/pjchiclayo',
   
   // Chiclayo
@@ -235,69 +228,42 @@ export default function GestionCapacitacion() {
 
       <form onSubmit={handleSave} className="space-y-6">
         
-        {/* BLOQUE 1: ENLACES GENERALES DE FACEBOOK */}
+        {/* BLOQUE 1: ENLACE OFICIAL DE FACEBOOK LIVE */}
         <div className="bg-white rounded-3xl p-6 md:p-8 card-shadow border border-stone-200 space-y-4">
           <div className="flex items-center gap-3 border-b border-stone-200 pb-3">
             <Share2 className="w-6 h-6 text-[#1877F2]" />
             <div>
               <h3 className="font-title font-bold text-stone-900 text-base md:text-lg">
-                Páginas Oficiales de Transmisión (Facebook Live)
+                Página Oficial de Transmisión (Facebook Live)
               </h3>
               <p className="text-xs text-stone-500">
-                Ambos enlaces están disponibles para que los voluntarios de cualquier sede se conecten.
+                Canal oficial de Pastoral Juvenil Chiclayo por donde se transmitirá la jornada de capacitación.
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-            <div>
-              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
-                Página 1: Diócesis de Chiclayo
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="url"
-                  value={config.fb_diocesis_url}
-                  onChange={(e) => setConfig({ ...config, fb_diocesis_url: e.target.value })}
-                  placeholder="https://www.facebook.com/DiocesisChiclayo"
-                  className="w-full px-4 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 text-xs font-medium focus:ring-2 focus:ring-diocesis-red focus:bg-white outline-none"
-                  required
-                />
-                <a
-                  href={config.fb_diocesis_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="p-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl transition shrink-0"
-                  title="Abrir enlace"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                </a>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
-                Página 2: Pastoral Juvenil Chiclayo
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="url"
-                  value={config.fb_pastoral_url}
-                  onChange={(e) => setConfig({ ...config, fb_pastoral_url: e.target.value })}
-                  placeholder="https://www.facebook.com/pjchiclayo"
-                  className="w-full px-4 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 text-xs font-medium focus:ring-2 focus:ring-diocesis-red focus:bg-white outline-none"
-                  required
-                />
-                <a
-                  href={config.fb_pastoral_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="p-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl transition shrink-0"
-                  title="Abrir enlace"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                </a>
-              </div>
+          <div className="pt-2 max-w-xl">
+            <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
+              Página de Facebook: Pastoral Juvenil Chiclayo
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="url"
+                value={config.fb_pastoral_url}
+                onChange={(e) => setConfig({ ...config, fb_pastoral_url: e.target.value })}
+                placeholder="https://www.facebook.com/pjchiclayo"
+                className="w-full px-4 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 text-xs font-medium focus:ring-2 focus:ring-diocesis-red focus:bg-white outline-none"
+                required
+              />
+              <a
+                href={config.fb_pastoral_url}
+                target="_blank"
+                rel="noreferrer"
+                className="p-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl transition shrink-0"
+                title="Abrir enlace"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </a>
             </div>
           </div>
         </div>
@@ -322,7 +288,7 @@ export default function GestionCapacitacion() {
             {/* Subida y Vista Previa de la Imagen */}
             <div className="flex items-center gap-4 bg-stone-50 p-3.5 rounded-2xl border border-stone-200">
               <img 
-                src={resolveImageUrl(config.chiclayo_imagen_url)} 
+                src={config.chiclayo_imagen_url || '/banners/banner_chiclayo.png'} 
                 alt="Afiche Chiclayo"
                 className="w-16 h-20 object-cover rounded-xl shadow-xs border border-stone-300 shrink-0"
               />
@@ -445,7 +411,7 @@ export default function GestionCapacitacion() {
             {/* Subida y Vista Previa de la Imagen */}
             <div className="flex items-center gap-4 bg-stone-50 p-3.5 rounded-2xl border border-stone-200">
               <img 
-                src={resolveImageUrl(config.santacruz_imagen_url)} 
+                src={config.santacruz_imagen_url || '/banners/banner_santacruz.jpg'} 
                 alt="Afiche Santa Cruz"
                 className="w-16 h-20 object-cover rounded-xl shadow-xs border border-stone-300 shrink-0"
               />

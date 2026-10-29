@@ -12,7 +12,7 @@ const DEFAULT_CONFIG = {
   activo: true,
   titulo: 'Jornadas Oficiales de Capacitación',
   subtitulo: 'Voluntariado Diocesano • Visita del Santo Padre',
-  fb_diocesis_url: 'https://www.facebook.com/DiocesisChiclayo',
+  fb_diocesis_url: '',
   fb_pastoral_url: 'https://www.facebook.com/pjchiclayo',
   
   // Chiclayo
@@ -246,28 +246,42 @@ export default function BannerCapacitacion() {
                 Transmisión en vivo oficial para voluntarios que se encuentren fuera de la ciudad o no puedan asistir de forma presencial.
               </p>
 
-              {/* BOTONES DE TRANSMISIÓN DE FACEBOOK */}
+              {/* BOTÓN DE TRANSMISIÓN DE FACEBOOK */}
               <div className="pt-1 flex flex-col sm:flex-row gap-2.5">
-                <a
-                  href={config.fb_diocesis_url || 'https://www.facebook.com/DiocesisChiclayo'}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-[#1877F2] hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition cursor-pointer"
-                >
-                  <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
-                  <i className="fa-brands fa-facebook text-base"></i>
-                  <span>Facebook Diócesis de Chiclayo ↗</span>
-                </a>
-
-                <a
-                  href={config.fb_pastoral_url || 'https://www.facebook.com/pjchiclayo'}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-[#0866FF] hover:bg-blue-800 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition cursor-pointer"
-                >
-                  <i className="fa-brands fa-facebook text-base"></i>
-                  <span>Facebook Pastoral Juvenil ↗</span>
-                </a>
+                {config.fb_diocesis_url ? (
+                  <>
+                    <a
+                      href={config.fb_diocesis_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-[#1877F2] hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition cursor-pointer"
+                    >
+                      <i className="fa-brands fa-facebook text-base"></i>
+                      <span>Facebook Diócesis de Chiclayo ↗</span>
+                    </a>
+                    <a
+                      href={config.fb_pastoral_url || 'https://www.facebook.com/pjchiclayo'}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-[#0866FF] hover:bg-blue-800 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition cursor-pointer"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
+                      <i className="fa-brands fa-facebook text-base"></i>
+                      <span>Facebook Pastoral Juvenil ↗</span>
+                    </a>
+                  </>
+                ) : (
+                  <a
+                    href={config.fb_pastoral_url || 'https://www.facebook.com/pjchiclayo'}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center gap-2.5 px-6 py-3 bg-[#1877F2] hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition cursor-pointer"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
+                    <i className="fa-brands fa-facebook text-lg"></i>
+                    <span>Transmisión Oficial: Facebook Pastoral Juvenil Chiclayo ↗</span>
+                  </a>
+                )}
               </div>
 
             </div>
