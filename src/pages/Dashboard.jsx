@@ -37,6 +37,8 @@ import {
 } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import MapaTactico from '../components/MapaTactico';
+import GestionCapacitacion from '../components/GestionCapacitacion';
+import { Megaphone } from 'lucide-react';
 
 // Portal Oficial de Consulta Pública
 const PORTAL_CONSULTA_URL = "https://amigosdeleoncix.onrender.com/";
@@ -1162,6 +1164,19 @@ export default function Dashboard() {
                 <MapPin className="w-4 h-4 text-diocesis-mustard" />
                 Mapa Táctico & Sedes
               </button>
+
+              <button
+                onClick={() => { setActiveTab('capacitacion'); }}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs md:text-sm font-bold transition ${
+                  activeTab === 'capacitacion'
+                    ? 'bg-amber-600 text-white shadow'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+                title="Gestión de Banners, Afiches y Capacitaciones"
+              >
+                <Megaphone className="w-4 h-4 text-amber-500" />
+                Banners & Capacitación
+              </button>
             </div>
 
             {/* Acciones Rápidas */}
@@ -1198,6 +1213,7 @@ export default function Dashboard() {
           </div>
 
           {/* Filtros y Buscador */}
+          {activeTab !== 'mapa' && activeTab !== 'capacitacion' && (
           <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-2 border-t border-stone-100">
             
             {/* Buscador por DNI / Nombres */}
@@ -1335,9 +1351,14 @@ export default function Dashboard() {
               </select>
             </div>
           </div>
+          )}
         </div>
 
-        {/* VISTA MAPA TÁCTICO & SEDES */}
+        {/* VISTA GESTIÓN DE CAPACITACIONES */}
+        {activeTab === 'capacitacion' && (
+          <GestionCapacitacion />
+        )}
+{/* VISTA MAPA TÁCTICO & SEDES */}
         {activeTab === 'mapa' && (
           <div className="space-y-4">
             <MapaTactico 
@@ -1350,7 +1371,7 @@ export default function Dashboard() {
         )}
 
         {/* TABLA DE REGISTROS (Fase 1, Fase 2, Sin Fase 2) */}
-        {activeTab !== 'mapa' && (
+        {activeTab !== 'mapa' && activeTab !== 'capacitacion' && (
         <div className="bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden">
           
           {/* Header de la Tabla */}

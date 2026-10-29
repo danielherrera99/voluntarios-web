@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabase';
 import FloatingChat from '../components/FloatingChat';
+import BannerCapacitacion from '../components/BannerCapacitacion';
 
 // Base de datos de prueba / demo institucional
 const mockDatabase = {
@@ -226,6 +227,7 @@ export default function ConsultaVoluntariado() {
   const handleCloseModal = () => {
     setResult(null);
     setLoading(false);
+    setDniInput('');
   };
 
   // Bloquear scroll de fondo y permitir cerrar con tecla Escape cuando el modal está abierto
@@ -351,6 +353,9 @@ export default function ConsultaVoluntariado() {
 
       {/* CONTENIDO PRINCIPAL */}
       <main className="max-w-4xl w-full mx-auto px-4 py-8 md:py-12 flex-grow">
+
+        {/* BANNER OFICIAL DE CAPACITACIONES */}
+        <BannerCapacitacion />
 
         {/* CUADRO DE BÚSQUEDA */}
         <div className="bg-white rounded-3xl p-6 md:p-10 card-shadow border border-stone-200 mb-8 relative overflow-hidden no-print">
