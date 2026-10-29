@@ -1,6 +1,13 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 
+const resolveImageUrl = (url) => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  const clean = url.startsWith('/') ? url.slice(1) : url;
+  return import.meta.env.BASE_URL + clean;
+};
+
 const DEFAULT_CONFIG = {
   activo: true,
   titulo: 'Jornadas Oficiales de Capacitación',
@@ -59,7 +66,8 @@ export default function BannerCapacitacion() {
   if (!config.activo) return null;
 
   const isChiclayo = sede === 'chiclayo';
-  const currentImg = isChiclayo ? config.chiclayo_imagen_url : config.santacruz_imagen_url;
+  const rawImg = isChiclayo ? config.chiclayo_imagen_url : config.santacruz_imagen_url;
+  const currentImg = resolveImageUrl(rawImg);
   const currentTitulo = isChiclayo ? config.chiclayo_titulo : config.santacruz_titulo;
   const currentFecha = isChiclayo ? config.chiclayo_fecha : config.santacruz_fecha;
   const currentHora = isChiclayo ? config.chiclayo_hora : config.santacruz_hora;
@@ -112,7 +120,7 @@ export default function BannerCapacitacion() {
             </span>
             <button
               onClick={() => setMinimizado(true)}
-              className="text-white/70 hover:text-white p-1 rounded-lg transition text-xs"
+              className="text-white/70 hover:text-white p-1 rounded-lg transition text-xs cursor-pointer"
               title="Minimizar aviso"
             >
               <i className="fa-solid fa-minus"></i>
@@ -165,6 +173,15 @@ export default function BannerCapacitacion() {
                 src={currentImg} 
                 alt={`Afiche de Capacitación ${currentTitulo}`}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                onError={(e) => {
+                  // Fallback preventivo
+                  const fallback = isChiclayo 
+                    ? import.meta.env.BASE_URL + 'banners/banner_chiclayo.png'
+                    : import.meta.env.BASE_URL + 'banners/banner_santacruz.jpg';
+                  if (e.target.src !== fallback) {
+                    e.target.src = fallback;
+                  }
+                }}
               />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white p-3 text-center">
                 <i className="fa-solid fa-magnifying-glass-plus text-2xl mb-1 text-amber-300"></i>
@@ -283,6 +300,8 @@ export default function BannerCapacitacion() {
             <div className="mt-3 flex gap-2">
               <a
                 href={modalImagen}
+                target="_blank"
+                rel="noreferrer"
                 download
                 className="px-4 py-2 bg-white text-stone-900 rounded-xl text-xs font-bold shadow-md hover:bg-amber-100 transition inline-flex items-center gap-2"
                 onClick={(e) => e.stopPropagation()}
@@ -303,4 +322,3 @@ export default function BannerCapacitacion() {
     </>
   );
 }
-

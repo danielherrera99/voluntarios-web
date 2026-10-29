@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabase';
 import { 
   Save, 
@@ -7,15 +7,18 @@ import {
   Check, 
   RefreshCw, 
   ExternalLink, 
-  MapPin, 
-  Calendar, 
-  Clock, 
-  Shirt, 
-  Image as ImageIcon,
+  Upload, 
   Share2,
   Sparkles,
   AlertCircle
 } from 'lucide-react';
+
+const resolveImageUrl = (url) => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  const clean = url.startsWith('/') ? url.slice(1) : url;
+  return import.meta.env.BASE_URL + clean;
+};
 
 const DEFAULT_CONFIG = {
   id: 'capacitaciones',
@@ -46,7 +49,11 @@ export default function GestionCapacitacion() {
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingSede, setUploadingSede] = useState(null);
   const [msg, setMsg] = useState(null);
+
+  const fileInputChiclayo = useRef(null);
+  const fileInputSantaCruz = useRef(null);
 
   useEffect(() => {
     fetchConfig();
@@ -69,6 +76,50 @@ export default function GestionCapacitacion() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleFileUpload = async (e, sedeKey) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingSede(sedeKey);
+    setMsg(null);
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const base64Data = reader.result;
+        const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
+        
+        const res = await fetch(`${apiUrl}/api/upload-banner-cloudinary`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageBase64: base64Data,
+            sede: sedeKey
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Error al subir imagen');
+        }
+
+        if (sedeKey === 'chiclayo') {
+          setConfig(prev => ({ ...prev, chiclayo_imagen_url: data.url }));
+        } else {
+          setConfig(prev => ({ ...prev, santacruz_imagen_url: data.url }));
+        }
+
+        setMsg({ type: 'success', text: `☁️ ¡Imagen de ${sedeKey === 'chiclayo' ? 'Chiclayo' : 'Santa Cruz'} subida con éxito a Cloudinary!` });
+      } catch (err) {
+        console.error('Error subiendo imagen:', err);
+        setMsg({ type: 'error', text: `❌ No se pudo subir a Cloudinary: ${err.message}` });
+      } finally {
+        setUploadingSede(null);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSave = async (e) => {
@@ -122,7 +173,7 @@ export default function GestionCapacitacion() {
             Gestión de Banners & Capacitaciones
           </h2>
           <p className="text-stone-200 text-xs md:text-sm mt-1 max-w-2xl leading-relaxed">
-            Personaliza los afiches, enlaces a Facebook Live, fechas y lugares que se muestran a todos los voluntarios en el portal público.
+            Personaliza los afiches (con Cloudinary), enlaces a Facebook Live, fechas y lugares que se muestran a todos los voluntarios en el portal público.
           </p>
         </div>
 
@@ -172,7 +223,7 @@ export default function GestionCapacitacion() {
       </div>
 
       {msg && (
-        <div className={`p-4 rounded-2xl border font-bold text-sm flex items-center gap-3 animate-bounce ${
+        <div className={`p-4 rounded-2xl border font-bold text-sm flex items-center gap-3 ${
           msg.type === 'success' 
             ? 'bg-emerald-50 border-emerald-300 text-emerald-900' 
             : 'bg-rose-50 border-rose-300 text-rose-900'
@@ -268,25 +319,52 @@ export default function GestionCapacitacion() {
               </div>
             </div>
 
-            {/* Vista Previa de la Imagen */}
-            <div className="flex items-center gap-4 bg-stone-50 p-3 rounded-2xl border border-stone-200">
+            {/* Subida y Vista Previa de la Imagen */}
+            <div className="flex items-center gap-4 bg-stone-50 p-3.5 rounded-2xl border border-stone-200">
               <img 
-                src={config.chiclayo_imagen_url || '/banners/banner_chiclayo.png'} 
+                src={resolveImageUrl(config.chiclayo_imagen_url)} 
                 alt="Afiche Chiclayo"
                 className="w-16 h-20 object-cover rounded-xl shadow-xs border border-stone-300 shrink-0"
               />
-              <div className="flex-grow">
-                <label className="block text-[11px] font-bold text-stone-700 uppercase mb-1">
-                  Ruta o URL de la Imagen
+              <div className="flex-grow space-y-2">
+                <label className="block text-[11px] font-bold text-stone-700 uppercase">
+                  URL de Imagen (Cloudinary o ruta local)
                 </label>
                 <input
                   type="text"
                   value={config.chiclayo_imagen_url}
                   onChange={(e) => setConfig({ ...config, chiclayo_imagen_url: e.target.value })}
                   className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-xs font-mono"
-                  placeholder="/banners/banner_chiclayo.png"
+                  placeholder="https://res.cloudinary.com/... o /banners/..."
                   required
                 />
+                <div>
+                  <input
+                    type="file"
+                    ref={fileInputChiclayo}
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleFileUpload(e, 'chiclayo')}
+                  />
+                  <button
+                    type="button"
+                    disabled={uploadingSede === 'chiclayo'}
+                    onClick={() => fileInputChiclayo.current?.click()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition cursor-pointer disabled:opacity-50"
+                  >
+                    {uploadingSede === 'chiclayo' ? (
+                      <>
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                        <span>Subiendo a Cloudinary...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-3 h-3" />
+                        <span>Subir nuevo afiche a Cloudinary</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -364,25 +442,52 @@ export default function GestionCapacitacion() {
               </div>
             </div>
 
-            {/* Vista Previa de la Imagen */}
-            <div className="flex items-center gap-4 bg-stone-50 p-3 rounded-2xl border border-stone-200">
+            {/* Subida y Vista Previa de la Imagen */}
+            <div className="flex items-center gap-4 bg-stone-50 p-3.5 rounded-2xl border border-stone-200">
               <img 
-                src={config.santacruz_imagen_url || '/banners/banner_santacruz.jpg'} 
+                src={resolveImageUrl(config.santacruz_imagen_url)} 
                 alt="Afiche Santa Cruz"
                 className="w-16 h-20 object-cover rounded-xl shadow-xs border border-stone-300 shrink-0"
               />
-              <div className="flex-grow">
-                <label className="block text-[11px] font-bold text-stone-700 uppercase mb-1">
-                  Ruta o URL de la Imagen
+              <div className="flex-grow space-y-2">
+                <label className="block text-[11px] font-bold text-stone-700 uppercase">
+                  URL de Imagen (Cloudinary o ruta local)
                 </label>
                 <input
                   type="text"
                   value={config.santacruz_imagen_url}
                   onChange={(e) => setConfig({ ...config, santacruz_imagen_url: e.target.value })}
                   className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-xs font-mono"
-                  placeholder="/banners/banner_santacruz.jpg"
+                  placeholder="https://res.cloudinary.com/... o /banners/..."
                   required
                 />
+                <div>
+                  <input
+                    type="file"
+                    ref={fileInputSantaCruz}
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleFileUpload(e, 'santacruz')}
+                  />
+                  <button
+                    type="button"
+                    disabled={uploadingSede === 'santacruz'}
+                    onClick={() => fileInputSantaCruz.current?.click()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition cursor-pointer disabled:opacity-50"
+                  >
+                    {uploadingSede === 'santacruz' ? (
+                      <>
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                        <span>Subiendo a Cloudinary...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-3 h-3" />
+                        <span>Subir nuevo afiche a Cloudinary</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -448,7 +553,7 @@ export default function GestionCapacitacion() {
 
         </div>
 
-        {/* BOTÓN FLOTANTE / INFERIOR DE GUARDAR */}
+        {/* BOTÓN DE GUARDAR */}
         <div className="flex justify-end pt-2">
           <button
             type="submit"
@@ -474,4 +579,3 @@ export default function GestionCapacitacion() {
     </div>
   );
 }
-
