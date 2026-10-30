@@ -647,17 +647,43 @@ export default function ConsultaVoluntariado() {
 
                   <div className="text-center bg-stone-50 p-4 rounded-2xl border border-stone-200">
                     <p className="text-xs text-stone-600 font-medium">
-                      ¿Tienes alguna consulta sobre tu evaluación?
+                      {result.esVerificar 
+                        ? '¿Tienes alguna consulta sobre la subsanación de tus documentos observados?' 
+                        : '¿Tienes alguna consulta sobre tu evaluación?'}
                     </p>
-                    <a
-                      href={`https://wa.me/51945854083?text=Hola,%20figuro%20en%20la%20Etapa%202%20con%20DNI%20${result.dni}%20y%20quisiera%20consultar%20sobre%20mi%20revisión`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 text-emerald-700 font-bold text-sm hover:underline mt-1"
-                    >
-                      <i className="fa-brands fa-whatsapp text-base"></i>
-                      <span>Escribir al Soporte Diocesano (+51 945 854 083)</span>
-                    </a>
+
+                    {result.esVerificar ? (
+                      <div className="mt-2.5 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+                        <a
+                          href={`https://wa.me/51981349410?text=Hola,%20figuro%20en%20la%20Etapa%202%20(Documentación%20Observada)%20con%20DNI%20${result.dni}%20y%20quisiera%20consultar%20sobre%20mi%20subsanación`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs sm:text-sm font-bold transition shadow-2xs hover:shadow"
+                        >
+                          <i className="fa-brands fa-whatsapp text-emerald-600 text-base"></i>
+                          <span>Soporte Diocesano (+51 981 349 410)</span>
+                        </a>
+                        <a
+                          href={`https://wa.me/51947429053?text=Hola,%20figuro%20en%20la%20Etapa%202%20(Documentación%20Observada)%20con%20DNI%20${result.dni}%20y%20quisiera%20consultar%20sobre%20mi%20subsanación`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs sm:text-sm font-bold transition shadow-2xs hover:shadow"
+                        >
+                          <i className="fa-brands fa-whatsapp text-emerald-600 text-base"></i>
+                          <span>Soporte Diocesano (+51 947 429 053)</span>
+                        </a>
+                      </div>
+                    ) : (
+                      <a
+                        href={`https://wa.me/51945854083?text=Hola,%20figuro%20en%20la%20Etapa%202%20con%20DNI%20${result.dni}%20y%20quisiera%20consultar%20sobre%20mi%20revisión`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 text-emerald-700 font-bold text-sm hover:underline mt-1"
+                      >
+                        <i className="fa-brands fa-whatsapp text-base"></i>
+                        <span>Escribir al Soporte Diocesano (+51 945 854 083)</span>
+                      </a>
+                    )}
                   </div>
 
                   <div className="pt-3 border-t border-stone-200 flex justify-end no-print">
