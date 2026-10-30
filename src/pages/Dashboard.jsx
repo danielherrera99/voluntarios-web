@@ -1181,7 +1181,7 @@ export default function Dashboard() {
                 <span className={`text-[11px] px-2 py-0.5 rounded-full font-extrabold ${
                   activeTab === 'jerarquia' ? 'bg-diocesis-mustard text-diocesis-redDark' : 'bg-stone-200 text-stone-700'
                 }`}>
-                  719
+                  725
                 </span>
               </button>
 
