@@ -1697,9 +1697,13 @@ export default function Dashboard() {
                                       : 'Escribir por WhatsApp con enlace al formulario Fase 2'
                                 }
                               >
+                                <MessageCircle className={`w-4 h-4 ${
+                                  r.tiene_whatsapp === false 
+                                    ? 'text-rose-500' 
                                     : (activeTab === 'fase2' && isRevision)
                                       ? 'text-amber-800'
                                       : 'text-emerald-700'
+                                }`} />
                               </a>
                             )}
                           </div>
