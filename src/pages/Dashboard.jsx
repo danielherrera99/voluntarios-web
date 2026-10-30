@@ -33,11 +33,13 @@ import {
   Mail,
   Shield,
   FileSpreadsheet,
-  MapPin
+  MapPin,
+  Layers
 } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import MapaTactico from '../components/MapaTactico';
 import GestionCapacitacion from '../components/GestionCapacitacion';
+import GestionJerarquia from '../components/GestionJerarquia';
 import { Megaphone } from 'lucide-react';
 
 // Portal Oficial de Consulta Pública
@@ -1166,6 +1168,24 @@ export default function Dashboard() {
               </button>
 
               <button
+                onClick={() => { setActiveTab('jerarquia'); }}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer ${
+                  activeTab === 'jerarquia'
+                    ? 'bg-diocesis-redDark text-white shadow'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+                title="Estructura Oficial y Cadena de Mandos (Responsables, Líderes y Guías)"
+              >
+                <Layers className="w-4 h-4 text-diocesis-mustard" />
+                <span>Estructura & Mandos</span>
+                <span className={`text-[11px] px-2 py-0.5 rounded-full font-extrabold ${
+                  activeTab === 'jerarquia' ? 'bg-diocesis-mustard text-diocesis-redDark' : 'bg-stone-200 text-stone-700'
+                }`}>
+                  719
+                </span>
+              </button>
+
+              <button
                 onClick={() => { setActiveTab('capacitacion'); }}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs md:text-sm font-bold transition ${
                   activeTab === 'capacitacion'
@@ -1213,7 +1233,7 @@ export default function Dashboard() {
           </div>
 
           {/* Filtros y Buscador */}
-          {activeTab !== 'mapa' && activeTab !== 'capacitacion' && (
+          {activeTab !== 'mapa' && activeTab !== 'capacitacion' && activeTab !== 'jerarquia' && (
           <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-2 border-t border-stone-100">
             
             {/* Buscador por DNI / Nombres */}
@@ -1354,6 +1374,11 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* VISTA ESTRUCTURA Y CADENA DE MANDOS */}
+        {activeTab === 'jerarquia' && (
+          <GestionJerarquia />
+        )}
+
         {/* VISTA GESTIÓN DE CAPACITACIONES */}
         {activeTab === 'capacitacion' && (
           <GestionCapacitacion />
@@ -1371,7 +1396,7 @@ export default function Dashboard() {
         )}
 
         {/* TABLA DE REGISTROS (Fase 1, Fase 2, Sin Fase 2) */}
-        {activeTab !== 'mapa' && activeTab !== 'capacitacion' && (
+        {activeTab !== 'mapa' && activeTab !== 'capacitacion' && activeTab !== 'jerarquia' && (
         <div className="bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden">
           
           {/* Header de la Tabla */}
