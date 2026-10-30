@@ -1675,21 +1675,31 @@ export default function Dashboard() {
                             </div>
                             {cleanPhone && (
                               <a
-                                href={getWhatsAppContactUrl(r.telefono, r.nombres_apellidos)}
+                                href={
+                                  (activeTab === 'fase2' && isRevision)
+                                    ? getWhatsAppRevisionUrl(r.telefono, r.nombres_apellidos, r.observacion)
+                                    : getWhatsAppContactUrl(r.telefono, r.nombres_apellidos)
+                                }
                                 target="_blank"
                                 rel="noreferrer"
                                 className={`p-1.5 rounded-lg transition flex items-center justify-center shrink-0 shadow-xs ${
                                   r.tiene_whatsapp === false
                                     ? 'bg-rose-50 hover:bg-rose-100 text-rose-500 border border-rose-200 opacity-70'
-                                    : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800'
+                                    : (activeTab === 'fase2' && isRevision)
+                                      ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 ring-2 ring-amber-200'
+                                      : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800'
                                 }`}
                                 title={
                                   r.tiene_whatsapp === false
                                     ? 'Número marcado sin WhatsApp (hacer clic si se desea reintentar)'
-                                    : 'Escribir por WhatsApp con enlace al formulario Fase 2'
+                                    : (activeTab === 'fase2' && isRevision)
+                                      ? 'Enviar Speech Oficial de Subsanación de Observación por WhatsApp'
+                                      : 'Escribir por WhatsApp con enlace al formulario Fase 2'
                                 }
                               >
-                                <MessageCircle className={`w-4 h-4 ${r.tiene_whatsapp === false ? 'text-rose-500' : 'text-emerald-700'}`} />
+                                    : (activeTab === 'fase2' && isRevision)
+                                      ? 'text-amber-800'
+                                      : 'text-emerald-700'
                               </a>
                             )}
                           </div>
@@ -2233,6 +2243,50 @@ export default function Dashboard() {
               
               {selectedVoluntario.archivo_compromiso_url || selectedVoluntario.archivo_cul_url || selectedVoluntario.archivo_carta_url ? (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {/* TARJETA DE OBSERVACIÓN ESPECIAL (FASE 2 EN REVISIÓN) */}
+              {(selectedVoluntario.estado === 'EN REVISIÓN' || selectedVoluntario.estado === 'EN REVISION') && (
+                <div className="p-4 bg-amber-50 rounded-2xl border-2 border-amber-300 space-y-2.5">
+                  <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
+                    <div>
+                      <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5 uppercase tracking-wide">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                        Observación Registrada en su Expediente:
+                      </span>
+                      <p className="text-xs text-amber-900 mt-1 font-semibold bg-white p-2.5 rounded-xl border border-amber-200 shadow-2xs">
+                        {selectedVoluntario.observacion || 'Documentación en observación pendiente de subsanar por el voluntario.'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleContactadoObs(selectedVoluntario)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                          selectedVoluntario.contactado_obs 
+                            ? 'bg-emerald-600 text-white hover:bg-emerald-700' 
+                            : 'bg-stone-200 text-stone-700 hover:bg-stone-300'
+                        }`}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>{selectedVoluntario.contactado_obs ? 'Contactado' : 'Marcar Contactado'}</span>
+                      </button>
+                    </div>
+                  </div>
+                  {selectedVoluntario.telefono && (
+                    <div className="pt-2 border-t border-amber-200/80 flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-amber-800 font-medium italic">Speech de Subsanación listo para enviar:</span>
+                      <a
+                        href={getWhatsAppRevisionUrl(selectedVoluntario.telefono, selectedVoluntario.nombres_apellidos, selectedVoluntario.observacion)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl text-xs font-bold shadow transition"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        <span>Enviar Speech a WhatsApp</span>
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
                   {selectedVoluntario.archivo_compromiso_url ? (
                     <a
                       href={selectedVoluntario.archivo_compromiso_url}
