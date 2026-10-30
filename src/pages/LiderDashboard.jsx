@@ -39,12 +39,14 @@ export default function LiderDashboard() {
     setLoading(true);
     setActionMsg(null);
     try {
-      // 1. Obtener Guías y Cuadrillas asignadas a este Líder
-      const { data: guiasData, error: guiasErr } = await supabase
-        .from('estructura_mandos')
-        .select('*')
-        .ilike('lider_nombre', `%${liderNombre}%`)
-        .order('id', { ascending: true });
+      // 1. Obtener Guías y Cuadrillas asignadas a este Líder (por DNI o Nombre)
+      let q = supabase.from('estructura_mandos').select('*');
+      if (user?.dni) {
+        q = q.or(`lider_dni.eq.${user.dni},lider_nombre.ilike.%${liderNombre}%`);
+      } else {
+        q = q.ilike('lider_nombre', `%${liderNombre}%`);
+      }
+      const { data: guiasData, error: guiasErr } = await q.order('id', { ascending: true });
 
       if (guiasErr) throw guiasErr;
       const list = guiasData || [];

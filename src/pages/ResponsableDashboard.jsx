@@ -36,12 +36,14 @@ export default function ResponsableDashboard() {
     setLoading(true);
     setActionMsg(null);
     try {
-      // 1. Obtener la estructura de mandos de este Responsable
-      const { data: mandosData, error: mErr } = await supabase
-        .from('estructura_mandos')
-        .select('*')
-        .ilike('responsable_nombre', `%${responsableNombre}%`)
-        .order('id', { ascending: true });
+      // 1. Obtener la estructura de mandos de este Responsable (por DNI o Nombre)
+      let qResp = supabase.from('estructura_mandos').select('*');
+      if (user?.dni) {
+        qResp = qResp.or(`responsable_dni.eq.${user.dni},responsable_nombre.ilike.%${responsableNombre}%`);
+      } else {
+        qResp = qResp.ilike('responsable_nombre', `%${responsableNombre}%`);
+      }
+      const { data: mandosData, error: mErr } = await qResp.order('id', { ascending: true });
 
       if (mErr) throw mErr;
       const list = mandosData || [];
