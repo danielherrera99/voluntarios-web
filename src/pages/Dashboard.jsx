@@ -86,6 +86,20 @@ const getWhatsAppContactUrl = (telefono, nombres) => {
   return `https://api.whatsapp.com/send/?phone=51${cleanPhone}&text=${encodeURIComponent(msg)}`;
 };
 
+// Generar enlace directo a WhatsApp con speech especializado para voluntarios en Fase 2 "En Revisión / con Observación"
+const getWhatsAppRevisionUrl = (telefono, nombres, observacion) => {
+  const cleanPhone = normalizePeruvianPhone(telefono);
+  if (!cleanPhone) return null;
+  const name = cleanVolunteerName(nombres);
+  const obsDetail = (observacion && observacion.trim()) 
+    ? `\n📌 *Observación registrada:* ${observacion.trim()}`
+    : '\n📌 *Observación:* Tenemos una observación pendiente en tu documentación (Ficha, Carta de Recomendación o CUL).';
+
+  const msg = `¡Hola *${name}*! 👋🕊️\n\nTe saludamos con alegría del equipo de Voluntariado de la *Diócesis de Chiclayo* para la Visita del Santo Padre 2026 ✨.\n\nHemos revisado tu expediente de la *Segunda Etapa (Fase 2)* y encontramos una observación pendiente en tu documentación que necesitamos que subsanes para validar tu selección oficial:${obsDetail}\n\nPor favor, ayúdanos a regularizarlo a la brevedad posible:\n\n🔍 *1. Revisa el detalle de tu ficha en el portal diocesano:*\n${PORTAL_CONSULTA_URL}\n\n📤 *2. Vuelve a subir o corregir tu documento en el formulario oficial:*\n${GOOGLE_FORM_URL}\n\n📥 *3. Si necesitas descargar nuevamente la Carta de Recomendación:*\n${CARTA_RECOMENDACION_URL}\n\n¡Esperamos tu pronta respuesta para completar tu registro oficial como Voluntario Papal! Dios te bendiga. 🙏❤️`;
+
+  return `https://api.whatsapp.com/send/?phone=51${cleanPhone}&text=${encodeURIComponent(msg)}`;
+};
+
 export default function Dashboard() {
   const { user, logout } = useAuth();
   
@@ -98,6 +112,7 @@ export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL'); // Para Fase 2: 'ALL', 'SELECCIONADO', 'EN REVISIÓN', 'NO SELECCIONADO', 'PENDIENTE'
+  const [contactadoObsFilter, setContactadoObsFilter] = useState('ALL'); // Para Fase 2: 'ALL', 'NO_CONTACTADOS', 'CONTACTADOS'
   const [fase1Filter, setFase1Filter] = useState('ALL'); // Para Fase 1: 'ALL', 'SIN_FASE2', 'CON_FASE2'
   const [contactFilter, setContactFilter] = useState('ALL'); // Para Sin Fase 2: 'ALL', 'NO_CONTACTADOS', 'CONTACTADOS'
   const [collaboratorFilter, setCollaboratorFilter] = useState('ALL'); // 'ALL', 'UNASSIGNED', o nombre del colaborador
@@ -174,7 +189,7 @@ export default function Dashboard() {
   // Reset de página al cambiar de pestaña o filtro
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, statusFilter, fase1Filter, contactFilter, collaboratorFilter, jurisdiccionFilter]);
+  }, [activeTab, statusFilter, fase1Filter, contactFilter, collaboratorFilter, jurisdiccionFilter, contactadoObsFilter]);
 
   // Cargar estadísticas globales una sola vez o al sincronizar
   const fetchGlobalStats = useCallback(async () => {
@@ -188,7 +203,8 @@ export default function Dashboard() {
         { count: pendCount },
         { count: sinF2Count },
         { count: contactadosCount },
-        { count: sinWhatsappCount }
+        { count: sinWhatsappCount },
+        { count: contactadosObsCount }
       ] = await Promise.all([
         supabase.from('voluntarios_general').select('*', { count: 'exact', head: true }),
         supabase.from('voluntarios').select('*', { count: 'exact', head: true }),
@@ -198,7 +214,8 @@ export default function Dashboard() {
         supabase.from('voluntarios').select('*', { count: 'exact', head: true }).or('estado.eq.PENDIENTE,estado.is.null'),
         supabase.from('voluntarios_general').select('*', { count: 'exact', head: true }).or('estado.eq.SIN_FASE2,estado.eq.CONTACTADO'),
         supabase.from('voluntarios_general').select('*', { count: 'exact', head: true }).eq('estado', 'CONTACTADO'),
-        supabase.from('voluntarios_general').select('*', { count: 'exact', head: true }).eq('tiene_whatsapp', false)
+        supabase.from('voluntarios_general').select('*', { count: 'exact', head: true }).eq('tiene_whatsapp', false),
+        supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('contactado_obs', true)
       ]);
 
       const gTotal = generalCount || 7241;
@@ -218,7 +235,8 @@ export default function Dashboard() {
         conFase2: conF2,
         contactados: contactados,
         sinContactar: sinContactar,
-        sinWhatsapp: sinWhatsappCount || 0
+        sinWhatsapp: sinWhatsappCount || 0,
+        contactadosObs: contactadosObsCount || 0
       });
     } catch (err) {
       console.error('Error cargando estadísticas:', err);
@@ -431,7 +449,9 @@ export default function Dashboard() {
             'Distrito': r.distrito || '',
             'Jurisdicción': r.jurisdiccion || '',
             'Talla': r.talla || '',
-            'Observaciones': r.observacion || ''
+            'Observaciones': r.observacion || '',
+            '¿Contactado por Observación?': r.contactado_obs ? 'SÍ' : 'NO',
+            'Fecha Contacto Observación': r.fecha_contacto_obs ? new Date(r.fecha_contacto_obs).toLocaleString() : ''
           };
         } else {
           let estadoTexto = 'Pendiente de Contactar';
@@ -524,6 +544,50 @@ export default function Dashboard() {
     } finally {
       setExporting(false);
       setExportProgress(0);
+    }
+  };
+
+  // Cambiar estado de ¿Contactado por Observación? en Fase 2
+  const handleToggleContactadoObs = async (voluntario) => {
+    const isCurrentlyContacted = !!voluntario.contactado_obs;
+    const newVal = !isCurrentlyContacted;
+    const newFecha = newVal ? new Date().toISOString() : null;
+
+    setUpdatingId(`obs_${voluntario.id}`);
+
+    // Actualización optimista inmediata en la UI
+    setRecords(prev => prev.map(r => r.id === voluntario.id ? { ...r, contactado_obs: newVal, fecha_contacto_obs: newFecha } : r));
+    if (selectedVoluntario && selectedVoluntario.id === voluntario.id) {
+      setSelectedVoluntario(prev => ({ ...prev, contactado_obs: newVal, fecha_contacto_obs: newFecha }));
+    }
+
+    try {
+      const { error } = await supabase
+        .from('voluntarios')
+        .update({ 
+          contactado_obs: newVal,
+          fecha_contacto_obs: newFecha 
+        })
+        .eq('id', voluntario.id);
+
+      if (error) throw error;
+
+      // Registrar evento de auditoría
+      sendAudit('CAMBIO_CONTACTADO_OBS', {
+        voluntario_id: voluntario.id,
+        dni: voluntario.dni,
+        nombres: voluntario.nombres_apellidos,
+        contactado_obs: newVal
+      });
+    } catch (err) {
+      console.error('Error al actualizar contactado_obs:', err);
+      // Revertir en caso de error
+      setRecords(prev => prev.map(r => r.id === voluntario.id ? { ...r, contactado_obs: isCurrentlyContacted, fecha_contacto_obs: voluntario.fecha_contacto_obs } : r));
+      if (selectedVoluntario && selectedVoluntario.id === voluntario.id) {
+        setSelectedVoluntario(prev => ({ ...prev, contactado_obs: isCurrentlyContacted, fecha_contacto_obs: voluntario.fecha_contacto_obs }));
+      }
+    } finally {
+      setUpdatingId(null);
     }
   };
 
@@ -1543,7 +1607,7 @@ export default function Dashboard() {
               <tbody className="divide-y divide-stone-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={activeTab === 'fase2' ? 7 : 11} className="py-12 text-center text-stone-400">
+                    <td colSpan={activeTab === 'fase2' ? 8 : 11} className="py-12 text-center text-stone-400">
                       <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-diocesis-mustard" />
                       <span className="font-semibold text-sm">Cargando registros...</span>
                     </td>
