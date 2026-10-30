@@ -1588,6 +1588,7 @@ export default function Dashboard() {
                   {activeTab === 'fase2' ? (
                     <>
                       <th className="py-3 px-4 text-center">Estado</th>
+                      <th className="py-3 px-4 text-center">¿Contactado?</th>
                       <th className="py-3 px-4 text-center">Documentos</th>
                       <th className="py-3 px-4 text-center">Acción</th>
                     </>
@@ -1614,7 +1615,7 @@ export default function Dashboard() {
                   </tr>
                 ) : records.length === 0 ? (
                   <tr>
-                    <td colSpan={activeTab === 'fase2' ? 7 : 11} className="py-12 text-center text-stone-500">
+                    <td colSpan={activeTab === 'fase2' ? 8 : 11} className="py-12 text-center text-stone-500">
                       <Users className="w-8 h-8 mx-auto mb-2 text-stone-300" />
                       <p className="font-bold text-stone-700">No se encontraron registros</p>
                       <p className="text-xs text-stone-400 mt-1">Prueba cambiando los términos de búsqueda o el filtro.</p>
@@ -1728,6 +1729,36 @@ export default function Dashboard() {
                               )}
                             </td>
 
+                            {/* Switch ¿Contactado por Observación? (Fase 2) */}
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                              <div className="inline-flex items-center gap-1.5 justify-center">
+                                <button
+                                  type="button"
+                                  role="switch"
+                                  aria-checked={!!r.contactado_obs}
+                                  disabled={updatingId === `obs_${r.id}`}
+                                  onClick={() => handleToggleContactadoObs(r)}
+                                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+                                    r.contactado_obs ? 'bg-emerald-600' : 'bg-stone-300'
+                                  }`}
+                                  title={
+                                    r.contactado_obs 
+                                      ? `Contactado${r.fecha_contacto_obs ? ` (${new Date(r.fecha_contacto_obs).toLocaleDateString()})` : ''} - Clic para marcar como pendiente` 
+                                      : 'Pendiente de contactar - Clic para marcar como contactado'
+                                  }
+                                >
+                                  <span
+                                    aria-hidden="true"
+                                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                      r.contactado_obs ? 'translate-x-4' : 'translate-x-0'
+                                    }`}
+                                  />
+                                </button>
+                                <span className={`text-[11px] font-bold ${r.contactado_obs ? 'text-emerald-700' : 'text-stone-400'}`}>
+                                  {r.contactado_obs ? 'Contactado' : 'Pendiente'}
+                                </span>
+                              </div>
+                            </td>
                             {/* Enlaces de Documentos */}
                             <td className="py-3 px-4 text-center whitespace-nowrap">
                               <div className="inline-flex items-center gap-1.5">
