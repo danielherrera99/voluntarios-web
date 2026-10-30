@@ -34,7 +34,8 @@ import {
   Shield,
   FileSpreadsheet,
   MapPin,
-  Layers
+  Layers,
+  Pencil
 } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import MapaTactico from '../components/MapaTactico';
@@ -129,6 +130,11 @@ export default function Dashboard() {
   const [volunteerToDelete, setVolunteerToDelete] = useState(null); // { record, fase }
   const [deletingVolunteer, setDeletingVolunteer] = useState(false);
   const [deleteSuccessToast, setDeleteSuccessToast] = useState(null);
+  // Estados para Edición de Voluntario (Exclusivo Administrador)
+  const [volunteerToEdit, setVolunteerToEdit] = useState(null); // { record, fase }
+  const [editForm, setEditForm] = useState({});
+  const [savingVolunteer, setSavingVolunteer] = useState(false);
+  const [editSuccessToast, setEditSuccessToast] = useState(null);
 
   // Estadísticas globales (KPIs)
   const [stats, setStats] = useState({
@@ -895,6 +901,82 @@ export default function Dashboard() {
     }
   };
 
+    // Abrir modal de edición con los datos del voluntario
+  const handleOpenEditVolunteer = (record, fase) => {
+    setVolunteerToEdit({ record, fase });
+    setEditForm({
+      nombres_apellidos: record.nombres_apellidos || '',
+      dni: record.dni || '',
+      telefono: record.telefono || '',
+      correo: record.correo || record.email || '',
+      servicio: record.servicio || '',
+      estado: record.estado || '',
+      talla: record.talla || '',
+      distrito: record.distrito || '',
+      provincia: record.provincia || '',
+      departamento: record.departamento || '',
+      direccion: record.direccion || '',
+      jurisdiccion: record.jurisdiccion || '',
+      fecha_nacimiento: record.fecha_nacimiento || '',
+      edad: record.edad || '',
+      cuadrilla_codigo: record.cuadrilla_codigo || '',
+      lider_nombre: record.lider_nombre || '',
+      coordinador_nombre: record.coordinador_nombre || '',
+      tiene_whatsapp: record.tiene_whatsapp !== false,
+      fase: record.fase || '',
+      ocupacion_laboral: record.ocupacion_laboral || ''
+    });
+  };
+
+  // Guardar cambios del voluntario en backend y Supabase
+  const handleSaveEditVolunteer = async (e) => {
+    e?.preventDefault();
+    if (!volunteerToEdit || savingVolunteer) return;
+    setSavingVolunteer(true);
+    try {
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
+      const res = await fetch(`${apiUrl}/api/voluntarios/${volunteerToEdit.fase}/${volunteerToEdit.record.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(editForm)
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || data.msg || 'Error al actualizar el registro');
+      }
+
+      const updated = data.voluntario || { ...volunteerToEdit.record, ...editForm };
+
+      // 1. Actualizar tabla en pantalla
+      setRecords(prev => prev.map(r => r.id === updated.id ? { ...r, ...updated } : r));
+
+      // 2. Si la ficha completa estaba abierta, actualizarla
+      if (selectedVoluntario?.id === updated.id) {
+        setSelectedVoluntario(prev => ({ ...prev, ...updated }));
+      }
+
+      // 3. Notificación flotante de éxito
+      setEditSuccessToast({
+        nombre: updated.nombres_apellidos,
+        dni: updated.dni
+      });
+      setTimeout(() => setEditSuccessToast(null), 5000);
+
+      // 4. Cerrar modal de edición
+      setVolunteerToEdit(null);
+    } catch (err) {
+      console.error('Error guardando cambios:', err);
+      alert(`⚠️ Error al guardar: ${err.message}`);
+    } finally {
+      setSavingVolunteer(false);
+    }
+  };
+
   const totalPages = Math.ceil(totalRecords / pageSize) || 1;
 
   return (
@@ -1635,6 +1717,14 @@ export default function Dashboard() {
                                   <Eye className="w-4 h-4" />
                                 </button>
                                 {user?.rol === 'admin' && (
+                                  <>
+                                  <button
+                                    onClick={() => handleOpenEditVolunteer(r, 'fase2')}
+                                    className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 hover:text-amber-800 transition cursor-pointer border border-amber-200/70"
+                                    title="Editar datos del voluntario (Administrador)"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
                                   <button
                                     onClick={() => setVolunteerToDelete({ record: r, fase: 'fase2' })}
                                     className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 transition cursor-pointer border border-rose-200/60"
@@ -1642,6 +1732,7 @@ export default function Dashboard() {
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
+                                  </>
                                 )}
                               </div>
                             </td>
@@ -1771,6 +1862,14 @@ export default function Dashboard() {
                                   <Eye className="w-4 h-4" />
                                 </button>
                                 {user?.rol === 'admin' && (
+                                  <>
+                                  <button
+                                    onClick={() => handleOpenEditVolunteer(r, 'fase1')}
+                                    className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 hover:text-amber-800 transition cursor-pointer border border-amber-200/70"
+                                    title="Editar datos del voluntario (Administrador)"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
                                   <button
                                     onClick={() => setVolunteerToDelete({ record: r, fase: 'fase1' })}
                                     className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 transition cursor-pointer border border-rose-200/60"
@@ -1778,6 +1877,7 @@ export default function Dashboard() {
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
+                                  </>
                                 )}
                               </div>
                             </td>
@@ -1859,12 +1959,27 @@ export default function Dashboard() {
                   DNI: {selectedVoluntario.dni} {selectedVoluntario.codigo ? `• Código: ${selectedVoluntario.codigo}` : ''}
                 </p>
               </div>
-              <button
+              <div className="flex items-center gap-2">
+                {user?.rol === 'admin' && (
+                  <button
+                    onClick={() => {
+                      const fase = activeTab === 'fase2' ? 'fase2' : 'fase1';
+                      handleOpenEditVolunteer(selectedVoluntario, fase);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold transition cursor-pointer"
+                    title="Editar datos de este voluntario"
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Editar Ficha</span>
+                  </button>
+                )}
+                <button
                 onClick={() => setSelectedVoluntario(null)}
                 className="text-stone-400 hover:text-stone-600 p-1 rounded-lg bg-stone-100 transition"
               >
                 <X className="w-5 h-5" />
               </button>
+              </div>
             </div>
 
             {/* Datos del Voluntario */}
@@ -2974,6 +3089,308 @@ export default function Dashboard() {
         </div>
       )}
 
+
+      {/* MODAL DE EDICIÓN DE VOLUNTARIO (EXCLUSIVO ADMINISTRADOR) */}
+      {volunteerToEdit && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 md:p-6 overflow-y-auto animate-fade-in">
+          <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl border border-stone-200 overflow-hidden flex flex-col max-h-[92vh]">
+            
+            {/* Cabecera del modal */}
+            <div className="p-5 md:p-6 bg-gradient-to-r from-stone-900 via-stone-800 to-stone-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400">
+                  <Pencil className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold font-title">
+                    Editar Datos del Voluntario
+                  </h3>
+                  <p className="text-xs text-stone-300">
+                    Modificando en: {volunteerToEdit.fase === 'fase2' ? '📌 Fase 2 (Seleccionados / Oficial)' : '📋 Fase 1 (Padrón General)'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => !savingVolunteer && setVolunteerToEdit(null)}
+                disabled={savingVolunteer}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-stone-300 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Formulario de edición */}
+            <form onSubmit={handleSaveEditVolunteer} className="flex-1 overflow-y-auto p-5 md:p-6 space-y-5">
+              
+              {/* Sección 1: Datos Personales */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-stone-400 border-b border-stone-100 pb-1">
+                  1. Datos Personales e Identificación
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="sm:col-span-2">
+                    <label className="block text-stone-700 font-bold mb-1">Nombres y Apellidos *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editForm.nombres_apellidos || ''}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, nombres_apellidos: e.target.value }))}
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-medium focus:outline-none focus:border-diocesis-red focus:bg-white transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-stone-700 font-bold mb-1">DNI / Documento *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editForm.dni || ''}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, dni: e.target.value }))}
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-mono font-bold focus:outline-none focus:border-diocesis-red focus:bg-white transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-stone-700 font-bold mb-1">Talla de Polo</label>
+                    <select
+                      value={editForm.talla || ''}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, talla: e.target.value }))}
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-medium focus:outline-none focus:border-diocesis-red focus:bg-white transition"
+                    >
+                      <option value="">Seleccionar Talla...</option>
+                      {['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'].map(t => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-stone-700 font-bold mb-1">Fecha de Nacimiento</label>
+                    <input
+                      type="text"
+                      placeholder="DD/MM/AAAA o YYYY-MM-DD"
+                      value={editForm.fecha_nacimiento || ''}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, fecha_nacimiento: e.target.value }))}
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-medium focus:outline-none focus:border-diocesis-red focus:bg-white transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-stone-700 font-bold mb-1">Edad</label>
+                    <input
+                      type="number"
+                      value={editForm.edad || ''}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, edad: e.target.value }))}
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-medium focus:outline-none focus:border-diocesis-red focus:bg-white transition"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Sección 2: Contacto y Ubicación */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-stone-400 border-b border-stone-100 pb-1">
+                  2. Contacto y Residencia
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block text-stone-700 font-bold mb-1">Celular / WhatsApp *</label>
+                    <input
+                      type="text"
+                      value={editForm.telefono || ''}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, telefono: e.target.value }))}
+                      placeholder="9 dígitos"
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-medium focus:outline-none focus:border-diocesis-red focus:bg-white transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-stone-700 font-bold mb-1">Correo Electrónico</label>
+                    <input
+                      type="email"
+                      value={editForm.correo || ''}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, correo: e.target.value }))}
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-medium focus:outline-none focus:border-diocesis-red focus:bg-white transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-stone-700 font-bold mb-1">Distrito</label>
+                    <input
+                      type="text"
+                      value={editForm.distrito || ''}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, distrito: e.target.value }))}
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-medium focus:outline-none focus:border-diocesis-red focus:bg-white transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-stone-700 font-bold mb-1">Jurisdicción / Parroquia</label>
+                    <input
+                      type="text"
+                      value={editForm.jurisdiccion || ''}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, jurisdiccion: e.target.value }))}
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-medium focus:outline-none focus:border-diocesis-red focus:bg-white transition"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-stone-700 font-bold mb-1">Dirección Domiciliaria</label>
+                    <input
+                      type="text"
+                      value={editForm.direccion || ''}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, direccion: e.target.value }))}
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-medium focus:outline-none focus:border-diocesis-red focus:bg-white transition"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Sección 3: Estado, Servicio y Asignación */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-stone-400 border-b border-stone-100 pb-1">
+                  3. Estado, Comisión y Cuadrilla
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block text-stone-700 font-bold mb-1">Estado de Postulación *</label>
+                    {volunteerToEdit.fase === 'fase2' ? (
+                      <select
+                        value={editForm.estado || 'PENDIENTE'}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, estado: e.target.value }))}
+                        className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-bold focus:outline-none focus:border-diocesis-red focus:bg-white transition"
+                      >
+                        <option value="SELECCIONADO">✅ SELECCIONADO (Aprobado)</option>
+                        <option value="EN REVISIÓN">⏳ EN REVISIÓN</option>
+                        <option value="NO SELECCIONADO">❌ NO SELECCIONADO</option>
+                        <option value="PENDIENTE">⚠️ PENDIENTE</option>
+                      </select>
+                    ) : (
+                      <select
+                        value={editForm.estado || 'SIN_FASE2'}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, estado: e.target.value }))}
+                        className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-bold focus:outline-none focus:border-diocesis-red focus:bg-white transition"
+                      >
+                        <option value="SIN_FASE2">Pendiente de Fase 2 (SIN_FASE2)</option>
+                        <option value="CONTACTADO">Contactado por equipo (CONTACTADO)</option>
+                        <option value="CON_FASE2">Ya completó Fase 2 (CON_FASE2)</option>
+                      </select>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-stone-700 font-bold mb-1">Comisión / Servicio</label>
+                    <input
+                      type="text"
+                      value={editForm.servicio || ''}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, servicio: e.target.value }))}
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-medium focus:outline-none focus:border-diocesis-red focus:bg-white transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-stone-700 font-bold mb-1">Código de Cuadrilla</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: CUAD-05"
+                      value={editForm.cuadrilla_codigo || ''}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, cuadrilla_codigo: e.target.value }))}
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-mono font-bold focus:outline-none focus:border-diocesis-red focus:bg-white transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-stone-700 font-bold mb-1">Líder de Sector Asignado</label>
+                    <input
+                      type="text"
+                      value={editForm.lider_nombre || ''}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, lider_nombre: e.target.value }))}
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-medium focus:outline-none focus:border-diocesis-red focus:bg-white transition"
+                    />
+                  </div>
+
+                  {volunteerToEdit.fase === 'fase1' && (
+                    <>
+                      <div>
+                        <label className="block text-stone-700 font-bold mb-1">¿Tiene WhatsApp Activo?</label>
+                        <select
+                          value={editForm.tiene_whatsapp ? 'SI' : 'NO'}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, tiene_whatsapp: e.target.value === 'SI' }))}
+                          className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-bold focus:outline-none focus:border-diocesis-red focus:bg-white transition"
+                        >
+                          <option value="SI">SÍ (Tiene WhatsApp)</option>
+                          <option value="NO">NO (Solo llamadas / correo)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-stone-700 font-bold mb-1">Colaborador Asignado (Fase)</label>
+                        <input
+                          type="text"
+                          value={editForm.fase || ''}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, fase: e.target.value }))}
+                          className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-medium focus:outline-none focus:border-diocesis-red focus:bg-white transition"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Botones de acción del formulario */}
+              <div className="pt-4 border-t border-stone-200 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  disabled={savingVolunteer}
+                  onClick={() => setVolunteerToEdit(null)}
+                  className="px-4 py-2.5 rounded-xl border border-stone-300 text-stone-700 text-xs font-bold hover:bg-stone-100 transition cursor-pointer disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingVolunteer}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-diocesis-redDark to-diocesis-red hover:from-diocesis-red hover:to-red-700 text-white text-xs font-extrabold shadow-md hover:shadow-lg transition cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                >
+                  {savingVolunteer ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Guardando Cambios en Supabase...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Guardar Cambios</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+            </form>
+
+          </div>
+        </div>
+      )}
+
+      {/* NOTIFICACIÓN FLOTANTE TRAS EDITAR */}
+      {editSuccessToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-stone-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-stone-700 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-200">
+          <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+          <div className="text-xs">
+            <p className="font-bold">Datos del voluntario actualizados</p>
+            <p className="text-stone-300 text-[11px]">
+              {editSuccessToast.nombre} (DNI: {editSuccessToast.dni}) guardado exitosamente.
+            </p>
+          </div>
+          <button
+            onClick={() => setEditSuccessToast(null)}
+            className="text-stone-400 hover:text-white p-1 ml-2 transition cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
