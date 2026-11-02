@@ -41,39 +41,34 @@ const SOPORTE_CONTACTOS = [
     telefono: '+51 936 550 460',
     waNumber: '51936550460',
     descripcion: 'Consultas generales y orientación',
-    destacado: false,
   },
   {
     id: 2,
-    titulo: 'Línea de Atención Central',
+    titulo: 'Línea de Atención 2',
     telefono: '+51 945 854 083',
     waNumber: '51945854083',
-    descripcion: 'Coordinación diocesana principal',
-    destacado: true,
+    descripcion: 'Consultas generales y orientación',
   },
   {
     id: 3,
     titulo: 'Línea de Atención 3',
     telefono: '+51 981 349 410',
     waNumber: '51981349410',
-    descripcion: 'Soporte y revisión documentaria',
-    destacado: false,
+    descripcion: 'Consultas generales y orientación',
   },
   {
     id: 4,
     titulo: 'Línea de Atención 4',
     telefono: '+51 947 429 053',
     waNumber: '51947429053',
-    descripcion: 'Soporte y subsanación de expedientes',
-    destacado: false,
+    descripcion: 'Consultas generales y orientación',
   },
   {
     id: 5,
     titulo: 'Línea de Atención 5',
     telefono: '+51 981 574 685',
     waNumber: '51981574685',
-    descripcion: 'Consultas de voluntariado y registro',
-    destacado: false,
+    descripcion: 'Consultas generales y orientación',
   },
 ];
 
@@ -526,30 +521,17 @@ export default function ConsultaVoluntariado() {
                       href={`https://wa.me/${contacto.waNumber}?text=${encodeURIComponent('Hola, me comunico desde el portal de voluntarios de la Diócesis de Chiclayo para realizar una consulta.')}`}
                       target="_blank"
                       rel="noreferrer"
-                      className={`group flex items-center justify-between p-3.5 sm:p-4 rounded-2xl border transition-all duration-200 shadow-2xs hover:shadow-md ${
-                        contacto.destacado
-                          ? 'bg-emerald-50/60 border-emerald-300 hover:border-emerald-500 hover:bg-emerald-100/60'
-                          : 'bg-white border-stone-200 hover:border-emerald-400 hover:bg-stone-50'
-                      }`}
+                      className="group flex items-center justify-between p-3.5 sm:p-4 rounded-2xl border border-stone-200 bg-white hover:border-emerald-500 hover:bg-emerald-50/40 transition-all duration-200 shadow-2xs hover:shadow-md"
                     >
                       <div className="flex items-center gap-3.5">
-                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-lg shrink-0 transition-transform group-hover:scale-105 ${
-                          contacto.destacado ? 'bg-emerald-600 text-white shadow-sm' : 'bg-emerald-100 text-emerald-700'
-                        }`}>
+                        <div className="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-lg shrink-0 transition-transform group-hover:scale-105 group-hover:bg-emerald-600 group-hover:text-white">
                           <i className="fa-brands fa-whatsapp"></i>
                         </div>
                         <div className="text-left">
-                          <div className="flex items-center gap-2">
-                            <span className="font-title font-bold text-stone-900 text-sm md:text-base">
-                              {contacto.titulo}
-                            </span>
-                            {contacto.destacado && (
-                              <span className="px-2 py-0.5 bg-emerald-600 text-white text-[10px] font-bold rounded-md uppercase tracking-wider">
-                                Central
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-xs text-stone-600 font-semibold block font-mono">
+                          <span className="font-title font-bold text-stone-900 text-sm md:text-base block">
+                            {contacto.titulo}
+                          </span>
+                          <span className="text-xs text-stone-700 font-semibold block font-mono">
                             {contacto.telefono}
                           </span>
                           <span className="text-[11px] text-stone-500 font-medium block">
