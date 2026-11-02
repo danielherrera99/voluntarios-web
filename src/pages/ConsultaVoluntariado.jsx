@@ -33,10 +33,55 @@ const GOOGLE_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfO_z7lnEDjQR3
 // Formato Oficial de la Carta de Recomendación (Google Drive)
 const CARTA_RECOMENDACION_URL = "https://drive.google.com/file/d/1S4yGZY9iC65vW2m9q4u5VGMtcS9wh_kn/view?usp=sharing";
 
+// Canales oficiales de soporte directo por WhatsApp
+const SOPORTE_CONTACTOS = [
+  {
+    id: 1,
+    titulo: 'Línea de Atención 1',
+    telefono: '+51 936 550 460',
+    waNumber: '51936550460',
+    descripcion: 'Consultas generales y orientación',
+    destacado: false,
+  },
+  {
+    id: 2,
+    titulo: 'Línea de Atención Central',
+    telefono: '+51 945 854 083',
+    waNumber: '51945854083',
+    descripcion: 'Coordinación diocesana principal',
+    destacado: true,
+  },
+  {
+    id: 3,
+    titulo: 'Línea de Atención 3',
+    telefono: '+51 981 349 410',
+    waNumber: '51981349410',
+    descripcion: 'Soporte y revisión documentaria',
+    destacado: false,
+  },
+  {
+    id: 4,
+    titulo: 'Línea de Atención 4',
+    telefono: '+51 947 429 053',
+    waNumber: '51947429053',
+    descripcion: 'Soporte y subsanación de expedientes',
+    destacado: false,
+  },
+  {
+    id: 5,
+    titulo: 'Línea de Atención 5',
+    telefono: '+51 981 574 685',
+    waNumber: '51981574685',
+    descripcion: 'Consultas de voluntariado y registro',
+    destacado: false,
+  },
+];
+
 export default function ConsultaVoluntariado() {
   const [dniInput, setDniInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [showSupportModal, setShowSupportModal] = useState(false);
   const [captchaToken, setCaptchaToken] = useState(null);
   const [captchaError, setCaptchaError] = useState(null);
 
@@ -230,12 +275,15 @@ export default function ConsultaVoluntariado() {
     setDniInput('');
   };
 
-  // Bloquear scroll de fondo y permitir cerrar con tecla Escape cuando el modal está abierto
+  // Bloquear scroll de fondo y permitir cerrar con tecla Escape cuando algún modal está abierto
   useEffect(() => {
-    if (result) {
+    if (result || showSupportModal) {
       document.body.style.overflow = 'hidden';
       const handleKeyDown = (e) => {
-        if (e.key === 'Escape') handleCloseModal();
+        if (e.key === 'Escape') {
+          if (showSupportModal) setShowSupportModal(false);
+          else if (result) handleCloseModal();
+        }
       };
       window.addEventListener('keydown', handleKeyDown);
       return () => {
@@ -245,7 +293,7 @@ export default function ConsultaVoluntariado() {
     } else {
       document.body.style.overflow = 'auto';
     }
-  }, [result]);
+  }, [result, showSupportModal]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -337,15 +385,15 @@ export default function ConsultaVoluntariado() {
               </p>
             </div>
 
-            <a
-              href="https://wa.me/51945854083?text=Hola,%20tengo%20una%20consulta%20sobre%20el%20voluntariado%20de%20la%20Diócesis%20de%20Chiclayo"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs md:text-sm font-bold px-5 py-3 rounded-xl transition shadow-md hover:shadow-lg border border-emerald-400/30 shrink-0"
+            <button
+              type="button"
+              onClick={() => setShowSupportModal(true)}
+              className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs md:text-sm font-bold px-5 py-3 rounded-xl transition shadow-md hover:shadow-lg border border-emerald-400/30 shrink-0 cursor-pointer"
+              title="Ver canales de atención diocesanos por WhatsApp"
             >
               <i className="fa-brands fa-whatsapp text-lg"></i>
               <span>Soporte Directo</span>
-            </a>
+            </button>
           </div>
 
         </div>
@@ -430,6 +478,108 @@ export default function ConsultaVoluntariado() {
             </p>
           </div>
         </div>
+
+        {/* MODAL DE SOPORTE DIRECTO (5 CANALES DE ATENCIÓN) */}
+        {showSupportModal && (
+          <div 
+            className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-fade-in no-print"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowSupportModal(false);
+            }}
+          >
+            <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl overflow-hidden my-auto border border-stone-200 animate-in fade-in zoom-in-95 duration-200">
+              {/* Botón flotante para cerrar (X) */}
+              <button
+                type="button"
+                onClick={() => setShowSupportModal(false)}
+                className="absolute top-4 right-4 z-30 w-9 h-9 rounded-full bg-black/30 hover:bg-black/50 text-white flex items-center justify-center transition backdrop-blur-xs cursor-pointer shadow-md"
+                title="Cerrar ventana (Esc)"
+              >
+                <i className="fa-solid fa-xmark text-lg"></i>
+              </button>
+
+              {/* Cabecera del Modal */}
+              <div className="bg-gradient-to-r from-diocesis-redDark via-diocesis-red to-stone-900 p-6 text-white text-center">
+                <div className="inline-flex items-center justify-center w-14 h-14 bg-emerald-500 text-white rounded-2xl text-2xl shadow-lg mb-3">
+                  <i className="fa-brands fa-whatsapp"></i>
+                </div>
+                <h3 className="text-xl md:text-2xl font-title font-bold">Canales de Soporte Directo</h3>
+                <p className="text-stone-200 text-xs md:text-sm mt-1 font-medium">
+                  Equipo de Voluntariado Diocesano • Visita del Santo Padre 2026
+                </p>
+              </div>
+
+              {/* Contenido / Lista de contactos */}
+              <div className="p-5 md:p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-4 text-emerald-950 text-xs md:text-sm leading-relaxed flex items-start gap-3">
+                  <i className="fa-solid fa-circle-info text-emerald-600 text-base mt-0.5 shrink-0"></i>
+                  <div>
+                    <span className="font-bold block">¿Tienes alguna duda con tu proceso o expediente?</span>
+                    Comunícate con cualquiera de nuestras 5 líneas oficiales habilitadas para brindarte asistencia rápida por WhatsApp:
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {SOPORTE_CONTACTOS.map((contacto) => (
+                    <a
+                      key={contacto.id}
+                      href={`https://wa.me/${contacto.waNumber}?text=${encodeURIComponent('Hola, me comunico desde el portal de voluntarios de la Diócesis de Chiclayo para realizar una consulta.')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={`group flex items-center justify-between p-3.5 sm:p-4 rounded-2xl border transition-all duration-200 shadow-2xs hover:shadow-md ${
+                        contacto.destacado
+                          ? 'bg-emerald-50/60 border-emerald-300 hover:border-emerald-500 hover:bg-emerald-100/60'
+                          : 'bg-white border-stone-200 hover:border-emerald-400 hover:bg-stone-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-lg shrink-0 transition-transform group-hover:scale-105 ${
+                          contacto.destacado ? 'bg-emerald-600 text-white shadow-sm' : 'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          <i className="fa-brands fa-whatsapp"></i>
+                        </div>
+                        <div className="text-left">
+                          <div className="flex items-center gap-2">
+                            <span className="font-title font-bold text-stone-900 text-sm md:text-base">
+                              {contacto.titulo}
+                            </span>
+                            {contacto.destacado && (
+                              <span className="px-2 py-0.5 bg-emerald-600 text-white text-[10px] font-bold rounded-md uppercase tracking-wider">
+                                Central
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-stone-600 font-semibold block font-mono">
+                            {contacto.telefono}
+                          </span>
+                          <span className="text-[11px] text-stone-500 font-medium block">
+                            {contacto.descripcion}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 group-hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shrink-0 shadow-xs">
+                        <span>Escribir</span>
+                        <i className="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </div>
+
+              {/* Pie del modal */}
+              <div className="p-4 bg-stone-50 border-t border-stone-200 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowSupportModal(false)}
+                  className="w-full sm:w-auto px-5 py-2.5 bg-stone-200 hover:bg-stone-300 text-stone-800 font-bold rounded-xl text-sm transition cursor-pointer"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* MODAL DE RESULTADO DINÁMICO */}
         {result && (
@@ -929,7 +1079,7 @@ export default function ConsultaVoluntariado() {
                 <i className="fa-solid fa-chevron-down group-open:rotate-180 transition-transform text-diocesis-mustard"></i>
               </summary>
               <p className="mt-2 text-stone-600 font-medium leading-relaxed pl-6">
-                En primer lugar, revisa tu carpeta de <em>Spam</em> o <em>Promociones</em>. Si estás inscrito/a en el Padrón General inicial (Fase 1) pero no recibiste el correo con el enlace, puedes hacer clic directamente en el botón <strong>"Subir Documentación en Google Forms"</strong> que aparece en tu resultado de consulta. Recuerda que es requisito indispensable ser mayor de edad; si cumples con ello y tienes alguna dificultad técnica, contáctanos a través del botón de <strong>Soporte Directo por WhatsApp (+51 945 854 083)</strong>.
+                En primer lugar, revisa tu carpeta de <em>Spam</em> o <em>Promociones</em>. Si estás inscrito/a en el Padrón General inicial (Fase 1) pero no recibiste el correo con el enlace, puedes hacer clic directamente en el botón <strong>"Subir Documentación en Google Forms"</strong> que aparece en tu resultado de consulta. Recuerda que es requisito indispensable ser mayor de edad; si cumples con ello y tienes alguna dificultad técnica, contáctanos a través del botón de <button type="button" onClick={() => setShowSupportModal(true)} className="inline font-bold text-emerald-700 underline hover:text-emerald-800 cursor-pointer">Soporte Directo por WhatsApp</button>.
               </p>
             </details>
 
