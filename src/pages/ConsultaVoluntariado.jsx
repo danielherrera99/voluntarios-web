@@ -1095,7 +1095,7 @@ export default function ConsultaVoluntariado() {
           <p className="text-stone-400 text-xs flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
             <span>© {new Date().getFullYear()} Diócesis de Chiclayo "Chiclayo y Santa Cruz". Todos los derechos reservados.</span>
             <span className="text-stone-500 hidden sm:inline">•</span>
-            <span className="text-stone-300 font-medium">Diseñado por: Daniel Herrera</span>
+            <span className="text-stone-300 font-medium">Desarrollado por: Daniel Herrera</span>
           </p>
         </div>
       </footer>
