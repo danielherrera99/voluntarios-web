@@ -35,7 +35,8 @@ import {
   FileSpreadsheet,
   MapPin,
   Layers,
-  Pencil
+  Pencil,
+  Compass
 } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import MapaTactico from '../components/MapaTactico';
@@ -177,6 +178,8 @@ export default function Dashboard() {
   // Estado de sincronización en vivo
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState(null);
+  const [syncingAsignaciones, setSyncingAsignaciones] = useState(false);
+  const [syncAsignacionesMsg, setSyncAsignacionesMsg] = useState(null);
 
   // Estado para exportación dinámica a Excel
   const [exporting, setExporting] = useState(false);
@@ -726,6 +729,35 @@ export default function Dashboard() {
   useEffect(() => {
     fetchRecords();
   }, [fetchRecords]);
+
+  // Función para forzar sincronización de asignaciones y sedes desde su Google Sheet exclusivo
+  const handleSyncAsignaciones = async () => {
+    if (!confirm('¿Deseas sincronizar las asignaciones de voluntarios y sedes desde el Google Sheet oficial?\n\n(No se eliminará ningún registro, solo se actualizarán líderes y sedes de servicio).')) return;
+    setSyncingAsignaciones(true);
+    setSyncAsignacionesMsg('Sincronizando asignaciones de voluntarios...');
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${apiUrl}/api/sync-asignaciones-voluntarios`, {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSyncAsignacionesMsg(`✅ Asignaciones listas: ${data.asignadosLider} a líderes y ${data.asignadosSede} a sedes.`);
+        await fetchRecords();
+        await fetchGlobalStats();
+      } else {
+        setSyncAsignacionesMsg(`Error: ${data.error || 'No se pudo sincronizar'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      setSyncAsignacionesMsg(`Error de conexión: ${e.message}`);
+    } finally {
+      setSyncingAsignaciones(false);
+      setTimeout(() => setSyncAsignacionesMsg(null), 7000);
+    }
+  };
 
   // Función para forzar sincronización con Google Sheets en el backend
   const handleSyncNow = async () => {
@@ -1467,6 +1499,11 @@ export default function Dashboard() {
                   {syncMsg}
                 </span>
               )}
+              {syncAsignacionesMsg && (
+                <span className="text-xs font-semibold text-purple-700 animate-pulse">
+                  {syncAsignacionesMsg}
+                </span>
+              )}
 
               {/* Botón para abrir modal de reparto de equipo */}
               {activeTab === 'fase2' ? (
@@ -1499,10 +1536,20 @@ export default function Dashboard() {
                 onClick={handleSyncNow}
                 disabled={syncing}
                 className="inline-flex items-center gap-2 px-3.5 py-2 bg-stone-50 hover:bg-stone-100 border border-stone-300 rounded-xl text-xs font-bold text-stone-700 transition disabled:opacity-50"
-                title="Sincronizar ahora con la hoja de Google Sheets"
+                title="Sincronizar inscripciones de Fase 2 desde Google Sheets"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin text-diocesis-red' : ''}`} />
-                {syncing ? 'Sincronizando...' : 'Sincronizar Sheets'}
+                {syncing ? 'Sincronizando...' : 'Sincronizar Fase 2'}
+              </button>
+
+              <button
+                onClick={handleSyncAsignaciones}
+                disabled={syncingAsignaciones}
+                className="inline-flex items-center gap-2 px-3.5 py-2 bg-purple-50 hover:bg-purple-100 border border-purple-300 rounded-xl text-xs font-bold text-purple-900 transition disabled:opacity-50 shadow-2xs"
+                title="Sincronizar asignaciones de voluntarios y sedes desde su Google Sheet oficial (sin borrar ningún registro)"
+              >
+                <Compass className={`w-3.5 h-3.5 ${syncingAsignaciones ? 'animate-spin text-purple-600' : 'text-purple-600'}`} />
+                {syncingAsignaciones ? 'Sincronizando...' : 'Sincronizar Asignaciones'}
               </button>
             </div>
           </div>
@@ -1771,6 +1818,18 @@ export default function Dashboard() {
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
                                 <Users className="w-2.5 h-2.5 text-purple-600" />
                                 {r.colaborador_asignado}
+                              </span>
+                            )}
+                            {r.lider_nombre && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200" title="Líder General asignado">
+                                <Users className="w-2.5 h-2.5 text-blue-600" />
+                                {r.lider_nombre}
+                              </span>
+                            )}
+                            {r.lugar_asignado && !r.lugar_asignado.startsWith('Equipo ') && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200" title="Sede / Comisión de servicio asignada">
+                                <MapPin className="w-2.5 h-2.5 text-emerald-600" />
+                                {r.lugar_asignado}
                               </span>
                             )}
                             {activeTab === 'fase2' && r.jurisdiccion && (
