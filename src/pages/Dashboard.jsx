@@ -131,6 +131,14 @@ export default function Dashboard() {
   const [loadingCollabStats, setLoadingCollabStats] = useState(false);
   const [copiedCreds, setCopiedCreds] = useState(false);
 
+  // Modal de Reparto de Observados en Fase 2
+  const [showDistributeObsModal, setShowDistributeObsModal] = useState(false);
+  const [collabObsNamesInput, setCollabObsNamesInput] = useState('');
+  const [distributingObs, setDistributingObs] = useState(false);
+  const [distributeObsMsg, setDistributeObsMsg] = useState(null);
+  const [collaboratorsObsStats, setCollaboratorsObsStats] = useState([]);
+  const [loadingCollabObsStats, setLoadingCollabObsStats] = useState(false);
+
   // Modal de Solicitudes de Acceso (Exclusivo Administrador - Estilo Jufra)
   const [showSolicitudesModal, setShowSolicitudesModal] = useState(false);
   const [solicitudesData, setSolicitudesData] = useState({ pendientes: [], aprobados: [], totalPendientes: 0 });
@@ -236,7 +244,8 @@ export default function Dashboard() {
         contactados: contactados,
         sinContactar: sinContactar,
         sinWhatsapp: sinWhatsappCount || 0,
-        contactadosObs: contactadosObsCount || 0
+        contactadosObs: contactadosObsCount || 0,
+        observadosPendientes: Math.max(0, (revCount || 0) - (contactadosObsCount || 0))
       });
     } catch (err) {
       console.error('Error cargando estadísticas:', err);
@@ -301,12 +310,29 @@ export default function Dashboard() {
         }
       }
 
-      // Filtro por colaborador asignado (solo para Fase 1 y Sin Fase 2)
-      if (activeTab !== 'fase2' && collaboratorFilter !== 'ALL') {
-        if (collaboratorFilter === 'UNASSIGNED') {
-          query = query.or('fase.is.null,fase.eq.Sin asignar');
+      // Filtro para observados contactados en Fase 2
+      if (isFase2 && contactadoObsFilter !== 'ALL') {
+        if (contactadoObsFilter === 'CONTACTADOS') {
+          query = query.eq('contactado_obs', true);
+        } else if (contactadoObsFilter === 'NO_CONTACTADOS') {
+          query = query.or('contactado_obs.is.null,contactado_obs.eq.false');
+        }
+      }
+
+      // Filtro por colaborador asignado (soporta Fase 1 y Fase 2)
+      if (collaboratorFilter !== 'ALL') {
+        if (isFase2) {
+          if (collaboratorFilter === 'UNASSIGNED') {
+            query = query.or('colaborador_asignado.is.null,colaborador_asignado.eq.Sin asignar');
+          } else {
+            query = query.eq('colaborador_asignado', collaboratorFilter);
+          }
         } else {
-          query = query.eq('fase', collaboratorFilter);
+          if (collaboratorFilter === 'UNASSIGNED') {
+            query = query.or('fase.is.null,fase.eq.Sin asignar');
+          } else {
+            query = query.eq('fase', collaboratorFilter);
+          }
         }
       }
 
@@ -398,11 +424,27 @@ export default function Dashboard() {
         }
       }
 
-      if (activeTab !== 'fase2' && collaboratorFilter !== 'ALL') {
-        if (collaboratorFilter === 'UNASSIGNED') {
-          query = query.or('fase.is.null,fase.eq.Sin asignar');
+      if (isFase2 && contactadoObsFilter !== 'ALL') {
+        if (contactadoObsFilter === 'CONTACTADOS') {
+          query = query.eq('contactado_obs', true);
+        } else if (contactadoObsFilter === 'NO_CONTACTADOS') {
+          query = query.or('contactado_obs.is.null,contactado_obs.eq.false');
+        }
+      }
+
+      if (collaboratorFilter !== 'ALL') {
+        if (isFase2) {
+          if (collaboratorFilter === 'UNASSIGNED') {
+            query = query.or('colaborador_asignado.is.null,colaborador_asignado.eq.Sin asignar');
+          } else {
+            query = query.eq('colaborador_asignado', collaboratorFilter);
+          }
         } else {
-          query = query.eq('fase', collaboratorFilter);
+          if (collaboratorFilter === 'UNASSIGNED') {
+            query = query.or('fase.is.null,fase.eq.Sin asignar');
+          } else {
+            query = query.eq('fase', collaboratorFilter);
+          }
         }
       }
 
@@ -450,6 +492,7 @@ export default function Dashboard() {
             'Jurisdicción': r.jurisdiccion || '',
             'Talla': r.talla || '',
             'Observaciones': r.observacion || '',
+            'Colaborador Asignado': r.colaborador_asignado || 'Sin asignar',
             '¿Contactado por Observación?': r.contactado_obs ? 'SÍ' : 'NO',
             'Fecha Contacto Observación': r.fecha_contacto_obs ? new Date(r.fecha_contacto_obs).toLocaleString() : ''
           };
@@ -714,6 +757,24 @@ export default function Dashboard() {
     }
   };
 
+  // Cargar estadísticas de avance de colaboradores en Fase 2 (Observados)
+  const fetchCollaboratorsObsStats = useCallback(async () => {
+    setLoadingCollabObsStats(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
+      const res = await fetch(`${apiUrl}/api/collaborators-obs-stats`);
+      const data = await res.json();
+      if (res.ok) {
+        const statsList = Array.isArray(data) ? data : (data.stats || []);
+        setCollaboratorsObsStats(statsList.filter(s => s.name && s.name !== 'Sin asignar'));
+      }
+    } catch (err) {
+      console.error('Error fetching collaborator obs stats:', err);
+    } finally {
+      setLoadingCollabObsStats(false);
+    }
+  }, []);
+
   // Cargar estadísticas de avance de cada colaborador
   const fetchCollaboratorsStats = useCallback(async () => {
     setLoadingCollabStats(true);
@@ -734,7 +795,61 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchCollaboratorsStats();
-  }, [fetchCollaboratorsStats]);
+    fetchCollaboratorsObsStats();
+  }, [fetchCollaboratorsStats, fetchCollaboratorsObsStats]);
+
+  // Ejecutar reparto equitativo de observados en Fase 2
+  const handleDistributeObs = async () => {
+    const rawNames = collabObsNamesInput
+      .split(/[\n,]+/)
+      .map(n => n.trim())
+      .filter(n => n.length > 0);
+
+    const names = [...new Set(rawNames)];
+
+    if (names.length === 0) {
+      alert('Por favor ingresa al menos un nombre de colaborador.');
+      return;
+    }
+
+    setDistributingObs(true);
+    setDistributeObsMsg({ type: 'info', text: `Repartiendo observados equitativamente entre ${names.length} colaboradores...` });
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${apiUrl}/api/distribute-voluntarios-obs`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ collaborators: names })
+      });
+      const data = await res.json();
+      if (res.ok && (data.success || Array.isArray(data))) {
+        setDistributeObsMsg({ 
+          type: 'success', 
+          text: `¡Reparto completado con éxito! Se asignaron ${(data.total || data.totalDistributed)?.toLocaleString() || 'los'} observados pendientes entre ${data.collaborators?.length || names.length} personas (respetando a los ya contactados).` 
+        });
+        await fetchCollaboratorsObsStats();
+        await fetchRecords();
+        await fetchGlobalStats();
+      } else {
+        setDistributeObsMsg({ 
+          type: 'error', 
+          text: `Error: ${data.error || 'No se pudo completar el reparto de observados.'}` 
+        });
+      }
+    } catch (err) {
+      console.error('Error al repartir observados:', err);
+      setDistributeObsMsg({ 
+        type: 'error', 
+        text: `Error de conexión: ${err.message}` 
+      });
+    } finally {
+      setDistributingObs(false);
+    }
+  };
 
   // Ejecutar reparto equitativo
   const handleDistribute = async () => {
@@ -1354,17 +1469,31 @@ export default function Dashboard() {
               )}
 
               {/* Botón para abrir modal de reparto de equipo */}
-              <button
-                onClick={() => {
-                  setShowDistributeModal(true);
-                  fetchCollaboratorsStats();
-                }}
-                className="inline-flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-diocesis-redDark to-diocesis-red hover:from-diocesis-red hover:to-diocesis-redLight text-white rounded-xl text-xs font-bold shadow-sm transition"
-                title="Repartir postulantes sin Fase 2 entre los miembros del equipo"
-              >
-                <Users className="w-3.5 h-3.5 text-diocesis-mustard" />
-                <span>Repartir Postulantes</span>
-              </button>
+              {activeTab === 'fase2' ? (
+                <button
+                  onClick={() => {
+                    setShowDistributeObsModal(true);
+                    fetchCollaboratorsObsStats();
+                  }}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl text-xs font-bold shadow-sm transition"
+                  title="Repartir postulantes con documentación observada entre los miembros del equipo"
+                >
+                  <Users className="w-3.5 h-3.5 text-amber-200" />
+                  <span>Repartir Observados ({stats.observadosPendientes ?? 262})</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setShowDistributeModal(true);
+                    fetchCollaboratorsStats();
+                  }}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-diocesis-redDark to-diocesis-red hover:from-diocesis-red hover:to-diocesis-redLight text-white rounded-xl text-xs font-bold shadow-sm transition"
+                  title="Repartir postulantes sin Fase 2 entre los miembros del equipo"
+                >
+                  <Users className="w-3.5 h-3.5 text-diocesis-mustard" />
+                  <span>Repartir Postulantes</span>
+                </button>
+              )}
 
               <button
                 onClick={handleSyncNow}
@@ -1449,37 +1578,35 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* Filtro por Colaborador Asignado (solo para Fase 1 y Sin Fase 2) */}
-            {activeTab !== 'fase2' && (
-              <div className="md:col-span-2 lg:col-span-2">
-                <select
-                  value={collaboratorFilter}
-                  onChange={(e) => {
-                    setCollaboratorFilter(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-full py-2.5 px-3 bg-purple-50/70 border border-purple-300 rounded-xl text-sm font-bold text-purple-900 focus:outline-none focus:ring-2 focus:ring-purple-400"
-                >
-                  <option value="ALL">👥 Colaboradores</option>
-                  <option value="UNASSIGNED">⚪ Sin Asignar</option>
-                  {collaboratorsStats.map(c => {
-                    const faltan = c.pendientes || 0;
-                    const hechos = c.contactados || 0;
-                    return (
-                      <option key={c.name} value={c.name}>
-                        {faltan === 0 
-                          ? `👤 ${c.name} (✓ ${hechos})` 
-                          : `👤 ${c.name} (⏳ ${faltan} • ${hechos})`
-                        }
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-            )}
+            {/* Filtro por Colaborador Asignado (para Fase 1, Sin Fase 2 y Fase 2) */}
+            <div className="md:col-span-2 lg:col-span-2">
+              <select
+                value={collaboratorFilter}
+                onChange={(e) => {
+                  setCollaboratorFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full py-2.5 px-3 bg-purple-50/70 border border-purple-300 rounded-xl text-sm font-bold text-purple-900 focus:outline-none focus:ring-2 focus:ring-purple-400"
+              >
+                <option value="ALL">👥 Colaboradores {activeTab === 'fase2' ? '(Observados)' : ''}</option>
+                <option value="UNASSIGNED">⚪ Sin Asignar</option>
+                {(activeTab === 'fase2' ? collaboratorsObsStats : collaboratorsStats).map(c => {
+                  const faltan = c.pendientes || 0;
+                  const hechos = c.contactados || 0;
+                  return (
+                    <option key={c.name} value={c.name}>
+                      {faltan === 0 
+                        ? `👤 ${c.name} (✓ ${hechos})` 
+                        : `👤 ${c.name} (⏳ ${faltan} • ${hechos})`
+                      }
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
 
             {/* Filtro por Jurisdicción (para Fase 1, Sin Fase 2 y Fase 2) */}
-            <div className={activeTab === 'fase2' ? 'md:col-span-3 lg:col-span-3' : 'md:col-span-2 lg:col-span-2'}>
+            <div className="md:col-span-2 lg:col-span-2">
               <select
                 value={jurisdiccionFilter}
                 onChange={(e) => {
@@ -1639,9 +1766,15 @@ export default function Dashboard() {
                         {/* Nombres y Apellidos */}
                         <td className="py-3 px-4 font-semibold text-stone-900">
                           <div>{cleanVolunteerName(r.nombres_apellidos)}</div>
-                          {activeTab === 'fase2' && r.jurisdiccion && (
-                            <div className="mt-0.5">
-                              {r.jurisdiccion.toLowerCase().includes('santa cruz') ? (
+                          <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                            {activeTab === 'fase2' && r.colaborador_asignado && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
+                                <Users className="w-2.5 h-2.5 text-purple-600" />
+                                {r.colaborador_asignado}
+                              </span>
+                            )}
+                            {activeTab === 'fase2' && r.jurisdiccion && (
+                              r.jurisdiccion.toLowerCase().includes('santa cruz') ? (
                                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
                                   📍 Santa Cruz – Chiclayo
                                 </span>
@@ -1649,9 +1782,9 @@ export default function Dashboard() {
                                 <span className="text-[10px] text-stone-400 font-medium">
                                   🏛️ {r.jurisdiccion}
                                 </span>
-                              )}
-                            </div>
-                          )}
+                              )
+                            )}
+                          </div>
                         </td>
 
                         {/* Servicio */}
@@ -2514,6 +2647,204 @@ export default function Dashboard() {
           >
             <X className="w-4 h-4" />
           </button>
+        </div>
+      )}
+
+      {/* MODAL DE REPARTO DE OBSERVADOS (FASE 2) */}
+      {showDistributeObsModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-stone-200 space-y-5 animate-in fade-in zoom-in-95 duration-150 my-8">
+            
+            {/* Cabecera del modal */}
+            <div className="flex items-start justify-between border-b border-stone-100 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-700">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg md:text-xl font-bold font-title text-stone-900 leading-tight">
+                    Repartir Voluntarios Observados de Fase 2
+                  </h3>
+                  <p className="text-xs text-stone-500 font-medium">
+                    Distribuye equitativamente a los {stats.enRevision?.toLocaleString() || 273} postulantes en revisión para contacto y subsanación de documentos.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowDistributeObsModal(false);
+                  setDistributeObsMsg(null);
+                }}
+                className="text-stone-400 hover:text-stone-600 p-1.5 rounded-lg bg-stone-100 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Credenciales de Acceso para el Equipo */}
+            <div className="p-3.5 bg-gradient-to-r from-amber-50 to-orange-50/60 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-1.5 text-xs font-extrabold text-amber-900">
+                  <Key className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Usuario Exclusivo para el Equipo de Contacto:</span>
+                </div>
+                <div className="text-xs text-stone-700 font-mono font-bold flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span>Correo: <strong className="text-diocesis-redDark">equipo@amigosdelpapa.pe</strong></span>
+                  <span>Contraseña: <strong className="text-diocesis-redDark">Voluntarios2026*</strong></span>
+                </div>
+                <p className="text-[11px] text-amber-800">
+                  El equipo puede ingresar con este acceso, entrar a Fase 2 y filtrar su nombre para ver solo sus observados asignados.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText('Correo: equipo@amigosdelpapa.pe\nContraseña: Voluntarios2026*\nEnlace: https://voluntarios-web.onrender.com/login');
+                  setCopiedCreds(true);
+                  setTimeout(() => setCopiedCreds(false), 2500);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-100/70 text-amber-900 rounded-xl text-xs font-bold transition shadow-2xs shrink-0"
+              >
+                {copiedCreds ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiedCreds ? '¡Copiado!' : 'Copiar Acceso'}
+              </button>
+            </div>
+
+            {/* Input Box para nombres de colaboradores */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider">
+                Ingresa los nombres de los colaboradores:
+              </label>
+              <textarea
+                value={collabObsNamesInput}
+                onChange={(e) => setCollabObsNamesInput(e.target.value)}
+                placeholder="Ejemplo: Carlos, María, Juan Pérez, Sofía Gómez (puedes pegarlos o separarlos por comas o saltos de línea)"
+                rows={3}
+                className="w-full p-3 bg-stone-50 border border-stone-300 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white transition resize-none"
+              />
+              
+              {/* Cálculo en vivo */}
+              {(() => {
+                const names = collabObsNamesInput
+                  .split(/[\n,]+/)
+                  .map(n => n.trim())
+                  .filter(n => n.length > 0);
+                const uniqueCount = new Set(names).size;
+                const totalPorRepartir = stats.observadosPendientes ?? 262;
+                const perPerson = uniqueCount > 0 ? Math.ceil(totalPorRepartir / uniqueCount) : 0;
+
+                return (
+                  <div className="space-y-1.5 px-1">
+                    <div className="flex items-center justify-between text-xs text-stone-500">
+                      <span>
+                        {uniqueCount > 0 ? (
+                          <span className="font-semibold text-stone-700">
+                            👥 {uniqueCount} colaborador{uniqueCount > 1 ? 'es' : ''} ingresado{uniqueCount > 1 ? 's' : ''} • ~
+                            <strong className="text-amber-700">{perPerson.toLocaleString()}</strong> observados pendientes c/u
+                          </span>
+                        ) : (
+                          'Escribe o pega los nombres para calcular el reparto automático.'
+                        )}
+                      </span>
+                      <span className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">
+                        Pendientes por contactar: {totalPorRepartir.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-emerald-700 font-medium">
+                      🔒 <strong>Protección activa:</strong> Los {stats.contactadosObs || 11} voluntarios que ya fueron contactados conservan a su colaborador original y no se modifican.
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Botón de acción para repartir */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleDistributeObs}
+                disabled={distributingObs || !collabObsNamesInput.trim()}
+                className="flex-1 py-3 px-4 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-bold rounded-2xl text-sm shadow-md transition disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <Users className={`w-4 h-4 ${distributingObs ? 'animate-spin' : ''}`} />
+                {distributingObs ? 'Repartiendo observados equitativamente...' : '⚡ Iniciar Reparto Equitativo de Observados'}
+              </button>
+            </div>
+
+            {/* Mensaje de estado */}
+            {distributeObsMsg && (
+              <div className={`p-3 rounded-2xl text-xs font-semibold flex items-center gap-2 ${
+                distributeObsMsg.type === 'success' ? 'bg-emerald-50 text-emerald-900 border border-emerald-200' :
+                distributeObsMsg.type === 'error' ? 'bg-rose-50 text-rose-900 border border-rose-200' :
+                'bg-amber-50 text-amber-900 border border-amber-200 animate-pulse'
+              }`}>
+                {distributeObsMsg.type === 'success' ? <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" /> :
+                 distributeObsMsg.type === 'error' ? <XCircle className="w-4 h-4 text-rose-600 shrink-0" /> :
+                 <RefreshCw className="w-4 h-4 text-amber-600 shrink-0 animate-spin" />}
+                <span>{distributeObsMsg.text}</span>
+              </div>
+            )}
+
+            {/* Tabla de avance por colaborador en Observaciones */}
+            <div className="space-y-2 pt-2 border-t border-stone-100">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-stone-700 uppercase tracking-wider">
+                  Avance por Colaborador (Observados):
+                </span>
+                <button
+                  type="button"
+                  onClick={fetchCollaboratorsObsStats}
+                  disabled={loadingCollabObsStats}
+                  className="text-xs text-amber-700 hover:text-amber-800 font-bold flex items-center gap-1 transition"
+                >
+                  <RefreshCw className={`w-3 h-3 ${loadingCollabObsStats ? 'animate-spin' : ''}`} />
+                  Actualizar avance
+                </button>
+              </div>
+
+              <div className="max-h-48 overflow-y-auto border border-stone-200 rounded-2xl divide-y divide-stone-100">
+                {loadingCollabObsStats ? (
+                  <div className="p-4 text-center text-xs text-stone-400">
+                    <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-1 text-amber-600" />
+                    Cargando estadísticas de avance...
+                  </div>
+                ) : collaboratorsObsStats.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-stone-400">
+                    Aún no se ha realizado ningún reparto de observados.
+                  </div>
+                ) : (
+                  collaboratorsObsStats.map((collab) => (
+                    <div key={collab.name} className="p-3 flex items-center justify-between text-xs hover:bg-stone-50 transition">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-[11px]">
+                          {collab.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <span className="font-bold text-stone-800 block">{collab.name}</span>
+                          <span className="text-[10px] text-stone-400 font-medium">
+                            {collab.contactados} contactados de {collab.total} asignados
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <div className="w-24 bg-stone-100 h-2 rounded-full overflow-hidden border border-stone-200">
+                          <div 
+                            className="bg-emerald-500 h-full rounded-full transition-all duration-300" 
+                            style={{ width: `${collab.porcentaje}%` }} 
+                          />
+                        </div>
+                        <span className="font-bold text-stone-700 text-[11px] w-9 text-right font-mono">
+                          {collab.porcentaje}%
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+          </div>
         </div>
       )}
 
