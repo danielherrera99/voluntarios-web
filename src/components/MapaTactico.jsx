@@ -97,6 +97,190 @@ export const SEDES_DIOCESIS = [
   }
 ];
 
+// Sectores y Cuadrantes Oficiales de la Explanada de Pimentel (Croquis Joinnus & Plano Diocesano)
+export const SECTORES_PIMENTEL = [
+  {
+    id: 'sec-a',
+    letra: 'A',
+    nombre: 'Sector A • Presbiterio & Zona Cero',
+    color: '#C2410C',
+    subcuadrantes: ['A1', 'A2', 'A3', 'A4'],
+    descripcion: 'Zona frontal inmediata al Altar Mayor. Clérigos, coro y autoridades.',
+    bounds: [
+      [-6.84605, -79.93290],
+      [-6.84575, -79.93190]
+    ]
+  },
+  {
+    id: 'sec-b',
+    letra: 'B',
+    nombre: 'Sector B • Frontal Preferencial',
+    color: '#EA580C',
+    subcuadrantes: ['B1', 'B2', 'B3', 'B4', 'B6', 'B7', 'B8'],
+    descripcion: 'Enfermos, personas con discapacidad y adultos mayores.',
+    bounds: [
+      [-6.84570, -79.93290],
+      [-6.84540, -79.93190]
+    ]
+  },
+  {
+    id: 'sec-c',
+    letra: 'C',
+    nombre: 'Sector C • Fieles Ala Izquierda (Anillo 1)',
+    color: '#D97706',
+    subcuadrantes: ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8'],
+    descripcion: 'Primer anillo de fieles inscritos en Joinnus (Ala Izquierda).',
+    bounds: [
+      [-6.84535, -79.93340],
+      [-6.84505, -79.93220]
+    ]
+  },
+  {
+    id: 'sec-d',
+    letra: 'D',
+    nombre: 'Sector D • Fieles Ala Izquierda (Anillo 2)',
+    color: '#84CC16',
+    subcuadrantes: ['D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9'],
+    descripcion: 'Segundo anillo de fieles inscritos en Joinnus.',
+    bounds: [
+      [-6.84500, -79.93340],
+      [-6.84470, -79.93220]
+    ]
+  },
+  {
+    id: 'sec-e',
+    letra: 'E',
+    nombre: 'Sector E • Fieles Ala Izquierda (Anillo 3)',
+    color: '#16A34A',
+    subcuadrantes: ['E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8', 'E9'],
+    descripcion: 'Tercer anillo de fieles inscritos en Joinnus.',
+    bounds: [
+      [-6.84465, -79.93340],
+      [-6.84435, -79.93220]
+    ]
+  },
+  {
+    id: 'sec-f',
+    letra: 'F',
+    nombre: 'Sector F • Fieles Ala Izquierda (Anillo 4)',
+    color: '#15803D',
+    subcuadrantes: ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9'],
+    descripcion: 'Cuarto anillo de fieles inscritos en Joinnus.',
+    bounds: [
+      [-6.84430, -79.93340],
+      [-6.84400, -79.93220]
+    ]
+  },
+  {
+    id: 'sec-g',
+    letra: 'G',
+    nombre: 'Sector G • Fieles Ala Izquierda (Anillo 5)',
+    color: '#0D9488',
+    subcuadrantes: ['G1', 'G2', 'G3', 'G4', 'G5', 'G6', 'G7', 'G8', 'G9'],
+    descripcion: 'Quinto anillo de fieles inscritos en Joinnus.',
+    bounds: [
+      [-6.84395, -79.93340],
+      [-6.84365, -79.93220]
+    ]
+  },
+  {
+    id: 'sec-h',
+    letra: 'H',
+    nombre: 'Sector H • Fieles Ala Izquierda (Anillo 6)',
+    color: '#0284C7',
+    subcuadrantes: ['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'H7', 'H8', 'H9'],
+    descripcion: 'Sexto anillo de fieles y contención media (Ala Izquierda).',
+    bounds: [
+      [-6.84360, -79.93340],
+      [-6.84330, -79.93220]
+    ]
+  },
+  {
+    id: 'sec-o',
+    letra: 'O',
+    nombre: 'Sector O • Delegaciones Ala Derecha',
+    color: '#CA8A04',
+    subcuadrantes: ['O1', 'O2', 'O3', 'O4', 'O5', 'O6', 'O7', 'O8', 'O9'],
+    descripcion: 'Sector de delegaciones parroquiales y familias (Ala Derecha).',
+    bounds: [
+      [-6.84535, -79.93180],
+      [-6.84480, -79.93080]
+    ]
+  },
+  {
+    id: 'sec-n',
+    letra: 'N',
+    nombre: 'Sector N • Delegaciones Ala Derecha',
+    color: '#059669',
+    subcuadrantes: ['N1', 'N2', 'N3', 'N4', 'N5', 'N6', 'N7', 'N8', 'N9', 'N10'],
+    descripcion: 'Segundo bloque de delegaciones parroquiales (Ala Derecha).',
+    bounds: [
+      [-6.84475, -79.93180],
+      [-6.84420, -79.93080]
+    ]
+  },
+  {
+    id: 'sec-m',
+    letra: 'M',
+    nombre: 'Sector M • Delegaciones Ala Derecha',
+    color: '#2563EB',
+    subcuadrantes: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10'],
+    descripcion: 'Tercer bloque de delegaciones parroquiales (Ala Derecha).',
+    bounds: [
+      [-6.84415, -79.93180],
+      [-6.84360, -79.93080]
+    ]
+  },
+  {
+    id: 'sec-l',
+    letra: 'L',
+    nombre: 'Sector L • Posterior (Voluntariado & Jóvenes)',
+    color: '#1D4ED8',
+    subcuadrantes: ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7'],
+    descripcion: 'Primer bloque masivo posterior y voluntariado.',
+    bounds: [
+      [-6.84325, -79.93260],
+      [-6.84295, -79.93100]
+    ]
+  },
+  {
+    id: 'sec-k',
+    letra: 'K',
+    nombre: 'Sector K • Posterior (Delegaciones Interdiocesanas)',
+    color: '#7E22CE',
+    subcuadrantes: ['K1', 'K2', 'K3', 'K4', 'K5', 'K6', 'K7'],
+    descripcion: 'Público masivo y delegaciones visitantes del norte del país.',
+    bounds: [
+      [-6.84290, -79.93260],
+      [-6.84260, -79.93100]
+    ]
+  },
+  {
+    id: 'sec-j',
+    letra: 'J',
+    nombre: 'Sector J • Posterior General',
+    color: '#991B1B',
+    subcuadrantes: ['J1', 'J2', 'J3', 'J4', 'J5', 'J6', 'J7'],
+    descripcion: 'Público masivo y fieles no registrados.',
+    bounds: [
+      [-6.84255, -79.93260],
+      [-6.84225, -79.93100]
+    ]
+  },
+  {
+    id: 'sec-i',
+    letra: 'I',
+    nombre: 'Sector I • Posterior Final & Contención',
+    color: '#BE185D',
+    subcuadrantes: ['I1', 'I2', 'I3', 'I4', 'I5', 'I6', 'I7'],
+    descripcion: 'Última franja posterior de la explanada y anillos de acceso.',
+    bounds: [
+      [-6.84220, -79.93260],
+      [-6.84190, -79.93100]
+    ]
+  }
+];
+
 // Helper fallback de sede según código de cuadrilla
 export const getSedeIdByCuadrilla = (cuadrillaCodigo) => {
   const num = parseInt((cuadrillaCodigo || '').replace(/\D/g, ''), 10) || 0;
@@ -124,6 +308,10 @@ export default function MapaTactico({
   const [gpsLocation, setGpsLocation] = useState(null);
   const [gpsConfirmed, setGpsConfirmed] = useState(false);
   const [activePoiFilter, setActivePoiFilter] = useState(true);
+  const [selectedSectorId, setSelectedSectorId] = useState(''); // '' = Todos
+  const [showCroquisModal, setShowCroquisModal] = useState(false);
+  const [croquisTab, setCroquisTab] = useState('joinnus'); // 'joinnus' | 'plano'
+  const sectorsLayerRef = useRef(null);
 
   // Jerarquía de Filtros para el Administrador: Responsable -> Líder -> Guías
   const [selectedResponsable, setSelectedResponsable] = useState(''); // '' = Todos los responsables de la sede
@@ -369,6 +557,9 @@ export default function MapaTactico({
     }).addTo(map);
 
     tileLayerRef.current = initialTiles;
+
+    const sectorsGroup = L.layerGroup().addTo(map);
+    sectorsLayerRef.current = sectorsGroup;
 
     const markersGroup = L.layerGroup().addTo(map);
     markersLayerRef.current = markersGroup;
@@ -668,11 +859,66 @@ export default function MapaTactico({
     }
   };
 
-  // Dibujar marcadores reales en el mapa
+  // Dibujar marcadores y sectores en el mapa
   const renderMarkers = () => {
     if (!mapInstanceRef.current || !markersLayerRef.current) return;
 
     markersLayerRef.current.clearLayers();
+
+    // Dibujar Sectores Oficiales si la sede es Explanada de Pimentel
+    if (sectorsLayerRef.current) {
+      sectorsLayerRef.current.clearLayers();
+      if (selectedSedeId === 'misa-central') {
+        SECTORES_PIMENTEL.forEach(sec => {
+          const isSelected = selectedSectorId === sec.id;
+          const rect = L.rectangle(sec.bounds, {
+            color: sec.color,
+            weight: isSelected ? 3.5 : 2,
+            fillColor: sec.color,
+            fillOpacity: isSelected ? 0.5 : 0.28,
+            dashArray: isSelected ? null : '4, 4'
+          });
+
+          // Centro del sector para label
+          const centerLat = (sec.bounds[0][0] + sec.bounds[1][0]) / 2;
+          const centerLng = (sec.bounds[0][1] + sec.bounds[1][1]) / 2;
+
+          const labelIcon = L.divIcon({
+            className: 'custom-sector-label',
+            html: `
+              <div style="background-color: ${sec.color}; color: white; font-weight: 800; font-size: 11px; padding: 2px 6px; border-radius: 6px; border: 1.5px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); text-align: center; white-space: nowrap; cursor: pointer;">
+                Sector ${sec.letra}
+                <div style="font-size: 8px; font-weight: normal; opacity: 0.95;">${sec.subcuadrantes.length} cuadrantes</div>
+              </div>
+            `,
+            iconSize: [60, 24],
+            iconAnchor: [30, 12]
+          });
+
+          const labelMarker = L.marker([centerLat, centerLng], { icon: labelIcon });
+
+          const popupContent = `
+            <div style="font-family: sans-serif; min-width: 220px;">
+              <div style="display: flex; align-items: center; gap: 6px; border-bottom: 2px solid ${sec.color}; padding-bottom: 4px; margin-bottom: 6px;">
+                <span style="background-color: ${sec.color}; color: white; font-weight: bold; border-radius: 4px; padding: 1px 6px; font-size: 11px;">Sector ${sec.letra}</span>
+                <strong style="color: #1c1917; font-size: 12px;">${sec.nombre}</strong>
+              </div>
+              <p style="font-size: 11px; color: #44403c; margin: 4px 0 6px 0; line-height: 1.3;">${sec.descripcion}</p>
+              <div style="font-size: 10px; font-weight: bold; color: #78716c; text-transform: uppercase; margin-bottom: 4px;">Subcuadrantes oficiales (${sec.subcuadrantes.length}):</div>
+              <div style="display: flex; flex-wrap: wrap; gap: 3px; max-height: 90px; overflow-y: auto;">
+                ${sec.subcuadrantes.map(sc => `<span style="background-color: #f5f5f4; border: 1px solid #d6d3d1; color: #1c1917; font-size: 10px; font-weight: bold; padding: 1px 5px; border-radius: 4px; font-family: monospace;">${sc}</span>`).join('')}
+              </div>
+            </div>
+          `;
+
+          rect.bindPopup(popupContent);
+          labelMarker.bindPopup(popupContent);
+
+          sectorsLayerRef.current.addLayer(rect);
+          sectorsLayerRef.current.addLayer(labelMarker);
+        });
+      }
+    }
 
     // 1. Marcador principal de la Sede (Arrastrable en Modo Editor)
     const sedeIcon = L.divIcon({
