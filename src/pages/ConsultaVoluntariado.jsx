@@ -33,6 +33,9 @@ const GOOGLE_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfO_z7lnEDjQR3
 // Formato Oficial de la Carta de Recomendación (Google Drive)
 const CARTA_RECOMENDACION_URL = "https://drive.google.com/file/d/1S4yGZY9iC65vW2m9q4u5VGMtcS9wh_kn/view?usp=sharing";
 
+// Formato Oficial de la Declaración Jurada (Google Drive)
+const DECLARACION_JURADA_URL = "https://drive.google.com/file/d/1Bww_t3MYZJnSu7CIZ0fe6VJbjyNPCE2d/view?usp=sharing";
+
 // Canales oficiales de soporte directo por WhatsApp
 const SOPORTE_CONTACTOS = [
   {
@@ -1057,6 +1060,15 @@ export default function ConsultaVoluntariado() {
                           <i className="fa-solid fa-download text-diocesis-mustard"></i>
                           <span>Descargar Formato Carta ↗</span>
                         </a>
+                        <a
+                          href={DECLARACION_JURADA_URL}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 bg-white hover:bg-stone-100 text-stone-800 text-xs font-bold px-3.5 py-2.5 rounded-xl border border-stone-300 transition shadow-2xs"
+                        >
+                          <i className="fa-solid fa-file-signature text-emerald-600"></i>
+                          <span>Descargar Declaración Jurada ↗</span>
+                        </a>
                       </div>
                     </div>
                   ) : (
@@ -1166,7 +1178,7 @@ export default function ConsultaVoluntariado() {
                       <i className="fa-solid fa-circle-info text-sky-600"></i> Estado actual del expediente:
                     </h4>
                     <p className="mt-1 text-sm text-stone-700 font-medium">
-                      Te encuentras registrado/a en el Padrón General inicial (Fase 1). Para completar tu evaluación y tener opción de pase a la <strong>Tercera Etapa</strong>, debes adjuntar tus documentos requeridos (DNI/Pasaporte, CUL y Carta de Recomendación).
+                      Te encuentras registrado/a en el Padrón General inicial (Fase 1). Para completar tu evaluación y tener opción de pase a la <strong>Tercera Etapa</strong>, debes adjuntar tus documentos requeridos (DNI/Pasaporte, CUL y tu Carta de Recomendación o Declaración Jurada).
                     </p>
                   </div>
 
@@ -1180,16 +1192,16 @@ export default function ConsultaVoluntariado() {
                         Sube tu Documentación para Continuar
                       </h4>
                       <p className="text-xs md:text-sm text-stone-700 font-medium max-w-lg mx-auto mt-1">
-                        Ingresa al formulario oficial de Google Forms para adjuntar tu copia de DNI, CUL y carta de recomendación.
+                        Ingresa al formulario oficial de Google Forms para adjuntar tu copia de DNI, CUL y tu Carta de Recomendación o Declaración Jurada.
                       </p>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 flex-wrap">
                       <a
                         href={GOOGLE_FORM_URL}
                         target="_blank"
                         rel="noreferrer"
-                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 bg-diocesis-red hover:bg-diocesis-redDark text-white font-title font-bold px-7 py-3.5 rounded-2xl transition shadow-lg hover:shadow-xl text-sm md:text-base border-b-4 border-diocesis-redDark cursor-pointer"
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 bg-diocesis-red hover:bg-diocesis-redDark text-white font-title font-bold px-6 py-3.5 rounded-2xl transition shadow-lg hover:shadow-xl text-sm md:text-base border-b-4 border-diocesis-redDark cursor-pointer"
                       >
                         <i className="fa-solid fa-cloud-arrow-up text-lg text-diocesis-mustard"></i>
                         <span>Subir Documentación en Google Forms</span>
@@ -1199,11 +1211,22 @@ export default function ConsultaVoluntariado() {
                         href={CARTA_RECOMENDACION_URL}
                         target="_blank"
                         rel="noreferrer"
-                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white hover:bg-stone-50 text-stone-800 font-bold px-5 py-3.5 rounded-2xl transition shadow-sm hover:shadow border border-stone-300 text-sm cursor-pointer"
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white hover:bg-stone-50 text-stone-800 font-bold px-4 py-3.5 rounded-2xl transition shadow-sm hover:shadow border border-stone-300 text-xs sm:text-sm cursor-pointer"
                         title="Descargar plantilla oficial de la Carta de Recomendación"
                       >
                         <i className="fa-solid fa-file-arrow-down text-diocesis-red"></i>
-                        <span>Descargar Formato de Carta</span>
+                        <span>Descargar Carta de Recomendación</span>
+                      </a>
+
+                      <a
+                        href={DECLARACION_JURADA_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white hover:bg-stone-50 text-stone-800 font-bold px-4 py-3.5 rounded-2xl transition shadow-sm hover:shadow border border-emerald-300 text-xs sm:text-sm cursor-pointer"
+                        title="Descargar formato oficial de Declaración Jurada"
+                      >
+                        <i className="fa-solid fa-file-signature text-emerald-600"></i>
+                        <span>Descargar Declaración Jurada</span>
                       </a>
                     </div>
                   </div>
