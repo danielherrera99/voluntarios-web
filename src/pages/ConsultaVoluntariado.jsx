@@ -91,6 +91,8 @@ export default function ConsultaVoluntariado() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [showSupportModal, setShowSupportModal] = useState(false);
+  const [popupConfig, setPopupConfig] = useState(null);
+  const [showPopupModal, setShowPopupModal] = useState(false);
   const [captchaToken, setCaptchaToken] = useState(null);
   const [captchaError, setCaptchaError] = useState(null);
 
@@ -98,6 +100,54 @@ export default function ConsultaVoluntariado() {
   const widgetIdRef = useRef(null);
 
   const SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6Lde1vctAAAAAPSQWvEDDFmSTYP9rTux28z48aTQ';
+
+  // Cargar anuncio pop-up flotante
+  useEffect(() => {
+    async function checkPopup() {
+      try {
+        const { data, error } = await supabase
+          .from('portal_popup')
+          .select('*')
+          .eq('id', 1)
+          .maybeSingle();
+
+        if (data && data.activo && !error) {
+          const yaVisto = data.frecuencia === 'UNA_VEZ' && sessionStorage.getItem('portal_popup_visto_v1');
+          if (!yaVisto) {
+            setPopupConfig(data);
+            setTimeout(() => {
+              setShowPopupModal(true);
+            }, 600);
+          }
+        }
+      } catch (e) {
+        console.warn('Aviso popup:', e);
+      }
+    }
+    checkPopup();
+  }, []);
+
+  const handleClosePopup = () => {
+    setShowPopupModal(false);
+    if (popupConfig?.frecuencia === 'UNA_VEZ') {
+      sessionStorage.setItem('portal_popup_visto_v1', 'true');
+    }
+  };
+
+  const handleActionPopup = () => {
+    handleClosePopup();
+    if (popupConfig?.boton_link) {
+      if (popupConfig.boton_link === '#consulta' || popupConfig.boton_link.startsWith('#')) {
+        const el = document.getElementById('dniInput') || document.querySelector(popupConfig.boton_link);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth' });
+          setTimeout(() => el.focus(), 500);
+        }
+      } else {
+        window.open(popupConfig.boton_link, '_blank');
+      }
+    }
+  };
 
   useEffect(() => {
     // Función para inicializar el widget de reCAPTCHA
@@ -506,6 +556,98 @@ export default function ConsultaVoluntariado() {
             </p>
           </div>
         </div>
+
+        {/* MODAL DE ANUNCIO POP-UP FLOTANTE AL INGRESAR */}
+        {showPopupModal && popupConfig && (
+          <div 
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-fade-in no-print"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) handleClosePopup();
+            }}
+          >
+            <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden my-auto border border-stone-200 animate-in fade-in zoom-in-95 duration-200">
+              {/* Botón flotante para cerrar (X) */}
+              <button
+                type="button"
+                onClick={handleClosePopup}
+                className="absolute top-3.5 right-3.5 z-30 w-9 h-9 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition backdrop-blur-xs cursor-pointer shadow-md"
+                title="Cerrar ventana (Esc)"
+              >
+                <i className="fa-solid fa-xmark text-lg"></i>
+              </button>
+
+              {/* Cabecera del Popup */}
+              <div className={`p-5 text-white text-center bg-gradient-to-r relative ${
+                popupConfig.estilo_color === 'esperanza' 
+                  ? 'from-emerald-900 via-emerald-800 to-teal-950'
+                  : popupConfig.estilo_color === 'vaticano'
+                  ? 'from-sky-950 via-indigo-900 to-amber-950'
+                  : 'from-diocesis-redDark via-diocesis-red to-amber-950'
+              }`}>
+                <span className="inline-block px-3 py-0.5 bg-white/20 backdrop-blur rounded-full text-[10px] font-black uppercase tracking-wider mb-1.5 border border-white/20">
+                  ✞ Diócesis de Chiclayo ✞
+                </span>
+                <h3 className="text-xl md:text-2xl font-title font-bold leading-tight">
+                  {popupConfig.titulo}
+                </h3>
+              </div>
+
+              {/* Imagen opcional */}
+              {popupConfig.imagen_url && (
+                <div className="bg-stone-950 p-2 sm:p-3 text-center border-b border-stone-200">
+                  <img 
+                    src={popupConfig.imagen_url} 
+                    alt="Comunicado oficial" 
+                    className="max-h-64 sm:max-h-72 w-auto mx-auto rounded-xl object-contain shadow-md"
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                </div>
+              )}
+
+              {/* Contenido / Mensaje */}
+              <div className="p-6 md:p-7 text-center space-y-4">
+                <p className="text-sm md:text-base text-stone-700 leading-relaxed font-medium whitespace-pre-line">
+                  {popupConfig.mensaje}
+                </p>
+
+                {/* Acciones */}
+                <div className="space-y-3 pt-2">
+                  {popupConfig.boton_texto && (
+                    <button
+                      type="button"
+                      onClick={handleActionPopup}
+                      className={`w-full py-3.5 px-6 rounded-2xl font-title font-bold text-sm md:text-base shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2 cursor-pointer ${
+                        popupConfig.estilo_color === 'esperanza'
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                          : popupConfig.estilo_color === 'vaticano'
+                          ? 'bg-amber-500 hover:bg-amber-600 text-stone-900'
+                          : 'bg-diocesis-red hover:bg-diocesis-redDark text-white border-b-4 border-diocesis-redDark'
+                      }`}
+                    >
+                      <span>{popupConfig.boton_texto}</span>
+                      <i className="fa-solid fa-arrow-right text-xs"></i>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleClosePopup}
+                    className="text-xs md:text-sm font-bold text-stone-500 hover:text-stone-800 transition cursor-pointer"
+                  >
+                    Entendido, ingresar al portal
+                  </button>
+                </div>
+              </div>
+
+              {/* Pie institucional */}
+              <div className="bg-stone-50 p-3 border-t border-stone-200 text-center">
+                <p className="text-[10px] text-stone-500 font-bold uppercase tracking-wider">
+                  Comisión Diocesana de Voluntariado • Diócesis de Chiclayo
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* MODAL DE SOPORTE DIRECTO (5 CANALES DE ATENCIÓN) */}
         {showSupportModal && (

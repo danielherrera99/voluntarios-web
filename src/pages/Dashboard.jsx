@@ -41,6 +41,8 @@ import {
 import * as xlsx from 'xlsx';
 import MapaTactico from '../components/MapaTactico';
 import GestionCapacitacion from '../components/GestionCapacitacion';
+import AdministracionWeb from '../components/AdministracionWeb';
+import { Globe } from 'lucide-react';
 import GestionJerarquia from '../components/GestionJerarquia';
 import { Megaphone } from 'lucide-react';
 
@@ -1479,16 +1481,16 @@ export default function Dashboard() {
               </button>
 
               <button
-                onClick={() => { setActiveTab('capacitacion'); }}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs md:text-sm font-bold transition ${
-                  activeTab === 'capacitacion'
-                    ? 'bg-amber-600 text-white shadow'
+                onClick={() => { setActiveTab('admin_web'); }}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer ${
+                  activeTab === 'admin_web' || activeTab === 'capacitacion'
+                    ? 'bg-amber-600 text-white shadow-md font-black'
                     : 'text-stone-600 hover:text-stone-900'
                 }`}
-                title="Gestión de Banners, Afiches y Capacitaciones"
+                title="Administración Web: Anuncios Pop-up, Banners y Capacitaciones"
               >
-                <Megaphone className="w-4 h-4 text-amber-500" />
-                Banners & Capacitación
+                <Globe className="w-4 h-4 text-amber-400" />
+                Administración Web
               </button>
             </div>
 
@@ -1555,7 +1557,7 @@ export default function Dashboard() {
           </div>
 
           {/* Filtros y Buscador */}
-          {activeTab !== 'mapa' && activeTab !== 'capacitacion' && activeTab !== 'jerarquia' && (
+          {activeTab !== 'mapa' && activeTab !== 'capacitacion' && activeTab !== 'jerarquia' && activeTab !== 'admin_web' && activeTab !== 'admin_web' && (
           <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-2 border-t border-stone-100">
             
             {/* Buscador por DNI / Nombres */}
@@ -1699,9 +1701,9 @@ export default function Dashboard() {
           <GestionJerarquia />
         )}
 
-        {/* VISTA GESTIÓN DE CAPACITACIONES */}
-        {activeTab === 'capacitacion' && (
-          <GestionCapacitacion />
+        {/* VISTA ADMINISTRACIÓN WEB (POP-UP, BANNERS Y CAPACITACIONES) */}
+        {(activeTab === 'admin_web' || activeTab === 'capacitacion') && (
+          <AdministracionWeb />
         )}
 {/* VISTA MAPA TÁCTICO & SEDES */}
         {activeTab === 'mapa' && (
