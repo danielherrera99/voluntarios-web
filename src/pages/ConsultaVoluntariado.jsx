@@ -93,6 +93,7 @@ export default function ConsultaVoluntariado() {
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [popupConfig, setPopupConfig] = useState(null);
   const [showPopupModal, setShowPopupModal] = useState(false);
+  const [zoomPopupImage, setZoomPopupImage] = useState(false);
   const [captchaToken, setCaptchaToken] = useState(null);
   const [captchaError, setCaptchaError] = useState(null);
 
@@ -592,15 +593,23 @@ export default function ConsultaVoluntariado() {
                 </h3>
               </div>
 
-              {/* Imagen opcional */}
+              {/* Imagen opcional con zoom al hacer clic */}
               {popupConfig.imagen_url && (
-                <div className="bg-stone-950 p-2 sm:p-3 text-center border-b border-stone-200">
+                <div 
+                  onClick={() => setZoomPopupImage(true)}
+                  className="bg-stone-950 p-2 sm:p-3 text-center border-b border-stone-200 cursor-zoom-in relative group transition hover:opacity-95"
+                  title="Haz clic para ver la imagen en grande"
+                >
                   <img 
                     src={popupConfig.imagen_url} 
                     alt="Comunicado oficial" 
-                    className="max-h-64 sm:max-h-72 w-auto mx-auto rounded-xl object-contain shadow-md"
+                    className="max-h-64 sm:max-h-72 w-auto mx-auto rounded-xl object-contain shadow-md group-hover:scale-[1.01] transition-transform"
                     onError={(e) => { e.target.style.display = 'none'; }}
                   />
+                  <div className="absolute bottom-4 right-4 bg-black/75 hover:bg-black/90 text-white text-[11px] font-bold px-3 py-1.5 rounded-full backdrop-blur-xs flex items-center gap-1.5 shadow-lg border border-white/20 pointer-events-none transition-all">
+                    <i className="fa-solid fa-magnifying-glass-plus text-xs text-amber-400"></i>
+                    <span>Clic para ampliar</span>
+                  </div>
                 </div>
               )}
 
@@ -645,6 +654,38 @@ export default function ConsultaVoluntariado() {
                   Comisión Diocesana de Voluntariado • Diócesis de Chiclayo
                 </p>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL LIGHTBOX DE IMAGEN AMPLIADA EN ALTA RESOLUCIÓN */}
+        {zoomPopupImage && popupConfig?.imagen_url && (
+          <div 
+            className="fixed inset-0 z-[70] bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 animate-fade-in no-print"
+            onClick={() => setZoomPopupImage(false)}
+          >
+            <div className="relative max-w-5xl max-h-[95vh] flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-200">
+              {/* Botón flotante para cerrar lightbox */}
+              <button
+                type="button"
+                onClick={() => setZoomPopupImage(false)}
+                className="absolute -top-12 right-0 sm:top-2 sm:right-2 z-80 w-11 h-11 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center text-xl transition cursor-pointer backdrop-blur-md shadow-2xl border border-white/30"
+                title="Cerrar imagen ampliada (Esc o clic afuera)"
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+              
+              <img 
+                src={popupConfig.imagen_url} 
+                alt="Afiche oficial en alta resolución" 
+                className="max-h-[85vh] max-w-[95vw] object-contain rounded-2xl shadow-2xl cursor-default border border-white/10"
+                onClick={(e) => e.stopPropagation()}
+              />
+              
+              <p className="text-stone-300 text-xs mt-3 font-semibold text-center drop-shadow-md flex items-center gap-1.5">
+                <i className="fa-solid fa-circle-info text-amber-400"></i>
+                <span>Haz clic afuera de la imagen o en la ✕ para regresar</span>
+              </p>
             </div>
           </div>
         )}

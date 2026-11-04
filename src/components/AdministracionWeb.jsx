@@ -16,7 +16,9 @@ import {
   CheckCircle2,
   AlertCircle,
   Image as ImageIcon,
-  Palette
+  Palette,
+  ZoomIn,
+  X
 } from 'lucide-react';
 import GestionCapacitacion from './GestionCapacitacion';
 
@@ -40,6 +42,7 @@ export default function AdministracionWeb() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [msg, setMsg] = useState(null);
   const [previewDevice, setPreviewDevice] = useState('desktop'); // 'mobile' | 'desktop'
+  const [zoomPreviewImage, setZoomPreviewImage] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -490,15 +493,23 @@ export default function AdministracionWeb() {
                     </h4>
                   </div>
 
-                  {/* Imagen / Afiche si existe */}
+                  {/* Imagen / Afiche con zoom en preview */}
                   {popupConfig.imagen_url && (
-                    <div className="bg-stone-900 p-2 text-center">
+                    <div 
+                      onClick={() => setZoomPreviewImage(true)}
+                      className="bg-stone-900 p-2 text-center cursor-zoom-in relative group transition hover:opacity-95"
+                      title="Clic para probar la vista ampliada"
+                    >
                       <img 
                         src={popupConfig.imagen_url} 
                         alt="Afiche oficial" 
-                        className="max-h-48 w-auto mx-auto rounded-xl object-contain shadow"
+                        className="max-h-48 w-auto mx-auto rounded-xl object-contain shadow group-hover:scale-[1.02] transition-transform"
                         onError={(e) => { e.target.style.display = 'none'; }}
                       />
+                      <div className="absolute bottom-3 right-3 bg-black/75 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow border border-white/20 pointer-events-none">
+                        <ZoomIn className="w-3 h-3 text-amber-400" />
+                        <span>Clic para ampliar</span>
+                      </div>
                     </div>
                   )}
 
@@ -546,6 +557,35 @@ export default function AdministracionWeb() {
         <GestionCapacitacion embedded={true} />
       )}
 
+      {/* LIGHTBOX DE PRUEBA EN VIVO */}
+      {zoomPreviewImage && popupConfig.imagen_url && (
+        <div 
+          className="fixed inset-0 z-[70] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setZoomPreviewImage(false)}
+        >
+          <div className="relative max-w-4xl max-h-[92vh] flex flex-col items-center justify-center">
+            <button
+              type="button"
+              onClick={() => setZoomPreviewImage(false)}
+              className="absolute -top-12 right-0 sm:top-2 sm:right-2 z-80 w-10 h-10 rounded-full bg-white/20 hover:bg-white/40 text-white flex items-center justify-center transition cursor-pointer backdrop-blur shadow-lg"
+              title="Cerrar vista previa"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <img 
+              src={popupConfig.imagen_url} 
+              alt="Afiche ampliado" 
+              className="max-h-[85vh] max-w-[95vw] object-contain rounded-2xl shadow-2xl cursor-default"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <p className="text-stone-300 text-xs mt-3 font-medium text-center">
+              Vista previa del afiche ampliado en pantalla completa
+            </p>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
+
