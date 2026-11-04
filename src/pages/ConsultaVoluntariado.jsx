@@ -1041,34 +1041,37 @@ export default function ConsultaVoluntariado() {
                       <p className="text-xs text-amber-900 font-medium leading-relaxed">
                         Para continuar con tu proceso hacia la Visita del Santo Padre, por favor ingresa al formulario oficial y vuelve a adjuntar o actualizar el documento indicado.
                       </p>
-                      <div className="pt-2 flex flex-wrap gap-2">
+                      <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
                         <a
                           href={GOOGLE_FORM_URL}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-2 bg-diocesis-redDark hover:bg-diocesis-red text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-md hover:shadow-lg"
+                          className="inline-flex items-center justify-center gap-2 bg-diocesis-redDark hover:bg-diocesis-red text-white text-xs font-bold px-4 py-3 sm:py-5 rounded-xl transition shadow-md hover:shadow-lg text-center shrink-0"
                         >
-                          <i className="fa-solid fa-cloud-arrow-up"></i>
+                          <i className="fa-solid fa-cloud-arrow-up text-sm"></i>
                           <span>Subsanar Documentos en Google Forms ↗</span>
                         </a>
-                        <a
-                          href={CARTA_RECOMENDACION_URL}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-2 bg-white hover:bg-stone-100 text-stone-800 text-xs font-bold px-3.5 py-2.5 rounded-xl border border-stone-300 transition shadow-2xs"
-                        >
-                          <i className="fa-solid fa-download text-diocesis-mustard"></i>
-                          <span>Descargar Formato Carta ↗</span>
-                        </a>
-                        <a
-                          href={DECLARACION_JURADA_URL}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-2 bg-white hover:bg-stone-100 text-stone-800 text-xs font-bold px-3.5 py-2.5 rounded-xl border border-stone-300 transition shadow-2xs"
-                        >
-                          <i className="fa-solid fa-file-signature text-emerald-600"></i>
-                          <span>Descargar Declaración Jurada ↗</span>
-                        </a>
+
+                        <div className="flex flex-col gap-2">
+                          <a
+                            href={CARTA_RECOMENDACION_URL}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-2 bg-white hover:bg-stone-100 text-stone-800 text-xs font-bold px-3.5 py-2 rounded-xl border border-stone-300 transition shadow-2xs"
+                          >
+                            <i className="fa-solid fa-download text-diocesis-mustard"></i>
+                            <span>Descargar Formato Carta ↗</span>
+                          </a>
+                          <a
+                            href={DECLARACION_JURADA_URL}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-2 bg-white hover:bg-stone-100 text-stone-800 text-xs font-bold px-3.5 py-2 rounded-xl border border-emerald-300 transition shadow-2xs"
+                          >
+                            <i className="fa-solid fa-file-signature text-emerald-600"></i>
+                            <span>Descargar Declaración Jurada ↗</span>
+                          </a>
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -1196,38 +1199,40 @@ export default function ConsultaVoluntariado() {
                       </p>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 flex-wrap">
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                       <a
                         href={GOOGLE_FORM_URL}
                         target="_blank"
                         rel="noreferrer"
-                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 bg-diocesis-red hover:bg-diocesis-redDark text-white font-title font-bold px-6 py-3.5 rounded-2xl transition shadow-lg hover:shadow-xl text-sm md:text-base border-b-4 border-diocesis-redDark cursor-pointer"
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 bg-diocesis-red hover:bg-diocesis-redDark text-white font-title font-bold px-6 py-4 rounded-2xl transition shadow-lg hover:shadow-xl text-sm md:text-base border-b-4 border-diocesis-redDark cursor-pointer"
                       >
                         <i className="fa-solid fa-cloud-arrow-up text-lg text-diocesis-mustard"></i>
                         <span>Subir Documentación en Google Forms</span>
                       </a>
 
-                      <a
-                        href={CARTA_RECOMENDACION_URL}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white hover:bg-stone-50 text-stone-800 font-bold px-4 py-3.5 rounded-2xl transition shadow-sm hover:shadow border border-stone-300 text-xs sm:text-sm cursor-pointer"
-                        title="Descargar plantilla oficial de la Carta de Recomendación"
-                      >
-                        <i className="fa-solid fa-file-arrow-down text-diocesis-red"></i>
-                        <span>Descargar Carta de Recomendación</span>
-                      </a>
+                      <div className="flex flex-col gap-2 w-full sm:w-auto">
+                        <a
+                          href={CARTA_RECOMENDACION_URL}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="w-full inline-flex items-center justify-center gap-2 bg-white hover:bg-stone-50 text-stone-800 font-bold px-4 py-2.5 rounded-xl transition shadow-2xs hover:shadow border border-stone-300 text-xs sm:text-sm cursor-pointer"
+                          title="Descargar plantilla oficial de la Carta de Recomendación"
+                        >
+                          <i className="fa-solid fa-file-arrow-down text-diocesis-red"></i>
+                          <span>Descargar Carta de Recomendación</span>
+                        </a>
 
-                      <a
-                        href={DECLARACION_JURADA_URL}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white hover:bg-stone-50 text-stone-800 font-bold px-4 py-3.5 rounded-2xl transition shadow-sm hover:shadow border border-emerald-300 text-xs sm:text-sm cursor-pointer"
-                        title="Descargar formato oficial de Declaración Jurada"
-                      >
-                        <i className="fa-solid fa-file-signature text-emerald-600"></i>
-                        <span>Descargar Declaración Jurada</span>
-                      </a>
+                        <a
+                          href={DECLARACION_JURADA_URL}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="w-full inline-flex items-center justify-center gap-2 bg-white hover:bg-stone-50 text-stone-800 font-bold px-4 py-2.5 rounded-xl transition shadow-2xs hover:shadow border border-emerald-300 text-xs sm:text-sm cursor-pointer"
+                          title="Descargar formato oficial de Declaración Jurada"
+                        >
+                          <i className="fa-solid fa-file-signature text-emerald-600"></i>
+                          <span>Descargar Declaración Jurada</span>
+                        </a>
+                      </div>
                     </div>
                   </div>
 
