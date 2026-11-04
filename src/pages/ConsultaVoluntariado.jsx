@@ -72,6 +72,20 @@ const SOPORTE_CONTACTOS = [
   },
 ];
 
+const formatearSedeEspecial = (sede) => {
+  if (!sede) return 'Sede Diocesana';
+  const s = String(sede).toUpperCase().trim();
+  if (s.includes('USAT')) return 'Sede Universitaria USAT';
+  if (s.includes('SANTUARIO')) return 'Sede Santuario Diocesano';
+  if (s.includes('ZAÑA')) return 'Sede Histórica Zaña';
+  if (s.includes('SANTA CRUZ')) return 'Sede Territorial Santa Cruz';
+  if (s.includes('COMUNIÓN') || s.includes('COMUNION')) return 'Comisión de Sagrada Comunión';
+  if (s.includes('TRADUCTOR')) return 'Comisión de Traductores y Lengua de Señas';
+  if (s.includes('COMISIÓN CENTRAL') || s.includes('COMISION CENTRAL')) return 'Comisión Central Organizadora';
+  if (s.includes('CAJAMARCA')) return 'Delegación Universidad de Cajamarca';
+  return sede;
+};
+
 export default function ConsultaVoluntariado() {
   const [dniInput, setDniInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -160,7 +174,10 @@ export default function ConsultaVoluntariado() {
               comision: apiData.comision || 'Servicio General',
               area: apiData.area || 'Diócesis de Chiclayo y Santa Cruz',
               esVerificar: apiData.status === 'PENDING' && isObserved,
-              observacion: apiData.observacion || null
+              observacion: apiData.observacion || null,
+              lugarAsignado: apiData.lugar_asignado || null,
+              responsableAsignado: apiData.responsable_asignado || null,
+              tipoAsignacion: apiData.tipo_asignacion || null
             });
             return;
           } else {
@@ -178,7 +195,7 @@ export default function ConsultaVoluntariado() {
       // 2. Respaldo directo a Supabase (consultando ÚNICAMENTE campos públicos, sin datos personales sensibles)
       const { data: f2Data, error: f2Error } = await supabase
         .from('voluntarios')
-        .select('dni, nombres_apellidos, codigo, servicio, departamento, estado, fase, observacion, info_validada')
+        .select('dni, nombres_apellidos, codigo, servicio, departamento, estado, fase, observacion, info_validada, lugar_asignado')
         .eq('dni', cleanDni)
         .maybeSingle();
 
@@ -201,6 +218,11 @@ export default function ConsultaVoluntariado() {
           mappedStatus = 'PENDING';
         }
 
+        const lugarAsignado = f2Data.lugar_asignado || null;
+        const isEquipo = lugarAsignado && /^Equipo\s+/i.test(lugarAsignado);
+        const responsableAsignado = isEquipo ? lugarAsignado.replace(/^Equipo\s+/i, '').trim() : null;
+        const tipoAsignacion = lugarAsignado ? (isEquipo ? 'EQUIPO_LIDER' : 'SEDE_ESPECIAL') : null;
+
         setResult({
           status: mappedStatus,
           fase: f2Data.fase || '2',
@@ -210,7 +232,10 @@ export default function ConsultaVoluntariado() {
           comision: f2Data.servicio || 'Servicio Diocesano Asignado',
           area: f2Data.departamento || 'Diócesis de Chiclayo y Santa Cruz',
           esVerificar: isVerificar,
-          observacion: f2Data.observacion || null
+          observacion: f2Data.observacion || null,
+          lugarAsignado,
+          responsableAsignado,
+          tipoAsignacion
         });
         return;
       }
@@ -218,7 +243,7 @@ export default function ConsultaVoluntariado() {
       // Consultar en Fase 1 (únicamente campos necesarios)
       const { data: f1Data, error: f1Error } = await supabase
         .from('voluntarios_general')
-        .select('dni, nombres_apellidos, codigo, servicio, departamento, estado, fase')
+        .select('dni, nombres_apellidos, codigo, servicio, departamento, estado, fase, lugar_asignado')
         .eq('dni', cleanDni)
         .maybeSingle();
 
@@ -227,6 +252,11 @@ export default function ConsultaVoluntariado() {
       }
 
       if (f1Data) {
+        const lugarAsignadoF1 = f1Data.lugar_asignado || null;
+        const isEquipoF1 = lugarAsignadoF1 && /^Equipo\s+/i.test(lugarAsignadoF1);
+        const responsableAsignadoF1 = isEquipoF1 ? lugarAsignadoF1.replace(/^Equipo\s+/i, '').trim() : null;
+        const tipoAsignacionF1 = lugarAsignadoF1 ? (isEquipoF1 ? 'EQUIPO_LIDER' : 'SEDE_ESPECIAL') : null;
+
         setResult({
           status: 'FASE1',
           fase: '1',
@@ -235,7 +265,10 @@ export default function ConsultaVoluntariado() {
           codigo: f1Data.codigo,
           comision: f1Data.servicio || 'Servicio Solicitado',
           area: f1Data.departamento || 'Diócesis de Chiclayo y Santa Cruz',
-          observacion: 'Te encuentras registrado/a en el Padrón General inicial (Fase 1). Si completaste tu ficha o documentos de la Fase 2 recientemente, tu expediente está en proceso de validación.'
+          observacion: 'Te encuentras registrado/a en el Padrón General inicial (Fase 1). Si completaste tu ficha o documentos de la Fase 2 recientemente, tu expediente está en proceso de validación.',
+          lugarAsignado: lugarAsignadoF1,
+          responsableAsignado: responsableAsignadoF1,
+          tipoAsignacion: tipoAsignacionF1
         });
         return;
       }
@@ -633,6 +666,81 @@ export default function ConsultaVoluntariado() {
                     )}
                   </div>
 
+                  {/* ASIGNACIÓN DE RESPONSABLE / EQUIPO DIOCESANO */}
+                  {result.lugarAsignado ? (
+                    <div className="bg-gradient-to-br from-amber-50 to-orange-50/60 rounded-2xl p-5 md:p-6 border-2 border-amber-200/80 shadow-sm space-y-4">
+                      <div className="flex items-center justify-between flex-wrap gap-2 border-b border-amber-200/60 pb-3">
+                        <div className="flex items-center gap-2.5">
+                          <span className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center text-sm shadow">
+                            <i className="fa-solid fa-users-viewfinder"></i>
+                          </span>
+                          <div>
+                            <h4 className="font-title font-bold text-amber-950 text-base leading-tight">
+                              Tu Asignación y Cadena de Mandos
+                            </h4>
+                            <p className="text-xs text-amber-800/80 font-medium">
+                              Distribución oficial aprobada para el servicio papal
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[11px] font-bold bg-amber-200 text-amber-900 px-3 py-1 rounded-full uppercase tracking-wider">
+                          {result.tipoAsignacion === 'SEDE_ESPECIAL' ? '🏛️ Comisión / Sede' : '🎖️ Equipo Asignado'}
+                        </span>
+                      </div>
+
+                      {result.tipoAsignacion === 'SEDE_ESPECIAL' ? (
+                        <div className="bg-white/90 rounded-xl p-4 border border-amber-200/80 flex items-start gap-4">
+                          <div className="w-12 h-12 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center text-2xl shrink-0 shadow-sm">
+                            🏛️
+                          </div>
+                          <div className="space-y-1">
+                            <span className="text-xs text-stone-500 uppercase font-bold tracking-wider">Comisión o Sede Asignada</span>
+                            <h5 className="text-lg md:text-xl font-title font-bold text-stone-900">
+                              {formatearSedeEspecial(result.lugarAsignado)}
+                            </h5>
+                            <p className="text-xs text-stone-600 leading-relaxed">
+                              Has sido pre-asignado/a a esta comisión especial. Los coordinadores de dicha sede se pondrán en contacto contigo para las directivas y reuniones previas.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-white/90 rounded-xl p-4 border border-amber-200/80 space-y-3">
+                          <div className="flex items-start gap-3.5">
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center text-2xl shrink-0 shadow-sm">
+                              🎖️
+                            </div>
+                            <div className="space-y-0.5">
+                              <span className="text-xs text-amber-800 uppercase font-bold tracking-wider">Responsable General Asignado</span>
+                              <h5 className="text-lg md:text-xl font-title font-bold text-stone-900">
+                                {result.responsableAsignado || result.lugarAsignado.replace(/^Equipo\s+/i, '')}
+                              </h5>
+                              <span className="inline-block text-[11px] font-semibold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-md">
+                                ✓ Coordinación de Sector y Cuadrillas
+                              </span>
+                            </div>
+                          </div>
+                          <div className="bg-amber-50/80 rounded-lg p-3 border border-amber-100 text-xs text-stone-700 leading-relaxed">
+                            <strong>Próximo paso:</strong> Tu Responsable General, junto con los líderes y guías de cuadrilla, te estarán contactando directamente vía WhatsApp o llamada para coordinar tu cuadrilla, lugar exacto de encuentro y entrega de credenciales.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="bg-stone-50 rounded-2xl p-4 md:p-5 border border-stone-200 flex items-start gap-3.5">
+                      <div className="w-10 h-10 rounded-xl bg-stone-200 text-stone-600 flex items-center justify-center text-lg shrink-0">
+                        <i className="fa-solid fa-hourglass-half"></i>
+                      </div>
+                      <div className="space-y-1">
+                        <h5 className="font-title font-bold text-stone-800 text-sm md:text-base">
+                          Asignación de Responsable y Cuadrilla en Proceso
+                        </h5>
+                        <p className="text-xs text-stone-600 leading-relaxed">
+                          La Comisión Central Diocesana está culminando la distribución territorial de cuadrillas. Vuelve a consultar tu DNI en los próximos días para conocer a tu responsable asignado.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* COMUNICADO PARA TERCERA FASE */}
                   <div className="bg-emerald-50/80 rounded-2xl p-5 border border-emerald-200 text-stone-800 space-y-2">
                     <h4 className="font-title font-bold text-emerald-900 text-base flex items-center gap-2">
@@ -726,9 +834,11 @@ export default function ConsultaVoluntariado() {
                       )}
                     </div>
                     <div>
-                      <span className="text-xs text-amber-900 uppercase font-bold block">Asignación de Comisión</span>
+                      <span className="text-xs text-amber-900 uppercase font-bold block">Equipo / Responsable Preliminar</span>
                       <span className="text-stone-800 font-bold text-sm block mt-1">
-                        {result.comision || 'Aún sin asignación de comisión'}
+                        {result.responsableAsignado 
+                          ? `Equipo ${result.responsableAsignado}` 
+                          : (result.lugarAsignado ? formatearSedeEspecial(result.lugarAsignado) : (result.comision || 'En proceso'))}
                       </span>
                     </div>
                   </div>
