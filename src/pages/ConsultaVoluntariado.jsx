@@ -1039,7 +1039,7 @@ export default function ConsultaVoluntariado() {
                         <span>{result.observacion || 'Documentación en observación pendiente de subsanar'}</span>
                       </div>
                       <p className="text-xs text-amber-900 font-medium leading-relaxed">
-                        Para continuar con tu proceso hacia la Visita del Santo Padre, por favor ingresa al formulario oficial y vuelve a adjuntar o actualizar el documento indicado.
+                        Para continuar con tu proceso hacia la Visita del Santo Padre, por favor ingresa al formulario oficial y vuelve a adjuntar o actualizar el documento indicado (puede ser tu Carta de Recomendación o tu Declaración Jurada).
                       </p>
                       <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
                         <a
