@@ -12,6 +12,12 @@ const DEFAULT_CONFIG = {
   activo: true,
   titulo: 'Jornadas Oficiales de Capacitación',
   subtitulo: 'Voluntariado Diocesano • Visita del Santo Padre',
+  badge_texto: 'Presencial y Virtual',
+  nota_transmision: 'Transmisión en vivo oficial para voluntarios que se encuentren fuera de la ciudad o no puedan asistir de forma presencial.',
+  boton_principal_texto: 'Transmisión Oficial: Facebook Pastoral Juvenil Chiclayo ↗',
+  boton_principal_url: 'https://www.facebook.com/pjchiclayo',
+  boton_secundario_texto: 'Facebook Diócesis de Chiclayo ↗',
+  boton_secundario_url: '',
   fb_diocesis_url: '',
   fb_pastoral_url: 'https://www.facebook.com/pjchiclayo',
   
@@ -116,7 +122,7 @@ export default function BannerCapacitacion() {
           <div className="flex items-center gap-2">
             <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/30 border border-amber-400/40 text-xs font-bold text-amber-300">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              Presencial y Virtual
+              {config.badge_texto || 'Presencial y Virtual'}
             </span>
             <button
               onClick={() => setMinimizado(true)}
@@ -243,43 +249,43 @@ export default function BannerCapacitacion() {
               {/* NOTA DE TRANSMISIÓN */}
               <p className="text-xs text-stone-600 leading-relaxed font-medium">
                 <i className="fa-solid fa-tower-broadcast text-rose-600 mr-1.5"></i>
-                Transmisión en vivo oficial para voluntarios que se encuentren fuera de la ciudad o no puedan asistir de forma presencial.
+                {config.nota_transmision || 'Transmisión en vivo oficial para voluntarios que se encuentren fuera de la ciudad o no puedan asistir de forma presencial.'}
               </p>
 
-              {/* BOTÓN DE TRANSMISIÓN DE FACEBOOK */}
+              {/* BOTONES DE TRANSMISIÓN Y ENLACES EDITABLES */}
               <div className="pt-1 flex flex-col sm:flex-row gap-2.5">
-                {config.fb_diocesis_url ? (
+                {config.boton_secundario_url || config.fb_diocesis_url ? (
                   <>
                     <a
-                      href={config.fb_diocesis_url}
+                      href={config.boton_secundario_url || config.fb_diocesis_url}
                       target="_blank"
                       rel="noreferrer"
                       className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-[#1877F2] hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition cursor-pointer"
                     >
                       <i className="fa-brands fa-facebook text-base"></i>
-                      <span>Facebook Diócesis de Chiclayo ↗</span>
+                      <span>{config.boton_secundario_texto || 'Facebook Diócesis de Chiclayo ↗'}</span>
                     </a>
                     <a
-                      href={config.fb_pastoral_url || 'https://www.facebook.com/pjchiclayo'}
+                      href={config.boton_principal_url || config.fb_pastoral_url || 'https://www.facebook.com/pjchiclayo'}
                       target="_blank"
                       rel="noreferrer"
                       className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-[#0866FF] hover:bg-blue-800 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition cursor-pointer"
                     >
                       <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
                       <i className="fa-brands fa-facebook text-base"></i>
-                      <span>Facebook Pastoral Juvenil ↗</span>
+                      <span>{config.boton_principal_texto || 'Transmisión Oficial: Facebook Pastoral Juvenil Chiclayo ↗'}</span>
                     </a>
                   </>
                 ) : (
                   <a
-                    href={config.fb_pastoral_url || 'https://www.facebook.com/pjchiclayo'}
+                    href={config.boton_principal_url || config.fb_pastoral_url || 'https://www.facebook.com/pjchiclayo'}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center justify-center gap-2.5 px-6 py-3 bg-[#1877F2] hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition cursor-pointer"
                   >
                     <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
                     <i className="fa-brands fa-facebook text-lg"></i>
-                    <span>Transmisión Oficial: Facebook Pastoral Juvenil Chiclayo ↗</span>
+                    <span>{config.boton_principal_texto || 'Transmisión Oficial: Facebook Pastoral Juvenil Chiclayo ↗'}</span>
                   </a>
                 )}
               </div>

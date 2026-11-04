@@ -18,6 +18,12 @@ const DEFAULT_CONFIG = {
   activo: true,
   titulo: 'Jornadas Oficiales de Capacitación',
   subtitulo: 'Voluntariado Diocesano • Visita del Santo Padre',
+  badge_texto: 'Presencial y Virtual',
+  nota_transmision: 'Transmisión en vivo oficial para voluntarios que se encuentren fuera de la ciudad o no puedan asistir de forma presencial.',
+  boton_principal_texto: 'Transmisión Oficial: Facebook Pastoral Juvenil Chiclayo ↗',
+  boton_principal_url: 'https://www.facebook.com/pjchiclayo',
+  boton_secundario_texto: 'Facebook Diócesis de Chiclayo ↗',
+  boton_secundario_url: '',
   fb_diocesis_url: '',
   fb_pastoral_url: 'https://www.facebook.com/pjchiclayo',
   
@@ -228,7 +234,142 @@ export default function GestionCapacitacion() {
 
       <form onSubmit={handleSave} className="space-y-6">
         
-        {/* BLOQUE 1: ENLACE OFICIAL DE FACEBOOK LIVE */}
+        {/* BLOQUE 0: TÍTULOS Y CABECERA DEL BANNER */}
+        <div className="bg-white rounded-3xl p-6 md:p-8 card-shadow border border-stone-200 space-y-4">
+          <div className="flex items-center gap-3 border-b border-stone-200 pb-3">
+            <Sparkles className="w-6 h-6 text-amber-500" />
+            <div>
+              <h3 className="font-title font-bold text-stone-900 text-base md:text-lg">
+                Títulos y Textos de la Cabecera del Banner
+              </h3>
+              <p className="text-xs text-stone-500">
+                Personaliza el título institucional, subtítulo e insignia de modalidad del banner.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
+                Título del Banner
+              </label>
+              <input
+                type="text"
+                value={config.titulo || ''}
+                onChange={(e) => setConfig({ ...config, titulo: e.target.value })}
+                placeholder="Ej: Jornadas Oficiales de Capacitación"
+                className="w-full px-4 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 text-sm font-bold focus:ring-2 focus:ring-diocesis-red focus:bg-white outline-none"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
+                Subtítulo Institucional
+              </label>
+              <input
+                type="text"
+                value={config.subtitulo || ''}
+                onChange={(e) => setConfig({ ...config, subtitulo: e.target.value })}
+                placeholder="Ej: Voluntariado Diocesano • Visita del Santo Padre"
+                className="w-full px-4 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 text-sm focus:ring-2 focus:ring-diocesis-red focus:bg-white outline-none"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
+                Insignia de Modalidad (Badge superior)
+              </label>
+              <input
+                type="text"
+                value={config.badge_texto || ''}
+                onChange={(e) => setConfig({ ...config, badge_texto: e.target.value })}
+                placeholder="Ej: Presencial y Virtual / 100% Virtual / Encuentro Diocesano"
+                className="w-full px-4 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 text-sm font-semibold focus:ring-2 focus:ring-diocesis-red focus:bg-white outline-none"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* BLOQUE 1: NOTA Y BOTONES DE TRANSMISIÓN / ENLACES */}
+        <div className="bg-white rounded-3xl p-6 md:p-8 card-shadow border border-stone-200 space-y-4">
+          <div className="flex items-center gap-3 border-b border-stone-200 pb-3">
+            <Share2 className="w-6 h-6 text-[#1877F2]" />
+            <div>
+              <h3 className="font-title font-bold text-stone-900 text-base md:text-lg">
+                Botones de Acción, Enlaces y Nota Explicativa
+              </h3>
+              <p className="text-xs text-stone-500">
+                Personaliza la descripción de la transmisión en vivo y los botones con sus enlaces.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
+              Nota / Descripción de Transmisión
+            </label>
+            <textarea
+              rows={2}
+              value={config.nota_transmision || ''}
+              onChange={(e) => setConfig({ ...config, nota_transmision: e.target.value })}
+              placeholder="Ej: Transmisión en vivo oficial para voluntarios que se encuentren fuera de la ciudad o no puedan asistir de forma presencial."
+              className="w-full px-4 py-2 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 text-xs focus:ring-2 focus:ring-diocesis-red focus:bg-white outline-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+            <div>
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
+                Texto Botón Principal
+              </label>
+              <input
+                type="text"
+                value={config.boton_principal_texto || ''}
+                onChange={(e) => setConfig({ ...config, boton_principal_texto: e.target.value })}
+                placeholder="Ej: Transmisión Oficial: Facebook Pastoral Juvenil Chiclayo ↗"
+                className="w-full px-4 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 text-xs font-bold focus:ring-2 focus:ring-diocesis-red focus:bg-white outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
+                Enlace Botón Principal (URL)
+              </label>
+              <input
+                type="url"
+                value={config.boton_principal_url || config.fb_pastoral_url || ''}
+                onChange={(e) => setConfig({ ...config, boton_principal_url: e.target.value, fb_pastoral_url: e.target.value })}
+                placeholder="https://www.facebook.com/pjchiclayo"
+                className="w-full px-4 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 text-xs font-mono focus:ring-2 focus:ring-diocesis-red focus:bg-white outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
+                Texto Botón Secundario (Opcional)
+              </label>
+              <input
+                type="text"
+                value={config.boton_secundario_texto || ''}
+                onChange={(e) => setConfig({ ...config, boton_secundario_texto: e.target.value })}
+                placeholder="Ej: Facebook Diócesis de Chiclayo ↗"
+                className="w-full px-4 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 text-xs font-bold focus:ring-2 focus:ring-diocesis-red focus:bg-white outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
+                Enlace Botón Secundario (Opcional)
+              </label>
+              <input
+                type="url"
+                value={config.boton_secundario_url || config.fb_diocesis_url || ''}
+                onChange={(e) => setConfig({ ...config, boton_secundario_url: e.target.value, fb_diocesis_url: e.target.value })}
+                placeholder="https://www.facebook.com/DiocesisChiclayo (dejar vacío si no se usa)"
+                className="w-full px-4 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 text-xs font-mono focus:ring-2 focus:ring-diocesis-red focus:bg-white outline-none"
+              />
+            </div>
+          </div>
+        </div>
         <div className="bg-white rounded-3xl p-6 md:p-8 card-shadow border border-stone-200 space-y-4">
           <div className="flex items-center gap-3 border-b border-stone-200 pb-3">
             <Share2 className="w-6 h-6 text-[#1877F2]" />
