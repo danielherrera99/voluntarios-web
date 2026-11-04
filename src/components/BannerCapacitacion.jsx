@@ -10,6 +10,7 @@ const resolveImageUrl = (url) => {
 
 const DEFAULT_CONFIG = {
   activo: true,
+  modo_sedes: 'ambas',
   titulo: 'Jornadas Oficiales de Capacitación',
   subtitulo: 'Voluntariado Diocesano • Visita del Santo Padre',
   badge_texto: 'Presencial y Virtual',
@@ -54,12 +55,18 @@ export default function BannerCapacitacion() {
           .maybeSingle();
 
         if (data && !error) {
-          setConfig({
+          const loaded = {
             ...DEFAULT_CONFIG,
             ...data,
             chiclayo_imagen_url: data.chiclayo_imagen_url || DEFAULT_CONFIG.chiclayo_imagen_url,
             santacruz_imagen_url: data.santacruz_imagen_url || DEFAULT_CONFIG.santacruz_imagen_url,
-          });
+          };
+          setConfig(loaded);
+          if (loaded.modo_sedes === 'santacruz') {
+            setSede('santacruz');
+          } else if (loaded.modo_sedes === 'chiclayo') {
+            setSede('chiclayo');
+          }
         }
       } catch (err) {
         console.warn('Usando configuración por defecto de capacitaciones:', err);
@@ -71,7 +78,9 @@ export default function BannerCapacitacion() {
   // Si el administrador desactivó el banner, no renderizar nada
   if (!config.activo) return null;
 
-  const isChiclayo = sede === 'chiclayo';
+  const modoSedes = config.modo_sedes || 'ambas';
+  const effectiveSede = modoSedes === 'santacruz' ? 'santacruz' : (modoSedes === 'chiclayo' ? 'chiclayo' : sede);
+  const isChiclayo = effectiveSede === 'chiclayo';
   const rawImg = isChiclayo ? config.chiclayo_imagen_url : config.santacruz_imagen_url;
   const currentImg = resolveImageUrl(rawImg);
   const currentTitulo = isChiclayo ? config.chiclayo_titulo : config.santacruz_titulo;
@@ -134,8 +143,9 @@ export default function BannerCapacitacion() {
           </div>
         </div>
 
-        {/* SELECTOR DE PESTAÑAS (TABS) */}
-        <div className="bg-stone-100 p-2 border-b border-stone-200 flex gap-2">
+        {/* SELECTOR DE PESTAÑAS (TABS) - Solo si modo_sedes es 'ambas' */}
+        {modoSedes === 'ambas' && (
+          <div className="bg-stone-100 p-2 border-b border-stone-200 flex gap-2">
           <button
             type="button"
             onClick={() => setSede('chiclayo')}
@@ -164,6 +174,7 @@ export default function BannerCapacitacion() {
             <span className={`w-2 h-2 rounded-full ${!isChiclayo ? 'bg-emerald-500' : 'bg-stone-300'}`}></span>
           </button>
         </div>
+        )}
 
         {/* CONTENIDO DE LA SEDE SELECCIONADA */}
         <div className="p-5 sm:p-6">

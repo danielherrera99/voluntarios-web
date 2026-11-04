@@ -10,12 +10,14 @@ import {
   Upload, 
   Share2,
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  MapPin
 } from 'lucide-react';
 
 const DEFAULT_CONFIG = {
   id: 'capacitaciones',
   activo: true,
+  modo_sedes: 'ambas',
   titulo: 'Jornadas Oficiales de Capacitación',
   subtitulo: 'Voluntariado Diocesano • Visita del Santo Padre',
   badge_texto: 'Presencial y Virtual',
@@ -233,6 +235,109 @@ export default function GestionCapacitacion() {
       )}
 
       <form onSubmit={handleSave} className="space-y-6">
+        
+        {/* SELECTOR MAESTRO DE SEDES A VISUALIZAR */}
+        <div className="bg-white rounded-3xl p-6 md:p-8 card-shadow border border-stone-200 space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2 border-b border-stone-200 pb-3">
+            <div className="flex items-center gap-3">
+              <MapPin className="w-6 h-6 text-diocesis-red" />
+              <div>
+                <h3 className="font-title font-bold text-stone-900 text-base md:text-lg">
+                  ¿Qué Sedes deseas mostrar en el Banner?
+                </h3>
+                <p className="text-xs text-stone-500">
+                  Elige con un solo clic si el banner debe mostrar solo Chiclayo, solo Santa Cruz, o ambas sedes con pestañas.
+                </p>
+              </div>
+            </div>
+
+            <span className="text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider bg-stone-100 text-stone-700 border border-stone-300">
+              Modo actual: {config.modo_sedes === 'chiclayo' ? '🏛️ Solo Chiclayo' : config.modo_sedes === 'santacruz' ? '⛪ Solo Santa Cruz' : '👥 Ambas Sedes'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+            
+            {/* OPCIÓN 1: SOLO CHICLAYO */}
+            <button
+              type="button"
+              onClick={() => setConfig({ ...config, modo_sedes: 'chiclayo' })}
+              className={`p-4 rounded-2xl border-2 text-left transition flex flex-col justify-between gap-3 cursor-pointer ${
+                config.modo_sedes === 'chiclayo'
+                  ? 'border-diocesis-red bg-red-50/70 shadow-sm text-diocesis-redDark'
+                  : 'border-stone-200 bg-stone-50/50 hover:bg-stone-100/70 text-stone-700'
+              }`}
+            >
+              <div className="flex items-center justify-between w-full">
+                <span className="text-2xl">🏛️</span>
+                <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                  config.modo_sedes === 'chiclayo' ? 'border-diocesis-red bg-diocesis-red' : 'border-stone-400'
+                }`}>
+                  {config.modo_sedes === 'chiclayo' && <span className="w-1.5 h-1.5 rounded-full bg-white"></span>}
+                </span>
+              </div>
+              <div>
+                <span className="font-title font-bold text-sm block">Solo Sede Chiclayo</span>
+                <p className="text-[11px] text-stone-500 mt-0.5 leading-snug">
+                  Muestra únicamente la capacitación y afiche de Chiclayo. Oculta Santa Cruz.
+                </p>
+              </div>
+            </button>
+
+            {/* OPCIÓN 2: SOLO SANTA CRUZ */}
+            <button
+              type="button"
+              onClick={() => setConfig({ ...config, modo_sedes: 'santacruz' })}
+              className={`p-4 rounded-2xl border-2 text-left transition flex flex-col justify-between gap-3 cursor-pointer ${
+                config.modo_sedes === 'santacruz'
+                  ? 'border-emerald-600 bg-emerald-50/70 shadow-sm text-emerald-950'
+                  : 'border-stone-200 bg-stone-50/50 hover:bg-stone-100/70 text-stone-700'
+              }`}
+            >
+              <div className="flex items-center justify-between w-full">
+                <span className="text-2xl">⛪</span>
+                <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                  config.modo_sedes === 'santacruz' ? 'border-emerald-600 bg-emerald-600' : 'border-stone-400'
+                }`}>
+                  {config.modo_sedes === 'santacruz' && <span className="w-1.5 h-1.5 rounded-full bg-white"></span>}
+                </span>
+              </div>
+              <div>
+                <span className="font-title font-bold text-sm block">Solo Sede Santa Cruz</span>
+                <p className="text-[11px] text-stone-500 mt-0.5 leading-snug">
+                  Muestra únicamente la capacitación y afiche de Santa Cruz. Oculta Chiclayo.
+                </p>
+              </div>
+            </button>
+
+            {/* OPCIÓN 3: AMBAS SEDES */}
+            <button
+              type="button"
+              onClick={() => setConfig({ ...config, modo_sedes: 'ambas' })}
+              className={`p-4 rounded-2xl border-2 text-left transition flex flex-col justify-between gap-3 cursor-pointer ${
+                (!config.modo_sedes || config.modo_sedes === 'ambas')
+                  ? 'border-amber-500 bg-amber-50/70 shadow-sm text-amber-950'
+                  : 'border-stone-200 bg-stone-50/50 hover:bg-stone-100/70 text-stone-700'
+              }`}
+            >
+              <div className="flex items-center justify-between w-full">
+                <span className="text-2xl">👥</span>
+                <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                  (!config.modo_sedes || config.modo_sedes === 'ambas') ? 'border-amber-500 bg-amber-500' : 'border-stone-400'
+                }`}>
+                  {(!config.modo_sedes || config.modo_sedes === 'ambas') && <span className="w-1.5 h-1.5 rounded-full bg-white"></span>}
+                </span>
+              </div>
+              <div>
+                <span className="font-title font-bold text-sm block">Ambas Sedes (Con Pestañas)</span>
+                <p className="text-[11px] text-stone-500 mt-0.5 leading-snug">
+                  Los voluntarios pueden alternar libremente entre Chiclayo y Santa Cruz.
+                </p>
+              </div>
+            </button>
+
+          </div>
+        </div>
         
         {/* BLOQUE 0: TÍTULOS Y CABECERA DEL BANNER */}
         <div className="bg-white rounded-3xl p-6 md:p-8 card-shadow border border-stone-200 space-y-4">
