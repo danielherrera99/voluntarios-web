@@ -5,7 +5,8 @@ import {
   Award, Shield, Users, CheckCircle2, Clock, Search, 
   FileSpreadsheet, RefreshCw, LogOut, Check, X, ChevronDown, ChevronRight,
   AlertTriangle, HeartPulse, Droplets, ShieldAlert, Sparkles, Coffee, MapPin,
-  AlertCircle, ExternalLink, FileText
+  AlertCircle, ExternalLink, FileText, MessageCircle, Copy, CheckCheck, Eye,
+  Phone, Mail, Filter, Download
 } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import MapaTactico from '../components/MapaTactico';
@@ -635,15 +636,21 @@ export default function ResponsableDashboard() {
             <p className="text-[11px] text-stone-500 mt-1">Cuadrillas operativas</p>
           </div>
 
-          <div className="bg-white rounded-2xl border border-diocesis-mustard/40 p-4 shadow-sm hover:border-diocesis-mustard transition">
+          <div 
+            onClick={() => setActiveTab('voluntarios')}
+            className="bg-white rounded-2xl border-2 border-diocesis-mustard/50 p-4 shadow-sm hover:border-diocesis-redDark transition cursor-pointer hover:shadow-md"
+            title="Ver listado completo de voluntarios asignados"
+          >
             <div className="flex items-center justify-between text-stone-500 mb-1">
-              <span className="text-xs font-bold">Capacidad Total Sector</span>
-              <Users className="w-4 h-4 text-blue-600" />
+              <span className="text-xs font-bold text-diocesis-redDark">Voluntarios Asignados</span>
+              <Users className="w-4 h-4 text-diocesis-red" />
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-blue-900 font-mono">
-              {totalCapacidad}
+            <div className="text-2xl sm:text-3xl font-black text-diocesis-redDark font-mono">
+              {unifiedVoluntarios.length}
             </div>
-            <p className="text-[11px] text-stone-500 mt-1">Voluntarios proyectados</p>
+            <p className="text-[11px] text-stone-600 mt-1 font-medium">
+              <strong className="text-blue-700">{voluntariosF2.length}</strong> Fase 2 • <strong className="text-amber-800">{voluntariosF1Only.length}</strong> Fase 1
+            </p>
           </div>
 
           <div className={`rounded-2xl border p-4 shadow-sm transition ${
@@ -737,6 +744,17 @@ export default function ResponsableDashboard() {
 
         {/* Pestañas de Navegación con Estilo Diócesis */}
         <div className="flex border-b-2 border-diocesis-mustard/30 gap-2 overflow-x-auto pb-1">
+          <button
+            onClick={() => setActiveTab('voluntarios')}
+            className={`py-2.5 px-4 text-xs sm:text-sm font-bold border-b-4 transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+              activeTab === 'voluntarios'
+                ? 'border-diocesis-redDark text-diocesis-redDark bg-white/70 rounded-t-xl shadow-xs'
+                : 'border-transparent text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            <Users className="w-4 h-4 text-diocesis-red" />
+            Voluntarios del Sector ({unifiedVoluntarios.length})
+          </button>
           <button
             onClick={() => setActiveTab('supervision')}
             className={`py-2.5 px-4 text-xs sm:text-sm font-bold border-b-4 transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
