@@ -133,6 +133,39 @@ export default function ResponsableDashboard() {
           setSolicitudes(solJson.pendientes || []);
         }
       }
+
+      // 3. Obtener Voluntarios Asignados al Sector (Fase 2 y Fase 1)
+      setLoadingVoluntarios(true);
+      try {
+        const aliases = (user?.dni && RESPONSABLE_ALIASES[user.dni])
+          ? RESPONSABLE_ALIASES[user.dni]
+          : [responsableNombre];
+
+        const orCondition = aliases.flatMap(a => [
+          `responsable_nombre.ilike.%${a}%`,
+          `lugar_asignado.ilike.%${a}%`
+        ]).join(',');
+
+        const selectCols = 'id, dni, nombres_apellidos, edad, correo, telefono, contacto_emergencia, telefono_emergencia, alergias, medicacion, departamento, provincia, distrito, direccion, jurisdiccion, nombre_institucion, grupo_integra, servicio, talla, estado, fase, archivo_cul_url, archivo_carta_url, archivo_compromiso_url, info_validada, observacion, responsable_nombre, lugar_asignado';
+
+        const [f2Res, f1Res] = await Promise.all([
+          supabase.from('voluntarios').select(selectCols).or(orCondition).range(0, 1999),
+          supabase.from('voluntarios_general').select(selectCols).or(orCondition).range(0, 1999)
+        ]);
+
+        const f2Data = f2Res.data || [];
+        const f1Data = f1Res.data || [];
+
+        const f2Dnis = new Set(f2Data.map(v => String(v.dni || '').trim()));
+        const f1Only = f1Data.filter(v => !f2Dnis.has(String(v.dni || '').trim()));
+
+        setVoluntariosF2(f2Data);
+        setVoluntariosF1Only(f1Only);
+      } catch (volErr) {
+        console.error('Error cargando voluntarios del sector:', volErr);
+      } finally {
+        setLoadingVoluntarios(false);
+      }
     } catch (err) {
       console.error('Error cargando datos de responsable:', err.message);
     } finally {
