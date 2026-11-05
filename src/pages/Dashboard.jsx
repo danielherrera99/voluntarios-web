@@ -120,6 +120,7 @@ export default function Dashboard() {
   const [contactFilter, setContactFilter] = useState('ALL'); // Para Sin Fase 2: 'ALL', 'NO_CONTACTADOS', 'CONTACTADOS'
   const [collaboratorFilter, setCollaboratorFilter] = useState('ALL'); // 'ALL', 'UNASSIGNED', o nombre del colaborador
   const [jurisdiccionFilter, setJurisdiccionFilter] = useState('ALL'); // 'ALL', 'Santa Cruz', 'Chiclayo', etc.
+  const [responsableFilter, setResponsableFilter] = useState('ALL'); // 'ALL', 'UNASSIGNED', o nombre de Responsable / Sede
   const [updatingId, setUpdatingId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -202,7 +203,7 @@ export default function Dashboard() {
   // Reset de página al cambiar de pestaña o filtro
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, statusFilter, fase1Filter, contactFilter, collaboratorFilter, jurisdiccionFilter, contactadoObsFilter]);
+  }, [activeTab, statusFilter, fase1Filter, contactFilter, collaboratorFilter, jurisdiccionFilter, contactadoObsFilter, responsableFilter]);
 
   // Cargar estadísticas globales una sola vez o al sincronizar
   const fetchGlobalStats = useCallback(async () => {
@@ -346,6 +347,15 @@ export default function Dashboard() {
         query = query.ilike('jurisdiccion', `%${jurisdiccionFilter}%`);
       }
 
+      // Filtro por Responsable / Coordinador / Sede Asignada
+      if (responsableFilter !== 'ALL') {
+        if (responsableFilter === 'UNASSIGNED') {
+          query = query.is('responsable_nombre', null).is('lugar_asignado', null);
+        } else {
+          query = query.or(`responsable_nombre.ilike.%${responsableFilter}%,lugar_asignado.ilike.%${responsableFilter}%`);
+        }
+      }
+
       // Orden y rango de paginación
       query = query.order('nombres_apellidos', { ascending: true }).range(from, to);
 
@@ -359,7 +369,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, currentPage, pageSize, debouncedSearch, statusFilter, fase1Filter, contactFilter, collaboratorFilter, jurisdiccionFilter]);
+  }, [activeTab, currentPage, pageSize, debouncedSearch, statusFilter, fase1Filter, contactFilter, collaboratorFilter, jurisdiccionFilter, contactadoObsFilter, responsableFilter]);
 
   // Enviar evento de auditoría en segundo plano
   const sendAudit = (accion, detalles) => {
@@ -457,6 +467,15 @@ export default function Dashboard() {
         query = query.ilike('jurisdiccion', `%${jurisdiccionFilter}%`);
       }
 
+      // Filtro por Responsable / Sede Asignada
+      if (responsableFilter !== 'ALL') {
+        if (responsableFilter === 'UNASSIGNED') {
+          query = query.is('responsable_nombre', null).is('lugar_asignado', null);
+        } else {
+          query = query.or(`responsable_nombre.ilike.%${responsableFilter}%,lugar_asignado.ilike.%${responsableFilter}%`);
+        }
+      }
+
       query = query.order('nombres_apellidos', { ascending: true });
 
       // 2. Descargar en lotes de 1000
@@ -497,6 +516,10 @@ export default function Dashboard() {
             'Jurisdicción': r.jurisdiccion || '',
             'Talla': r.talla || '',
             'Observaciones': r.observacion || '',
+            'Responsable General': r.responsable_nombre || '',
+            'Equipo / Lugar Asignado': r.lugar_asignado || '',
+            'Líder': r.lider_nombre || '',
+            'Coordinador / Guía': r.coordinador_nombre || '',
             'Colaborador Asignado': r.colaborador_asignado || 'Sin asignar',
             '¿Contactado por Observación?': r.contactado_obs ? 'SÍ' : 'NO',
             'Fecha Contacto Observación': r.fecha_contacto_obs ? new Date(r.fecha_contacto_obs).toLocaleString() : ''
@@ -525,6 +548,8 @@ export default function Dashboard() {
             'Jurisdicción': r.jurisdiccion || '',
             'Comisión / Servicio': r.servicio || '',
             'Talla': r.talla || '',
+            'Responsable General': r.responsable_nombre || '',
+            'Equipo / Lugar Asignado': r.lugar_asignado || '',
             'Líder de Comisión': r.lider_nombre || '',
             'Coordinador de Cuadrilla': r.coordinador_nombre || '',
             'Código Cuadrilla': r.cuadrilla_codigo || ''
@@ -1557,15 +1582,11 @@ export default function Dashboard() {
           </div>
 
           {/* Filtros y Buscador */}
-          {activeTab !== 'mapa' && activeTab !== 'capacitacion' && activeTab !== 'jerarquia' && activeTab !== 'admin_web' && activeTab !== 'admin_web' && (
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-2 border-t border-stone-100">
+          {activeTab !== 'mapa' && activeTab !== 'capacitacion' && activeTab !== 'jerarquia' && activeTab !== 'admin_web' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-2.5 pt-2 border-t border-stone-100">
             
             {/* Buscador por DNI / Nombres */}
-            <div className={`relative ${
-              activeTab !== 'fase2' && collaboratorsStats.length > 0 
-                ? 'md:col-span-3 lg:col-span-3' 
-                : 'md:col-span-4 lg:col-span-4'
-            }`}>
+            <div className="md:col-span-3 lg:col-span-3 relative">
               <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
@@ -1586,48 +1607,95 @@ export default function Dashboard() {
 
             {/* Filtro de estado según la pestaña activa */}
             {activeTab === 'fase2' ? (
-              <div className="md:col-span-3 lg:col-span-3">
+              <div className="md:col-span-2 lg:col-span-2">
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="w-full py-2.5 px-3 bg-stone-50 border border-stone-300 rounded-xl text-sm font-semibold text-stone-700 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
                 >
-                  <option value="ALL">Todos los Estados (Fase 2)</option>
-                  <option value="SELECCIONADO">✅ Solo Seleccionados ({stats.seleccionados})</option>
-                  <option value="EN REVISIÓN">⚠️ En Revisión / Observados ({stats.enRevision})</option>
+                  <option value="ALL">Todos los Estados</option>
+                  <option value="SELECCIONADO">✅ Seleccionados ({stats.seleccionados})</option>
+                  <option value="EN REVISIÓN">⚠️ En Revisión ({stats.enRevision})</option>
                   <option value="NO SELECCIONADO">❌ No Seleccionados ({stats.noSeleccionados})</option>
                   <option value="PENDIENTE">⏳ Pendientes ({stats.pendientes})</option>
                 </select>
               </div>
             ) : activeTab === 'fase1' ? (
-              <div className="md:col-span-3 lg:col-span-3">
+              <div className="md:col-span-2 lg:col-span-2">
                 <select
                   value={fase1Filter}
                   onChange={(e) => setFase1Filter(e.target.value)}
                   className="w-full py-2.5 px-3 bg-stone-50 border border-stone-300 rounded-xl text-sm font-semibold text-stone-700 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
                 >
                   <option value="ALL">Todos en Fase 1 ({stats.generalTotal})</option>
-                  <option value="SIN_FASE2">⚠️ Sin enviar Fase 2 / Por contactar ({stats.sinFase2})</option>
-                  <option value="CON_FASE2">✅ Ya enviaron Fase 2 ({stats.conFase2})</option>
-                  <option value="SIN_WHATSAPP">❌ Sin WhatsApp / Para Correo ({stats.sinWhatsapp})</option>
+                  <option value="SIN_FASE2">⚠️ Sin Fase 2 ({stats.sinFase2})</option>
+                  <option value="CON_FASE2">✅ Con Fase 2 ({stats.conFase2})</option>
+                  <option value="SIN_WHATSAPP">❌ Sin WhatsApp ({stats.sinWhatsapp})</option>
                 </select>
               </div>
             ) : (
-              <div className="md:col-span-3 lg:col-span-3">
+              <div className="md:col-span-2 lg:col-span-2">
                 <select
                   value={contactFilter}
                   onChange={(e) => setContactFilter(e.target.value)}
                   className="w-full py-2.5 px-3 bg-amber-50/70 border border-amber-300 rounded-xl text-sm font-semibold text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 >
-                  <option value="ALL">📋 Todos sin Fase 2 ({stats.sinFase2})</option>
-                  <option value="NO_CONTACTADOS">⏳ Pendientes de Contactar ({stats.sinContactar})</option>
-                  <option value="CONTACTADOS">📞 Ya Contactados ({stats.contactados})</option>
-                  <option value="SIN_WHATSAPP">❌ Sin WhatsApp / Para Correo ({stats.sinWhatsapp})</option>
+                  <option value="ALL">📋 Sin Fase 2 ({stats.sinFase2})</option>
+                  <option value="NO_CONTACTADOS">⏳ Pendientes ({stats.sinContactar})</option>
+                  <option value="CONTACTADOS">📞 Contactados ({stats.contactados})</option>
+                  <option value="SIN_WHATSAPP">❌ Sin WhatsApp ({stats.sinWhatsapp})</option>
                 </select>
               </div>
             )}
 
-            {/* Filtro por Colaborador Asignado (para Fase 1, Sin Fase 2 y Fase 2) */}
+            {/* Filtro por Responsable General / Coordinador / Sede Asignada */}
+            <div className="md:col-span-3 lg:col-span-3">
+              <select
+                value={responsableFilter}
+                onChange={(e) => {
+                  setResponsableFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className={`w-full py-2.5 px-3 rounded-xl text-sm font-semibold border transition focus:outline-none focus:ring-2 ${
+                  responsableFilter !== 'ALL'
+                    ? 'bg-amber-100/90 border-amber-400 text-amber-950 font-bold focus:ring-amber-500 shadow-xs'
+                    : 'bg-stone-50 border-stone-300 text-stone-700 focus:ring-diocesis-mustard'
+                }`}
+              >
+                <option value="ALL">🎖️ Todos los Responsables / Sectores</option>
+                <option value="UNASSIGNED">⚪ Sin Asignar (Sector / Responsable)</option>
+                <optgroup label="── Responsables Generales ──">
+                  <option value="SEBASTIÁN LEÓN">Sebastián León Salomé</option>
+                  <option value="CRISTINA NOMBERA">Cristina Nombera Bazán</option>
+                  <option value="MARIA SOLEDAD LONGA">Maria Soledad Longa Granda</option>
+                  <option value="JHONATAN FRANCISCO FIESTAS">Jhonatan Francisco Fiestas Patazca</option>
+                  <option value="FATIMA ELIZABETH GONZALES">Fátima Elizabeth Gonzales Fiestas</option>
+                  <option value="MARÍA ISABEL BAUDAT">María Isabel Baudat Sanchez</option>
+                  <option value="RICARDO ACOSTA">Ricardo Acosta Del Aguila</option>
+                  <option value="ANNGHY GABRIELA SALAZAR">Annghy Gabriela Salazar Gonzales</option>
+                  <option value="ELENA XIOMARA SOPLOPUCO">Elena Xiomara Soplopuco Loconi</option>
+                  <option value="PAMELA DEL MILAGRO QUICIO">Pamela Del Milagro Quicio Monje</option>
+                  <option value="PRISCILLA NIÑO">Priscilla Niño Maldonado</option>
+                  <option value="WALTER GARCIA">Walter García</option>
+                  <option value="SANDY LIMO">Sandy Limo Oré</option>
+                  <option value="KATHERYN MELISA MARTINEZ">Katheryn Melisa Martinez</option>
+                  <option value="CHISCUL ESQUIVES">Anyelo Hernan Chiscul Esquives</option>
+                  <option value="SANTOS MÁXIMO FIESTAS">Santos Máximo Fiestas Patazca</option>
+                  <option value="WILDER ANIBAL LÓPEZ">Wilder Anibal López Alarcón</option>
+                </optgroup>
+                <optgroup label="── Sedes & Comisiones Especiales ──">
+                  <option value="USAT">USAT</option>
+                  <option value="SANTUARIO">Santuario</option>
+                  <option value="COMUNIÓN">Comunión</option>
+                  <option value="ZAÑA">Zaña</option>
+                  <option value="SANTA CRUZ">Santa Cruz</option>
+                  <option value="TRADUCTOR">Traductor</option>
+                  <option value="COMISIÓN CENTRAL">Comisión Central</option>
+                </optgroup>
+              </select>
+            </div>
+
+            {/* Filtro por Colaborador Asignado */}
             <div className="md:col-span-2 lg:col-span-2">
               <select
                 value={collaboratorFilter}
@@ -1637,7 +1705,7 @@ export default function Dashboard() {
                 }}
                 className="w-full py-2.5 px-3 bg-purple-50/70 border border-purple-300 rounded-xl text-sm font-bold text-purple-900 focus:outline-none focus:ring-2 focus:ring-purple-400"
               >
-                <option value="ALL">👥 Colaboradores {activeTab === 'fase2' ? '(Observados)' : ''}</option>
+                <option value="ALL">👥 Colaboradores {activeTab === 'fase2' ? '(Obs)' : ''}</option>
                 <option value="UNASSIGNED">⚪ Sin Asignar</option>
                 {(activeTab === 'fase2' ? collaboratorsObsStats : collaboratorsStats).map(c => {
                   const faltan = c.pendientes || 0;
@@ -1654,22 +1722,23 @@ export default function Dashboard() {
               </select>
             </div>
 
-            {/* Filtro por Jurisdicción (para Fase 1, Sin Fase 2 y Fase 2) */}
-            <div className="md:col-span-2 lg:col-span-2">
+            {/* Filtro por Jurisdicción */}
+            <div className="md:col-span-1 lg:col-span-1">
               <select
                 value={jurisdiccionFilter}
                 onChange={(e) => {
                   setJurisdiccionFilter(e.target.value);
                   setCurrentPage(1);
                 }}
-                className={`w-full py-2.5 px-3 rounded-xl text-sm font-semibold border transition focus:outline-none focus:ring-2 ${
+                className={`w-full py-2.5 px-2 rounded-xl text-xs font-semibold border transition focus:outline-none focus:ring-2 ${
                   jurisdiccionFilter !== 'ALL'
                     ? 'bg-amber-100/90 border-amber-400 text-amber-900 font-bold focus:ring-amber-500 shadow-xs'
                     : 'bg-stone-50 border-stone-300 text-stone-700 focus:ring-diocesis-mustard'
                 }`}
+                title="Filtrar por Jurisdicción"
               >
-                <option value="ALL">🏛️ Todas las Jurisdicciones</option>
-                <option value="Santa Cruz">📍 Santa Cruz – Chiclayo</option>
+                <option value="ALL">🏛️ Jurisd.</option>
+                <option value="Santa Cruz">📍 Santa Cruz</option>
                 <option value="Chiclayo">Chiclayo</option>
                 <option value="Lima">Lima</option>
                 <option value="Cusco">Cusco</option>
@@ -1678,18 +1747,19 @@ export default function Dashboard() {
             </div>
 
             {/* Selector de cantidad por página */}
-            <div className="md:col-span-2 lg:col-span-2">
+            <div className="md:col-span-1 lg:col-span-1">
               <select
                 value={pageSize}
                 onChange={(e) => {
                   setPageSize(Number(e.target.value));
                   setCurrentPage(1);
                 }}
-                className="w-full py-2.5 px-3 bg-stone-50 border border-stone-300 rounded-xl text-sm font-semibold text-stone-700 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
+                className="w-full py-2.5 px-2 bg-stone-50 border border-stone-300 rounded-xl text-xs font-semibold text-stone-700 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
+                title="Cantidad por página"
               >
-                <option value={25}>25 por pág.</option>
-                <option value={50}>50 por pág.</option>
-                <option value={100}>100 por pág.</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
               </select>
             </div>
           </div>
@@ -1822,16 +1892,28 @@ export default function Dashboard() {
                                 {r.colaborador_asignado}
                               </span>
                             )}
-                            {r.lider_nombre && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200" title="Líder General asignado">
-                                <Users className="w-2.5 h-2.5 text-blue-600" />
-                                {r.lider_nombre}
+                            {r.responsable_nombre && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-300" title={`Responsable General: ${r.responsable_nombre}`}>
+                                <Shield className="w-2.5 h-2.5 text-amber-600" />
+                                Resp: {r.responsable_nombre}
                               </span>
                             )}
                             {r.lugar_asignado && !r.lugar_asignado.startsWith('Equipo ') && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200" title="Sede / Comisión de servicio asignada">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200" title="Sede / Sector asignado">
                                 <MapPin className="w-2.5 h-2.5 text-emerald-600" />
                                 {r.lugar_asignado}
+                              </span>
+                            )}
+                            {r.lider_nombre && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200" title={`Líder asignado: ${r.lider_nombre}`}>
+                                <Users className="w-2.5 h-2.5 text-blue-600" />
+                                Líd: {r.lider_nombre}
+                              </span>
+                            )}
+                            {r.coordinador_nombre && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200" title={`Guía / Cuadrilla: ${r.coordinador_nombre} ${r.cuadrilla_codigo || ''}`}>
+                                <Users className="w-2.5 h-2.5 text-indigo-600" />
+                                Guía: {r.coordinador_nombre}
                               </span>
                             )}
                             {activeTab === 'fase2' && r.jurisdiccion && (
@@ -2346,6 +2428,49 @@ export default function Dashboard() {
                   {selectedVoluntario.contacto_emergencia ? `${selectedVoluntario.contacto_emergencia} (${selectedVoluntario.telefono_emergencia || ''})` : '-'}
                 </span>
               </div>
+
+              {/* Asignación Operativa y Jerárquica */}
+              {(selectedVoluntario.responsable_nombre || selectedVoluntario.lugar_asignado || selectedVoluntario.lider_nombre || selectedVoluntario.coordinador_nombre) && (
+                <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-xl text-xs space-y-2 col-span-2 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-blue-950 flex items-center gap-1.5 uppercase text-[10px] tracking-wider">
+                      <Shield className="w-3.5 h-3.5 text-blue-700" />
+                      Asignación Operativa y Jerarquía:
+                    </span>
+                    {selectedVoluntario.lugar_asignado && (
+                      <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-[10px] font-bold">
+                        {selectedVoluntario.lugar_asignado}
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-stone-800 pt-1">
+                    {selectedVoluntario.responsable_nombre && (
+                      <div className="bg-white/80 p-2 rounded-lg border border-blue-100">
+                        <span className="text-[10px] text-blue-600 font-bold block uppercase">Responsable General:</span>
+                        <span className="font-extrabold text-stone-900">{selectedVoluntario.responsable_nombre}</span>
+                      </div>
+                    )}
+                    {selectedVoluntario.lider_nombre && (
+                      <div className="bg-white/80 p-2 rounded-lg border border-blue-100">
+                        <span className="text-[10px] text-blue-600 font-bold block uppercase">Líder de Comisión:</span>
+                        <span className="font-bold text-stone-900">{selectedVoluntario.lider_nombre}</span>
+                      </div>
+                    )}
+                    {selectedVoluntario.coordinador_nombre && (
+                      <div className="bg-white/80 p-2 rounded-lg border border-blue-100">
+                        <span className="text-[10px] text-blue-600 font-bold block uppercase">Guía / Coordinador:</span>
+                        <span className="font-bold text-stone-900">{selectedVoluntario.coordinador_nombre} {selectedVoluntario.cuadrilla_codigo ? `(${selectedVoluntario.cuadrilla_codigo})` : ''}</span>
+                      </div>
+                    )}
+                    {selectedVoluntario.lugar_asignado && !selectedVoluntario.responsable_nombre && (
+                      <div className="bg-white/80 p-2 rounded-lg border border-blue-100">
+                        <span className="text-[10px] text-blue-600 font-bold block uppercase">Sector / Sede:</span>
+                        <span className="font-bold text-stone-900">{selectedVoluntario.lugar_asignado}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Control de Contacto en Modal */}
               {selectedVoluntario.estado !== 'CON_FASE2' && (
