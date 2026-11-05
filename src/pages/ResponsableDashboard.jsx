@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabase';
 import { 
@@ -10,9 +10,45 @@ import {
 import * as xlsx from 'xlsx';
 import MapaTactico from '../components/MapaTactico';
 
+
+// Mapeo canónico exacto para localizar sin margen de error los voluntarios de cada Responsable
+const RESPONSABLE_ALIASES = {
+  '75879740': ['SANTOS MÁXIMO FIESTAS PATAZCA', 'SANTOS MAXIMO FIESTAS PATAZCA', 'MAX'],
+  '47844514': ['JHONATAN FRANCISCO FIESTAS PATAZCA', 'JHONATAN'],
+  '75262428': ['MARÍA ISABEL BAUDAT SANCHEZ', 'MARIA ISABEL BAUDAT SANCHEZ', 'MARIA BAUDAT'],
+  '75194090': ['PRISCILLA NIÑO MALDONADO', 'PRISCILA'],
+  '72307847': ['SANDY LIMO ORÉ', 'SANDY LIMO ORE', 'SANDY TATIANA LIMO ORÉ', 'SANDY'],
+  '73381541': ['PAMELA DEL MILAGRO QUICIO MONJE', 'PAMELA'],
+  '71436152': ['LUIS MIGUEL CHUMAN MONTERO', 'CHUMAN'],
+  '46054145': ['ANYELO HERNAN CHISCUL ESQUIVES', 'CHISCUL ESQUIVES ANYELO HERNAN', 'ANYELO'],
+  '72648617': ['CRISTINA NOMBERA BAZÁN', 'CRISTINA NOMBERA BAZAN', 'CRISTINA'],
+  '74447092': ['FATIMA ELIZABETH GONZALES FIESTAS', 'FATIMA'],
+  '76069148': ['ELENA XIOMARA SOPLOPUCO LOCONI', 'XIOMARA'],
+  '47584113': ['MARIA SOLEDAD LONGA GRANDA', 'MARIA LONGA'],
+  '75245598': ['KATHERYN MELISA MARTINEZ', 'KATHERYN MELISA MARTINEZ BARBADILLO', 'MELISSA'],
+  '73050638': ['SEBASTIÁN LEÓN SALOMÉ', 'SEBASTIAN LEON SALOME', 'SEBASTIAN'],
+  '16654195': ['PEDRO ALEJANDRO LEÓN BONILLA', 'SR. PEDRO', 'PEDRO'],
+  '77212304': ['RICARDO ACOSTA DEL AGUILA', 'RICARDO'],
+  '47814182': ['WILDER ANIBAL LÓPEZ ALARCÓN', 'WILDER ANIBAL LOPEZ ALARCON', 'WILDER'],
+  '72693556': ['ANNGHY GABRIELA SALAZAR GONZALES', 'ANNGHY', 'ANGIE'],
+  '46066172': ['WALTER GARCIA', 'WALTER']
+};
+
 export default function ResponsableDashboard() {
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState('supervision'); // 'supervision' | 'estructura' | 'solicitudes'
+  const [activeTab, setActiveTab] = useState('voluntarios'); // 'voluntarios' | 'supervision' | 'estructura' | 'mapa' | 'solicitudes'
+  
+  // Estados para Voluntarios Asignados al Responsable
+  const [voluntariosF2, setVoluntariosF2] = useState([]);
+  const [voluntariosF1Only, setVoluntariosF1Only] = useState([]);
+  const [loadingVoluntarios, setLoadingVoluntarios] = useState(true);
+  const [volSearchTerm, setVolSearchTerm] = useState('');
+  const [volFaseFilter, setVolFaseFilter] = useState('ALL'); // 'ALL' | 'FASE2' | 'FASE1'
+  const [volEstadoFilter, setVolEstadoFilter] = useState('ALL'); // 'ALL' | 'SELECCIONADO' | 'OBSERVADO' | 'PENDIENTE'
+  const [volCurrentPage, setVolCurrentPage] = useState(1);
+  const [volPageSize, setVolPageSize] = useState(25);
+  const [selectedVoluntarioModal, setSelectedVoluntarioModal] = useState(null);
+  const [copiedDni, setCopiedDni] = useState(null);
   const [mandos, setMandos] = useState([]);
   const [solicitudes, setSolicitudes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -256,6 +292,108 @@ export default function ResponsableDashboard() {
     else statsFases.sinRegistro++;
   });
 
+  // Lista Unificada de Voluntarios con Deduplicación
+  const unifiedVoluntarios = useMemo(() => {
+    const list2 = voluntariosF2.map(v => ({ ...v, _source: 'fase2', faseLabel: 'Fase 2 (Ficha y Docs)' }));
+    const list1 = voluntariosF1Only.map(v => ({ ...v, _source: 'fase1', faseLabel: 'Fase 1 (Padrón General)' }));
+    return [...list2, ...list1];
+  }, [voluntariosF2, voluntariosF1Only]);
+
+  // Filtro dinámico de voluntarios
+  const filteredVoluntarios = useMemo(() => {
+    let list = unifiedVoluntarios;
+
+    if (volFaseFilter === 'FASE2') {
+      list = list.filter(v => v._source === 'fase2');
+    } else if (volFaseFilter === 'FASE1') {
+      list = list.filter(v => v._source === 'fase1');
+    }
+
+    if (volEstadoFilter !== 'ALL') {
+      list = list.filter(v => {
+        const est = String(v.estado || '').toUpperCase();
+        if (volEstadoFilter === 'SELECCIONADO') {
+          return est === 'SELECCIONADO' || est.includes('APROBAD') || v.info_validada;
+        }
+        if (volEstadoFilter === 'OBSERVADO') {
+          return est.includes('OBSERV') || est.includes('REVISI') || Boolean(v.observacion);
+        }
+        if (volEstadoFilter === 'PENDIENTE') {
+          return !est.includes('SELECCIONAD') && !est.includes('APROBAD') && !est.includes('OBSERV');
+        }
+        return true;
+      });
+    }
+
+    if (volSearchTerm.trim()) {
+      const term = volSearchTerm.trim().toLowerCase();
+      list = list.filter(v => 
+        String(v.nombres_apellidos || '').toLowerCase().includes(term) ||
+        String(v.dni || '').includes(term) ||
+        String(v.telefono || '').includes(term) ||
+        String(v.correo || '').toLowerCase().includes(term) ||
+        String(v.jurisdiccion || '').toLowerCase().includes(term) ||
+        String(v.distrito || '').toLowerCase().includes(term)
+      );
+    }
+
+    return list;
+  }, [unifiedVoluntarios, volFaseFilter, volEstadoFilter, volSearchTerm]);
+
+  // Paginación de voluntarios
+  const totalVolPages = Math.max(1, Math.ceil(filteredVoluntarios.length / volPageSize));
+  const paginatedVoluntarios = useMemo(() => {
+    const start = (volCurrentPage - 1) * volPageSize;
+    return filteredVoluntarios.slice(start, start + volPageSize);
+  }, [filteredVoluntarios, volCurrentPage, volPageSize]);
+
+  // Helper enlace directo de WhatsApp
+  const getWhatsAppUrl = (phone, name) => {
+    if (!phone) return null;
+    const clean = String(phone).replace(/\D/g, '');
+    if (!clean) return null;
+    const full = clean.startsWith('51') ? clean : `51${clean}`;
+    const text = encodeURIComponent(`¡Hola, hermano/a ${name || ''}! Te saluda ${responsableNombre}, Responsable General de tu sector para la Visita Papal 2026. Queremos darte la bienvenida y coordinar contigo.`);
+    return `https://wa.me/${full}?text=${text}`;
+  };
+
+  // Helper copiar DNI
+  const handleCopyDni = (dni) => {
+    if (!dni) return;
+    navigator.clipboard.writeText(String(dni).trim());
+    setCopiedDni(dni);
+    setTimeout(() => setCopiedDni(null), 2000);
+  };
+
+  // Exportar voluntarios del sector a Excel
+  const exportVoluntariosToExcel = () => {
+    const dataToExport = filteredVoluntarios.map((v, idx) => ({
+      '#': idx + 1,
+      'DNI': v.dni || '',
+      'Nombres y Apellidos': v.nombres_apellidos || '',
+      'Fase': v._source === 'fase2' ? 'Fase 2' : 'Fase 1 (Padrón)',
+      'Estado Postulación': v.estado || (v._source === 'fase2' ? 'En Revisión' : 'Fase 1 Inicial'),
+      'Validado / Aprobado': v.info_validada ? 'SÍ' : 'NO',
+      'Celular': v.telefono || '',
+      'Correo': v.correo || '',
+      'Distrito': v.distrito || '',
+      'Jurisdicción / Parroquia': v.jurisdiccion || '',
+      'Servicio Solicitado': v.servicio || '',
+      'Talla': v.talla || '',
+      'Carta de Respaldo': v.archivo_carta_url ? 'SÍ (Adjunta)' : 'NO',
+      'CUL Adjunto': v.archivo_cul_url ? 'SÍ' : 'NO',
+      'Compromiso Adjunto': v.archivo_compromiso_url ? 'SÍ' : 'NO',
+      'Observación Registrada': v.observacion || '',
+      'Responsable General': v.responsable_nombre || responsableNombre,
+      'Equipo / Lugar Asignado': v.lugar_asignado || `Equipo ${responsableNombre}`
+    }));
+
+    const ws = xlsx.utils.json_to_sheet(dataToExport);
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, 'Voluntarios_Sector');
+    xlsx.writeFile(wb, `Voluntarios_Sector_${responsableNombre.replace(/\s+/g, '_')}.xlsx`);
+  };
+
   // Exportar reporte consolidado a Excel
   const exportToExcel = () => {
     const data = mandos.map((m, idx) => {
@@ -416,7 +554,7 @@ export default function ResponsableDashboard() {
               🎖️ Coordinador General de Sector: {responsableNombre}
             </h2>
             <p className="text-xs text-stone-600">
-              Supervisas directamente a <strong className="text-diocesis-red font-bold">{lideresList.length} Líderes</strong>, <strong className="text-diocesis-red font-bold">{totalGuias} Guías</strong> y un despliegue de hasta <strong className="text-diocesis-red font-bold">{totalCapacidad} voluntarios</strong>.
+              Supervisas a <strong className="text-diocesis-red font-bold">{lideresList.length} Líderes</strong>, <strong className="text-diocesis-red font-bold">{totalGuias} Guías</strong> y un equipo oficial de <strong className="text-diocesis-red font-bold">{unifiedVoluntarios.length} voluntarios registrados</strong> en tu sector.
             </p>
           </div>
 
@@ -1059,6 +1197,610 @@ export default function ResponsableDashboard() {
                 </table>
               </div>
             )}
+          </div>
+        )}
+
+
+        {/* PESTAÑA PRINCIPAL: VOLUNTARIOS ASIGNADOS AL SECTOR */}
+        {activeTab === 'voluntarios' && (
+          <div className="space-y-4">
+            
+            {/* Banner Informativo Diocesano */}
+            <div className="bg-gradient-to-r from-amber-50 via-white to-amber-50 rounded-2xl border-2 border-diocesis-mustard/50 p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full bg-diocesis-redDark text-white text-[10px] font-black uppercase tracking-wider shadow-2xs">
+                    Padrón Oficial de Sector
+                  </span>
+                  <span className="text-xs font-bold text-diocesis-redDark">
+                    🎖️ Coordinación: {responsableNombre}
+                  </span>
+                </div>
+                <h3 className="text-base font-extrabold text-stone-900">
+                  Voluntarios Asignados a tu Sector ({unifiedVoluntarios.length} registrados)
+                </h3>
+                <p className="text-xs text-stone-600 max-w-3xl leading-relaxed">
+                  Tienes a tu cargo <strong className="text-blue-800 font-bold">{voluntariosF2.length} voluntarios en Fase 2</strong> (con ficha completa y documentación) y <strong className="text-amber-800 font-bold">{voluntariosF1Only.length} en Fase 1</strong> (padrón general inicial). Próximamente, cuando la Comisión entregue la relación de líderes y cuadrillas específicas, podrás verlos asignados a cada guía.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  onClick={exportVoluntariosToExcel}
+                  disabled={filteredVoluntarios.length === 0}
+                  className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
+                  title="Descargar lista de voluntarios en Excel"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+                  <span>Exportar Excel ({filteredVoluntarios.length})</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Barra de Búsqueda y Filtros */}
+            <div className="bg-white rounded-2xl border border-diocesis-mustard/40 p-4 shadow-xs space-y-3">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                {/* Input Búsqueda */}
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={volSearchTerm}
+                    onChange={(e) => {
+                      setVolSearchTerm(e.target.value);
+                      setVolCurrentPage(1);
+                    }}
+                    placeholder="Buscar por DNI, nombres, celular, correo, parroquia o distrito..."
+                    className="w-full pl-10 pr-9 py-2 text-xs bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-diocesis-red focus:bg-white transition"
+                  />
+                  {volSearchTerm && (
+                    <button
+                      onClick={() => setVolSearchTerm('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filtro por Fase */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+                  <button
+                    onClick={() => { setVolFaseFilter('ALL'); setVolCurrentPage(1); }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                      volFaseFilter === 'ALL'
+                        ? 'bg-diocesis-redDark text-white shadow-xs'
+                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                    }`}
+                  >
+                    Todos ({unifiedVoluntarios.length})
+                  </button>
+                  <button
+                    onClick={() => { setVolFaseFilter('FASE2'); setVolCurrentPage(1); }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                      volFaseFilter === 'FASE2'
+                        ? 'bg-blue-700 text-white shadow-xs'
+                        : 'bg-blue-50 text-blue-900 border border-blue-200 hover:bg-blue-100'
+                    }`}
+                  >
+                    <span>Fase 2 (Ficha & Docs)</span>
+                    <span className="font-mono text-[10px] bg-white/20 px-1.5 py-0.2 rounded-full font-black">
+                      {voluntariosF2.length}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => { setVolFaseFilter('FASE1'); setVolCurrentPage(1); }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                      volFaseFilter === 'FASE1'
+                        ? 'bg-amber-700 text-white shadow-xs'
+                        : 'bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100'
+                    }`}
+                  >
+                    <span>Fase 1 (Padrón Inicial)</span>
+                    <span className="font-mono text-[10px] bg-white/20 px-1.5 py-0.2 rounded-full font-black">
+                      {voluntariosF1Only.length}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Filtro por Estado */}
+                <select
+                  value={volEstadoFilter}
+                  onChange={(e) => {
+                    setVolEstadoFilter(e.target.value);
+                    setVolCurrentPage(1);
+                  }}
+                  className="px-3 py-2 text-xs bg-stone-50 border border-stone-300 rounded-xl font-bold text-stone-700 focus:outline-none focus:ring-2 focus:ring-diocesis-red cursor-pointer"
+                >
+                  <option value="ALL">Todos los Estados</option>
+                  <option value="SELECCIONADO">Seleccionados / Aprobados</option>
+                  <option value="OBSERVADO">Con Observación (Subsanar)</option>
+                  <option value="PENDIENTE">En Evaluación / Pendiente</option>
+                </select>
+              </div>
+
+              {/* Contador de resultados */}
+              <div className="flex items-center justify-between text-[11px] text-stone-500 pt-1 border-t border-stone-100">
+                <span>
+                  Mostrando <strong>{paginatedVoluntarios.length}</strong> de <strong>{filteredVoluntarios.length}</strong> voluntarios filtrados
+                </span>
+                {(volSearchTerm || volFaseFilter !== 'ALL' || volEstadoFilter !== 'ALL') && (
+                  <button
+                    onClick={() => {
+                      setVolSearchTerm('');
+                      setVolFaseFilter('ALL');
+                      setVolEstadoFilter('ALL');
+                      setVolCurrentPage(1);
+                    }}
+                    className="text-diocesis-red hover:underline font-bold cursor-pointer"
+                  >
+                    Limpiar filtros
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Tabla de Voluntarios */}
+            <div className="bg-white rounded-2xl border border-diocesis-mustard/40 shadow-sm overflow-hidden">
+              {loadingVoluntarios ? (
+                <div className="p-16 text-center text-stone-500">
+                  <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-diocesis-red" />
+                  <p className="text-sm font-bold text-stone-700">Cargando voluntarios del sector...</p>
+                  <p className="text-xs text-stone-400 mt-1">Consultando Fase 2 y Padrón General</p>
+                </div>
+              ) : filteredVoluntarios.length === 0 ? (
+                <div className="p-16 text-center max-w-md mx-auto space-y-2">
+                  <Users className="w-12 h-12 text-stone-300 mx-auto" />
+                  <h4 className="text-base font-extrabold text-stone-800">
+                    No se encontraron voluntarios
+                  </h4>
+                  <p className="text-xs text-stone-500">
+                    {volSearchTerm 
+                      ? 'No hay registros que coincidan con los términos de búsqueda.' 
+                      : 'No hay voluntarios asignados bajo los filtros seleccionados.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-stone-50 border-b border-stone-200 text-stone-600 font-bold uppercase text-[10px] tracking-wider">
+                        <th className="py-3 px-3 text-center w-12">#</th>
+                        <th className="py-3 px-4">Voluntario / DNI</th>
+                        <th className="py-3 px-4">Contacto Directo</th>
+                        <th className="py-3 px-4">Fase & Estado</th>
+                        <th className="py-3 px-4">Documentación</th>
+                        <th className="py-3 px-4">Parroquia / Jurisdicción</th>
+                        <th className="py-3 px-3 text-center">Detalle</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-100">
+                      {paginatedVoluntarios.map((vol, idx) => {
+                        const globalIndex = (volCurrentPage - 1) * volPageSize + idx + 1;
+                        const isFase2 = vol._source === 'fase2';
+                        const valStr = String(vol.estado || '').toUpperCase();
+                        const isSelected = valStr === 'SELECCIONADO' || valStr.includes('APROBAD') || vol.info_validada;
+                        const isObs = valStr.includes('OBSERV') || valStr.includes('REVISI') || Boolean(vol.observacion);
+                        const whatsAppUrl = getWhatsAppUrl(vol.telefono, vol.nombres_apellidos);
+
+                        return (
+                          <tr key={vol.id || idx} className="hover:bg-amber-50/40 transition">
+                            {/* Número correlativo */}
+                            <td className="py-3 px-3 text-center font-mono font-bold text-stone-400">
+                              {globalIndex}
+                            </td>
+
+                            {/* Nombre y DNI */}
+                            <td className="py-3 px-4">
+                              <div className="font-extrabold text-stone-900 text-xs sm:text-sm">
+                                {vol.nombres_apellidos}
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="font-mono font-bold text-stone-600 text-[11px] bg-stone-100 px-1.5 py-0.2 rounded border border-stone-200">
+                                  DNI: {vol.dni}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyDni(vol.dni)}
+                                  className="text-stone-400 hover:text-stone-700 transition cursor-pointer"
+                                  title="Copiar DNI"
+                                >
+                                  {copiedDni === vol.dni ? (
+                                    <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
+                                  ) : (
+                                    <Copy className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                                {vol.talla && (
+                                  <span className="text-[10px] font-bold text-stone-500 bg-stone-100 px-1.5 py-0.2 rounded">
+                                    Talla: {vol.talla}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Contacto Directo */}
+                            <td className="py-3 px-4">
+                              <div className="space-y-1">
+                                {vol.telefono ? (
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono font-bold text-stone-800 text-xs">
+                                      {vol.telefono}
+                                    </span>
+                                    {whatsAppUrl && (
+                                      <a
+                                        href={whatsAppUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-md text-[10px] font-bold transition shadow-2xs"
+                                        title="Abrir chat de WhatsApp con speech de bienvenida"
+                                      >
+                                        <MessageCircle className="w-3 h-3 text-emerald-600" />
+                                        <span>WhatsApp</span>
+                                      </a>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-[11px] text-stone-400 italic">Sin celular</span>
+                                )}
+
+                                {vol.correo && (
+                                  <div className="text-[11px] text-stone-500 font-mono truncate max-w-[180px]">
+                                    {vol.correo}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Fase & Estado */}
+                            <td className="py-3 px-4">
+                              <div className="flex flex-col items-start gap-1">
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold border shadow-2xs ${
+                                  isFase2 
+                                    ? 'bg-blue-50 text-blue-800 border-blue-300' 
+                                    : 'bg-amber-50 text-amber-900 border-amber-300'
+                                }`}>
+                                  {isFase2 ? '✓ Fase 2' : '⏳ Fase 1'}
+                                </span>
+
+                                {isSelected ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-700" />
+                                    Seleccionado
+                                  </span>
+                                ) : isObs ? (
+                                  <span 
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300"
+                                    title={vol.observacion || 'Documentación en observación'}
+                                  >
+                                    <AlertCircle className="w-3 h-3 text-amber-700" />
+                                    En Observación
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-medium text-stone-500 bg-stone-100 px-2 py-0.5 rounded border border-stone-200">
+                                    {vol.estado || 'En Revisión'}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Documentación Adjunta */}
+                            <td className="py-3 px-4">
+                              {isFase2 ? (
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {vol.archivo_carta_url ? (
+                                    <a
+                                      href={vol.archivo_carta_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300 transition"
+                                      title="Ver Carta de Recomendación"
+                                    >
+                                      ✓ Carta ↗
+                                    </a>
+                                  ) : (
+                                    <span className="text-[10px] font-medium text-stone-400 bg-stone-100 px-1.5 py-0.5 rounded border border-stone-200">
+                                      Sin Carta
+                                    </span>
+                                  )}
+
+                                  {vol.archivo_cul_url ? (
+                                    <a
+                                      href={vol.archivo_cul_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-800 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded-md border border-blue-300 transition"
+                                      title="Ver Certificado Único Laboral"
+                                    >
+                                      CUL ↗
+                                    </a>
+                                  ) : (
+                                    <span className="text-[10px] font-medium text-stone-400 bg-stone-100 px-1.5 py-0.5 rounded border border-stone-200">
+                                      Sin CUL
+                                    </span>
+                                  )}
+
+                                  {vol.archivo_compromiso_url && (
+                                    <a
+                                      href={vol.archivo_compromiso_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-800 bg-purple-50 hover:bg-purple-100 px-1.5 py-0.5 rounded-md border border-purple-300 transition"
+                                      title="Ver Acta de Compromiso"
+                                    >
+                                      Acta ↗
+                                    </a>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-stone-500 italic bg-stone-50 px-2 py-1 rounded border border-stone-200">
+                                  Padrón Inicial (Sin ficha Fase 2)
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Jurisdicción / Parroquia */}
+                            <td className="py-3 px-4">
+                              <div className="font-bold text-stone-800 text-xs">
+                                {vol.jurisdiccion || vol.distrito || 'Diócesis de Chiclayo'}
+                              </div>
+                              {vol.servicio && (
+                                <div className="text-[11px] text-stone-500 font-medium">
+                                  {vol.servicio}
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Botón Ver Detalle */}
+                            <td className="py-3 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedVoluntarioModal(vol)}
+                                className="px-2.5 py-1.5 text-xs font-bold text-diocesis-redDark bg-amber-50 hover:bg-amber-100 border border-diocesis-mustard/60 rounded-lg transition cursor-pointer shadow-2xs hover:shadow"
+                                title="Ver ficha completa de este voluntario"
+                              >
+                                <Eye className="w-3.5 h-3.5 inline mr-1" />
+                                <span>Ver</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Barra de Paginación */}
+              {filteredVoluntarios.length > 0 && (
+                <div className="p-3.5 bg-stone-50 border-t border-stone-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2 text-stone-600">
+                    <span>Filas por página:</span>
+                    <select
+                      value={volPageSize}
+                      onChange={(e) => {
+                        setVolPageSize(Number(e.target.value));
+                        setVolCurrentPage(1);
+                      }}
+                      className="px-2 py-1 border border-stone-300 rounded-lg bg-white font-bold"
+                    >
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                    <span>
+                      Página <strong>{volCurrentPage}</strong> de <strong>{totalVolPages}</strong>
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled={volCurrentPage === 1}
+                      onClick={() => setVolCurrentPage(p => Math.max(1, p - 1))}
+                      className="px-3 py-1.5 rounded-lg border border-stone-300 bg-white font-bold text-stone-700 hover:bg-stone-100 disabled:opacity-40 transition cursor-pointer"
+                    >
+                      ← Anterior
+                    </button>
+                    <button
+                      type="button"
+                      disabled={volCurrentPage >= totalVolPages}
+                      onClick={() => setVolCurrentPage(p => Math.min(totalVolPages, p + 1))}
+                      className="px-3 py-1.5 rounded-lg border border-stone-300 bg-white font-bold text-stone-700 hover:bg-stone-100 disabled:opacity-40 transition cursor-pointer"
+                    >
+                      Siguiente →
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+          </div>
+        )}
+
+        {/* MODAL DETALLE DE VOLUNTARIO */}
+        {selectedVoluntarioModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+            <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border-2 border-diocesis-mustard shadow-2xl space-y-4 p-6">
+              
+              {/* Header Modal */}
+              <div className="flex items-start justify-between border-b border-stone-200 pb-3">
+                <div>
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-diocesis-redDark text-white">
+                    {selectedVoluntarioModal._source === 'fase2' ? 'Expediente Fase 2' : 'Fase 1 (Padrón General)'}
+                  </span>
+                  <h3 className="text-lg font-black text-diocesis-redDark mt-1">
+                    {selectedVoluntarioModal.nombres_apellidos}
+                  </h3>
+                  <div className="flex items-center gap-2 mt-0.5 text-xs text-stone-500 font-mono">
+                    <span>DNI: {selectedVoluntarioModal.dni}</span>
+                    <span>•</span>
+                    <span>Edad: {selectedVoluntarioModal.edad || '-'} años</span>
+                    {selectedVoluntarioModal.talla && (
+                      <>
+                        <span>•</span>
+                        <span>Talla: {selectedVoluntarioModal.talla}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedVoluntarioModal(null)}
+                  className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-600 transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Grid de Información */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                
+                {/* Datos de Contacto */}
+                <div className="bg-stone-50 p-3.5 rounded-xl border border-stone-200 space-y-2">
+                  <h4 className="font-bold text-stone-900 uppercase text-[10px] tracking-wider text-diocesis-redDark">
+                    Datos de Contacto
+                  </h4>
+                  <div className="space-y-1 text-stone-700">
+                    <div><strong>Celular:</strong> {selectedVoluntarioModal.telefono || 'No registrado'}</div>
+                    <div><strong>Correo:</strong> {selectedVoluntarioModal.correo || 'No registrado'}</div>
+                    <div><strong>Dirección:</strong> {selectedVoluntarioModal.direccion || '-'}</div>
+                    <div><strong>Distrito:</strong> {selectedVoluntarioModal.distrito || '-'}</div>
+                  </div>
+                </div>
+
+                {/* Iglesia & Origen */}
+                <div className="bg-stone-50 p-3.5 rounded-xl border border-stone-200 space-y-2">
+                  <h4 className="font-bold text-stone-900 uppercase text-[10px] tracking-wider text-diocesis-redDark">
+                    Institución & Parroquia
+                  </h4>
+                  <div className="space-y-1 text-stone-700">
+                    <div><strong>Jurisdicción:</strong> {selectedVoluntarioModal.jurisdiccion || '-'}</div>
+                    <div><strong>Institución:</strong> {selectedVoluntarioModal.nombre_institucion || '-'}</div>
+                    <div><strong>Grupo:</strong> {selectedVoluntarioModal.grupo_integra || '-'}</div>
+                    <div><strong>Servicio:</strong> {selectedVoluntarioModal.servicio || 'General'}</div>
+                  </div>
+                </div>
+
+                {/* Contacto de Emergencia & Salud */}
+                <div className="bg-stone-50 p-3.5 rounded-xl border border-stone-200 space-y-2">
+                  <h4 className="font-bold text-stone-900 uppercase text-[10px] tracking-wider text-diocesis-redDark">
+                    Emergencia & Salud
+                  </h4>
+                  <div className="space-y-1 text-stone-700">
+                    <div><strong>Contacto:</strong> {selectedVoluntarioModal.contacto_emergencia || '-'}</div>
+                    <div><strong>Tel. Emergencia:</strong> {selectedVoluntarioModal.telefono_emergencia || '-'}</div>
+                    <div><strong>Alergias:</strong> {selectedVoluntarioModal.alergias || 'Ninguna'}</div>
+                    <div><strong>Medicación:</strong> {selectedVoluntarioModal.medicacion || 'Ninguna'}</div>
+                  </div>
+                </div>
+
+                {/* Estado y Asignación */}
+                <div className="bg-stone-50 p-3.5 rounded-xl border border-stone-200 space-y-2">
+                  <h4 className="font-bold text-stone-900 uppercase text-[10px] tracking-wider text-diocesis-redDark">
+                    Estado en el Sistema
+                  </h4>
+                  <div className="space-y-1 text-stone-700">
+                    <div>
+                      <strong>Estado:</strong>{' '}
+                      <span className="font-bold text-diocesis-redDark">
+                        {selectedVoluntarioModal.estado || 'En Revisión'}
+                      </span>
+                    </div>
+                    <div>
+                      <strong>Responsable General:</strong>{' '}
+                      {selectedVoluntarioModal.responsable_nombre || responsableNombre}
+                    </div>
+                    <div>
+                      <strong>Equipo Asignado:</strong>{' '}
+                      {selectedVoluntarioModal.lugar_asignado || `Equipo ${responsableNombre}`}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Observación Diocesana (si tuviera) */}
+              {selectedVoluntarioModal.observacion && (
+                <div className="bg-amber-50 p-3.5 rounded-xl border border-amber-300 text-xs text-amber-950 space-y-1">
+                  <strong className="block text-amber-900">⚠️ Observación registrada:</strong>
+                  <p className="font-medium">{selectedVoluntarioModal.observacion}</p>
+                </div>
+              )}
+
+              {/* Documentos Adjuntos */}
+              <div className="bg-amber-50/50 p-3.5 rounded-xl border border-diocesis-mustard/40 space-y-2">
+                <h4 className="font-bold text-stone-900 text-xs">Documentos Oficiales Adjuntos</h4>
+                <div className="flex flex-wrap items-center gap-2">
+                  {selectedVoluntarioModal.archivo_carta_url ? (
+                    <a
+                      href={selectedVoluntarioModal.archivo_carta_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition shadow-2xs"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Ver Carta de Recomendación ↗</span>
+                    </a>
+                  ) : (
+                    <span className="text-xs text-stone-400 bg-stone-100 px-3 py-1.5 rounded-xl border border-stone-200 font-medium">
+                      Sin Carta adjunta
+                    </span>
+                  )}
+
+                  {selectedVoluntarioModal.archivo_cul_url ? (
+                    <a
+                      href={selectedVoluntarioModal.archivo_cul_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-blue-50 text-blue-800 border border-blue-300 rounded-xl text-xs font-bold transition shadow-2xs"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Ver CUL ↗</span>
+                    </a>
+                  ) : (
+                    <span className="text-xs text-stone-400 bg-stone-100 px-3 py-1.5 rounded-xl border border-stone-200 font-medium">
+                      Sin CUL adjunto
+                    </span>
+                  )}
+
+                  {selectedVoluntarioModal.archivo_compromiso_url && (
+                    <a
+                      href={selectedVoluntarioModal.archivo_compromiso_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-purple-50 text-purple-800 border border-purple-300 rounded-xl text-xs font-bold transition shadow-2xs"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-purple-600" />
+                      <span>Ver Acta de Compromiso ↗</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer Modal con Acción WhatsApp */}
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-2 border-t border-stone-200">
+                {selectedVoluntarioModal.telefono && (
+                  <a
+                    href={getWhatsAppUrl(selectedVoluntarioModal.telefono, selectedVoluntarioModal.nombres_apellidos)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>Contactar por WhatsApp</span>
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedVoluntarioModal(null)}
+                  className="w-full sm:w-auto px-5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  Cerrar
+                </button>
+              </div>
+
+            </div>
           </div>
         )}
 
