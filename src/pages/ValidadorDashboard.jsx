@@ -11,6 +11,7 @@ import {
   CheckCircle2, 
   AlertTriangle, 
   XCircle, 
+  X,
   Shirt, 
   User, 
   PackageCheck, 
@@ -459,6 +460,26 @@ export default function ValidadorDashboard() {
     startCamera();
   };
 
+  // Bloqueo de scroll de fondo y atajo ESC cuando el modal está abierto
+  useEffect(() => {
+    if (scannedVoluntario) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && scannedVoluntario) {
+        handleNextVolunteer();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = 'unset';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [scannedVoluntario]);
+
   return (
     <div className="min-h-screen bg-stone-100 flex flex-col font-sans selection:bg-amber-200">
       
@@ -723,319 +744,423 @@ export default function ValidadorDashboard() {
 
           </div>
 
-          {/* COLUMNA DERECHA: Resultado de Validación y Acciones (7 cols) */}
+          {/* COLUMNA DERECHA: Panel de Estado y Guía de Operaciones (7 cols) */}
           <div className="lg:col-span-7 space-y-4">
             
-            {/* Mensajes de error o éxito globales */}
-            {actionError && (
-              <div className="p-4 bg-rose-50 border-2 border-rose-300 rounded-3xl text-rose-900 flex items-start gap-3 shadow-xs">
+            {/* Mensaje de error de búsqueda cuando no hay voluntario cargado */}
+            {actionError && !scannedVoluntario && (
+              <div className="p-4 bg-rose-50 border-2 border-rose-300 rounded-3xl text-rose-900 flex items-start gap-3 shadow-xs animate-in fade-in">
                 <XCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="font-bold text-sm">No se pudo procesar</h4>
+                <div className="flex-1">
+                  <h4 className="font-bold text-sm">No se encontró voluntario</h4>
                   <p className="text-xs mt-0.5">{actionError}</p>
                 </div>
-              </div>
-            )}
-
-            {actionSuccessMsg && (
-              <div className="p-4 bg-emerald-50 border-2 border-emerald-300 rounded-3xl text-emerald-950 flex items-start gap-3 shadow-xs">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <h4 className="font-bold text-sm">Operación Exitosa</h4>
-                  <p className="text-xs mt-0.5">{actionSuccessMsg}</p>
-                </div>
                 <button
-                  onClick={handleNextVolunteer}
-                  className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold cursor-pointer"
+                  onClick={() => setActionError(null)}
+                  className="text-rose-700 hover:text-rose-900 cursor-pointer p-1"
                 >
-                  Siguiente Voluntario
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             )}
 
-            {/* Ficha del Voluntario Escaneado */}
-            {scannedVoluntario ? (
-              <div className="bg-white rounded-3xl shadow-md border-2 border-stone-200 overflow-hidden space-y-4 animate-in fade-in duration-150">
-                
-                {/* Banner de Estado Específico */}
-                {activeTab === 'kits' ? (
-                  scannedVoluntario.kit_entregado ? (
-                    // 🔴 ALERTA: KIT YA ENTREGADO
-                    <div className="bg-rose-600 text-white p-4 text-center space-y-1">
-                      <span className="text-xs font-black uppercase tracking-widest bg-black/20 px-3 py-0.5 rounded-full inline-block">
-                        ⚠️ ALERTA DE DUPLICADO
-                      </span>
-                      <h3 className="text-lg font-black font-title">
-                        ¡ESTE VOLUNTARIO YA RECIBIÓ SU KIT ANTERIORMENTE!
-                      </h3>
-                      <p className="text-xs text-rose-100">
-                        Entregado el{' '}
-                        <strong>
-                          {scannedVoluntario.kit_fecha_entrega ? new Date(scannedVoluntario.kit_fecha_entrega).toLocaleString() : 'fecha registrada'}
-                        </strong>{' '}
-                        por <strong>{scannedVoluntario.kit_entregado_por || 'Validador previo'}</strong>.
-                      </p>
-                      {scannedVoluntario.kit_items_entregados && (
-                        <p className="text-[11px] font-mono bg-black/20 px-2 py-0.5 rounded inline-block mt-1">
-                          Entregado: {scannedVoluntario.kit_items_entregados}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    // 🟢 HABILITADO PARA RECOJO DE KIT
-                    <div className="bg-emerald-600 text-white p-4 text-center space-y-0.5">
-                      <span className="text-xs font-black uppercase tracking-widest bg-black/20 px-3 py-0.5 rounded-full inline-block">
-                        ✅ HABILITADO
-                      </span>
-                      <h3 className="text-lg font-black font-title">
-                        VOLUNTARIO APROBADO PARA ENTREGA DE KIT
-                      </h3>
-                      <p className="text-xs text-emerald-100">
-                        Verifica su identidad y selecciona los ítems entregados.
-                      </p>
-                    </div>
-                  )
-                ) : (
-                  // MODO ASISTENCIA
-                  scannedVoluntario.asistencia_dia_d ? (
-                    <div className="bg-emerald-600 text-white p-4 text-center space-y-0.5">
-                      <span className="text-xs font-black uppercase tracking-widest bg-black/20 px-3 py-0.5 rounded-full inline-block">
-                        ✅ PRESENTE
-                      </span>
-                      <h3 className="text-lg font-black font-title">
-                        ASISTENCIA YA REGISTRADA
-                      </h3>
-                      <p className="text-xs text-emerald-100">
-                        Marcado el {new Date(scannedVoluntario.asistencia_fecha).toLocaleTimeString()} por {scannedVoluntario.asistencia_registrada_por}.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="bg-blue-600 text-white p-4 text-center space-y-0.5">
-                      <span className="text-xs font-black uppercase tracking-widest bg-black/20 px-3 py-0.5 rounded-full inline-block">
-                        📋 CONTROL DE ASISTENCIA
-                      </span>
-                      <h3 className="text-lg font-black font-title">
-                        PENDIENTE DE MARCAR ASISTENCIA
-                      </h3>
-                      <p className="text-xs text-blue-100">
-                        Confirma la presencia del voluntario en su punto asignado.
-                      </p>
-                    </div>
-                  )
-                )}
-
-                {/* Tarjeta de Datos del Voluntario */}
-                <div className="p-6 space-y-5">
-                  
-                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
-                    {/* Foto / Avatar */}
-                    {scannedVoluntario.fotografia_url ? (
-                      <img
-                        src={formatFotoUrl(scannedVoluntario.fotografia_url)}
-                        alt={scannedVoluntario.nombres_apellidos}
-                        className="w-20 h-20 rounded-2xl object-cover border-2 border-stone-300 shadow-sm shrink-0 bg-stone-100"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                        }}
-                      />
-                    ) : (
-                      <div className="w-20 h-20 rounded-2xl bg-amber-100 border-2 border-amber-300 flex items-center justify-center text-amber-900 shrink-0">
-                        <User className="w-10 h-10 text-amber-700/80" />
-                      </div>
-                    )}
-
-                    <div className="space-y-1 text-center sm:text-left flex-1">
-                      <h4 className="text-xl font-bold font-title text-stone-900 leading-tight">
-                        {scannedVoluntario.nombres_apellidos}
-                      </h4>
-                      <p className="text-xs font-mono font-bold text-stone-500">
-                        DNI: <span className="text-diocesis-redDark">{scannedVoluntario.dni}</span> • Código: <span>{scannedVoluntario.codigo || `VOL-${scannedVoluntario.dni}`}</span>
-                      </p>
-                      
-                      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 pt-1">
-                        <span className="text-[10px] font-bold bg-stone-100 text-stone-700 px-2 py-0.5 rounded border border-stone-200">
-                          {scannedVoluntario.servicio || 'Servicio General'}
-                        </span>
-                        {scannedVoluntario.responsable_nombre && (
-                          <span className="text-[10px] font-bold bg-blue-50 text-blue-800 px-2 py-0.5 rounded border border-blue-200">
-                            Resp: {scannedVoluntario.responsable_nombre}
-                          </span>
-                        )}
-                        {scannedVoluntario.lugar_asignado && (
-                          <span className="text-[10px] font-bold bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200">
-                            {scannedVoluntario.lugar_asignado}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* DESTACADO: Talla de Polo del Voluntario */}
-                  <div className="p-4 bg-amber-100/70 border-2 border-amber-400 rounded-2xl flex items-center justify-between shadow-2xs">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-amber-400 text-amber-950 flex items-center justify-center shadow-xs">
-                        <Shirt className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <span className="text-[10px] uppercase font-black tracking-wider text-amber-900 block">
-                          Talla Oficial Registrada
-                        </span>
-                        <span className="text-2xl font-black font-mono text-amber-950">
-                          {scannedVoluntario.talla || 'NO ESPECIFICADA'}
-                        </span>
-                      </div>
-                    </div>
-                    <span className="text-xs text-amber-800 font-semibold text-right max-w-[140px] hidden sm:block">
-                      Entrega esta prenda del almacén
-                    </span>
-                  </div>
-
-                  {/* FORMULARIO DE ACCIÓN: MODO KITS */}
-                  {activeTab === 'kits' && (
-                    <div className="space-y-4 pt-3 border-t border-stone-200">
-                      
-                      {/* Checkboxes de Selección de Entrega */}
-                      <div className="space-y-2">
-                        <span className="text-xs font-bold text-stone-700 block">
-                          Selecciona los artículos a entregar en este momento:
-                        </span>
-
-                        <label className="flex items-center gap-3 p-3 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl cursor-pointer transition">
-                          <input
-                            type="checkbox"
-                            checked={entregaKitCompleto}
-                            onChange={(e) => setEntregaKitCompleto(e.target.checked)}
-                            className="w-4 h-4 rounded text-diocesis-redDark focus:ring-diocesis-mustard"
-                          />
-                          <div className="text-xs">
-                            <span className="font-bold text-stone-900 block">📦 Kit Completo Oficial</span>
-                            <span className="text-stone-500">Mochila, cartilla, gafete y credencial</span>
-                          </div>
-                        </label>
-
-                        <label className="flex items-center gap-3 p-3 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl cursor-pointer transition">
-                          <input
-                            type="checkbox"
-                            checked={entregaPolo}
-                            onChange={(e) => setEntregaPolo(e.target.checked)}
-                            className="w-4 h-4 rounded text-diocesis-redDark focus:ring-diocesis-mustard"
-                          />
-                          <div className="text-xs">
-                            <span className="font-bold text-stone-900 block">
-                              👕 Polo Oficial del Voluntario (Talla {scannedVoluntario.talla || 'L'})
-                            </span>
-                            <span className="text-stone-500">Prenda textil oficial para la Visita Papal</span>
-                          </div>
-                        </label>
-                      </div>
-
-                      {/* Botón de Confirmación */}
-                      <button
-                        type="button"
-                        disabled={savingAction || (!entregaKitCompleto && !entregaPolo)}
-                        onClick={handleConfirmKitDelivery}
-                        className="w-full py-3.5 px-4 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white rounded-2xl font-bold text-sm shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
-                      >
-                        {savingAction ? (
-                          <>
-                            <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                            <span>Registrando entrega en base de datos...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Check className="w-5 h-5 text-emerald-200" />
-                            <span>Confirmar Entrega de Kit y Guardar</span>
-                          </>
-                        )}
-                      </button>
-
-                    </div>
-                  )}
-
-                  {/* FORMULARIO DE ACCIÓN: MODO ASISTENCIA */}
-                  {activeTab === 'asistencia' && (
-                    <div className="space-y-4 pt-3 border-t border-stone-200">
-                      
-                      <div>
-                        <label className="block text-xs font-bold text-stone-700 mb-1">
-                          Punto o Puerta de Asistencia:
-                        </label>
-                        <select
-                          value={puntoAsistencia}
-                          onChange={(e) => setPuntoAsistencia(e.target.value)}
-                          className="w-full py-2.5 px-3 bg-stone-50 border border-stone-300 rounded-xl text-xs font-semibold text-stone-800 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
-                        >
-                          <option value="Punto Principal">📍 Puerta Principal de Acceso</option>
-                          <option value="Capacitación General">🎓 Capacitación General / USAT</option>
-                          <option value="Sede Santuario">⛪ Sede Santuario</option>
-                          <option value="Sede Zaña">📍 Sede Zaña</option>
-                          <option value="Sede Santa Cruz">📍 Sede Santa Cruz</option>
-                          <option value="Punto de Resguardo">🛡️ Punto de Resguardo y Orden</option>
-                        </select>
-                      </div>
-
-                      <button
-                        type="button"
-                        disabled={savingAction || scannedVoluntario.asistencia_dia_d}
-                        onClick={handleConfirmAttendance}
-                        className="w-full py-3.5 px-4 bg-blue-700 hover:bg-blue-800 active:bg-blue-900 text-white rounded-2xl font-bold text-sm shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
-                      >
-                        {savingAction ? (
-                          <>
-                            <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                            <span>Registrando presencia...</span>
-                          </>
-                        ) : (
-                          <>
-                            <MapPin className="w-5 h-5 text-blue-200" />
-                            <span>
-                              {scannedVoluntario.asistencia_dia_d ? 'Asistencia Ya Registrada' : 'Marcar Asistencia Oficial'}
-                            </span>
-                          </>
-                        )}
-                      </button>
-
-                    </div>
-                  )}
-
+            {/* Tarjeta de Espera / Estado de la Estación de Validación */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm text-center space-y-5">
+              <div className="relative inline-block">
+                <div className="w-20 h-20 rounded-3xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border-2 border-amber-200 shadow-inner">
+                  <QrCode className="w-10 h-10" />
                 </div>
-
-                {/* Footer de la Tarjeta con Botón para Siguiente */}
-                <div className="bg-stone-50 border-t border-stone-200 p-4 flex items-center justify-between">
-                  <span className="text-[11px] text-stone-400">
-                    ID: {scannedVoluntario.id?.slice(0, 8)}...
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleNextVolunteer}
-                    className="px-4 py-2 bg-stone-200 hover:bg-stone-300 text-stone-800 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
-                  >
-                    <QrCode className="w-3.5 h-3.5" />
-                    <span>Escanear Otro Voluntario</span>
-                  </button>
-                </div>
-
+                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center animate-pulse">
+                  <span className="w-2 h-2 rounded-full bg-white"></span>
+                </span>
               </div>
-            ) : (
-              // Estado Vacío (Esperando Escaneo)
-              <div className="p-12 text-center bg-white rounded-3xl border border-stone-200 shadow-sm space-y-3">
-                <div className="w-16 h-16 rounded-3xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200">
-                  <QrCode className="w-8 h-8" />
-                </div>
-                <h3 className="text-base font-bold font-title text-stone-800">
-                  Esperando Código QR o Búsqueda
+
+              <div className="max-w-md mx-auto space-y-1.5">
+                <h3 className="text-lg sm:text-xl font-bold font-title text-stone-900">
+                  Estación de Validación Lista
                 </h3>
-                <p className="text-xs text-stone-400 max-w-sm mx-auto">
-                  Enciende la cámara a la izquierda o escribe el DNI del voluntario para desplegar su ficha y procesar su kit o asistencia.
+                <p className="text-xs sm:text-sm text-stone-500">
+                  {isScanning 
+                    ? 'Apunta la cámara al código QR de la credencial. La ficha del voluntario se abrirá automáticamente en una ventana emergente sin que tengas que deslizar la pantalla.'
+                    : 'Enciende la cámara a la izquierda o digita el DNI del voluntario para abrir su ficha instantánea.'}
                 </p>
               </div>
-            )}
+
+              {/* Botón de acceso rápido para reabrir ficha si existe */}
+              {scannedVoluntario && (
+                <div className="pt-2">
+                  <button
+                    onClick={() => {}}
+                    className="px-5 py-2.5 bg-diocesis-redDark hover:bg-diocesis-red text-white rounded-2xl text-xs font-bold shadow-md transition flex items-center justify-center gap-2 mx-auto cursor-pointer"
+                  >
+                    <User className="w-4 h-4 text-diocesis-mustard" />
+                    <span>Ficha Abierta: {scannedVoluntario.nombres_apellidos}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Protocolo y Buenas Prácticas para agilizar filas */}
+            <div className="bg-stone-50/80 rounded-3xl p-5 border border-stone-200/80 space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-stone-600 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-diocesis-mustard" />
+                Flujo Rápido de Atención en Cola
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-3 bg-white rounded-2xl border border-stone-200 space-y-1">
+                  <span className="font-bold text-stone-800 flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 font-mono text-[10px] font-black flex items-center justify-center">1</span>
+                    Ventana Inmediata (Modal)
+                  </span>
+                  <p className="text-stone-500 text-[11px]">
+                    Al escanear, el resultado salta al frente en pantalla completa. No necesitas deslizar hacia abajo en tu teléfono.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-white rounded-2xl border border-stone-200 space-y-1">
+                  <span className="font-bold text-stone-800 flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 font-mono text-[10px] font-black flex items-center justify-center">2</span>
+                    Entrega de Polo por Talla
+                  </span>
+                  <p className="text-stone-500 text-[11px]">
+                    La talla oficial registrada aparece destacada en color ámbar para entregar la prenda textil exacta del inventario.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-white rounded-2xl border border-stone-200 space-y-1">
+                  <span className="font-bold text-stone-800 flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 font-mono text-[10px] font-black flex items-center justify-center">3</span>
+                    Detección de Duplicados
+                  </span>
+                  <p className="text-stone-500 text-[11px]">
+                    Si un voluntario ya recibió su kit, la pantalla se teñirá de rojo con la fecha exacta y nombre del validador previo.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-white rounded-2xl border border-stone-200 space-y-1">
+                  <span className="font-bold text-stone-800 flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 font-mono text-[10px] font-black flex items-center justify-center">4</span>
+                    Siguiente en 1 Toque
+                  </span>
+                  <p className="text-stone-500 text-[11px]">
+                    Al pulsar "Siguiente Voluntario", la ventana se cierra y la cámara vuelve a escanear de forma automática.
+                  </p>
+                </div>
+              </div>
+            </div>
 
           </div>
 
         </div>
 
       </main>
+
+      {/* ======================================================== */}
+      {/* MODAL POPUP FLOTANTE: RESULTADO INMEDIATO DEL ESCANEO   */}
+      {/* (Evita hacer scroll en móvil y acelera la atención)     */}
+      {/* ======================================================== */}
+      {scannedVoluntario && (
+        <div 
+          className="fixed inset-0 z-50 bg-stone-950/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-150"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) handleNextVolunteer();
+          }}
+        >
+          <div 
+            className="bg-white rounded-3xl max-w-lg w-full max-h-[92vh] overflow-y-auto shadow-2xl border-2 border-stone-200 relative my-auto animate-in zoom-in-95 duration-150 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Botón flotante para cerrar X */}
+            <button
+              onClick={handleNextVolunteer}
+              aria-label="Cerrar modal"
+              className="absolute top-3.5 right-3.5 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition cursor-pointer z-20 shadow-md"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Banner de Estado Específico */}
+            {activeTab === 'kits' ? (
+              scannedVoluntario.kit_entregado ? (
+                // 🔴 ALERTA: KIT YA ENTREGADO
+                <div className="bg-rose-600 text-white p-4 pr-12 text-center space-y-1">
+                  <span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-0.5 rounded-full inline-block">
+                    ⚠️ ALERTA DE DUPLICADO
+                  </span>
+                  <h3 className="text-base sm:text-lg font-black font-title">
+                    ¡ESTE VOLUNTARIO YA RECIBIÓ SU KIT ANTERIORMENTE!
+                  </h3>
+                  <p className="text-xs text-rose-100">
+                    Entregado el{' '}
+                    <strong>
+                      {scannedVoluntario.kit_fecha_entrega ? new Date(scannedVoluntario.kit_fecha_entrega).toLocaleString() : 'fecha registrada'}
+                    </strong>{' '}
+                    por <strong>{scannedVoluntario.kit_entregado_por || 'Validador previo'}</strong>.
+                  </p>
+                  {scannedVoluntario.kit_items_entregados && (
+                    <p className="text-[11px] font-mono bg-black/20 px-2 py-0.5 rounded inline-block mt-1">
+                      Entregado: {scannedVoluntario.kit_items_entregados}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                // 🟢 HABILITADO PARA RECOJO DE KIT
+                <div className="bg-emerald-600 text-white p-4 pr-12 text-center space-y-0.5">
+                  <span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-0.5 rounded-full inline-block">
+                    ✅ HABILITADO
+                  </span>
+                  <h3 className="text-base sm:text-lg font-black font-title">
+                    VOLUNTARIO APROBADO PARA ENTREGA DE KIT
+                  </h3>
+                  <p className="text-xs text-emerald-100">
+                    Verifica su identidad y selecciona los ítems entregados.
+                  </p>
+                </div>
+              )
+            ) : (
+              // MODO ASISTENCIA
+              scannedVoluntario.asistencia_dia_d ? (
+                <div className="bg-emerald-600 text-white p-4 pr-12 text-center space-y-0.5">
+                  <span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-0.5 rounded-full inline-block">
+                    ✅ PRESENTE
+                  </span>
+                  <h3 className="text-base sm:text-lg font-black font-title">
+                    ASISTENCIA YA REGISTRADA
+                  </h3>
+                  <p className="text-xs text-emerald-100">
+                    Marcado el {new Date(scannedVoluntario.asistencia_fecha).toLocaleTimeString()} por {scannedVoluntario.asistencia_registrada_por}.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-blue-600 text-white p-4 pr-12 text-center space-y-0.5">
+                  <span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-0.5 rounded-full inline-block">
+                    📋 CONTROL DE ASISTENCIA
+                  </span>
+                  <h3 className="text-base sm:text-lg font-black font-title">
+                    PENDIENTE DE MARCAR ASISTENCIA
+                  </h3>
+                  <p className="text-xs text-blue-100">
+                    Confirma la presencia del voluntario en su punto asignado.
+                  </p>
+                </div>
+              )
+            )}
+
+            {/* Mensajes de error o éxito específicos dentro del modal */}
+            {actionError && (
+              <div className="m-4 mb-0 p-3.5 bg-rose-50 border-2 border-rose-300 rounded-2xl text-rose-900 flex items-start gap-2.5">
+                <XCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <div className="text-xs">
+                  <span className="font-bold block">Error al procesar:</span>
+                  <span>{actionError}</span>
+                </div>
+              </div>
+            )}
+
+            {actionSuccessMsg && (
+              <div className="m-4 mb-0 p-3.5 bg-emerald-50 border-2 border-emerald-300 rounded-2xl text-emerald-950 flex items-start gap-2.5">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="text-xs flex-1">
+                  <span className="font-bold block">¡Acción Confirmada!</span>
+                  <span>{actionSuccessMsg}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Tarjeta de Datos del Voluntario */}
+            <div className="p-5 sm:p-6 space-y-4">
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
+                {/* Foto / Avatar */}
+                {scannedVoluntario.fotografia_url ? (
+                  <img
+                    src={formatFotoUrl(scannedVoluntario.fotografia_url)}
+                    alt={scannedVoluntario.nombres_apellidos}
+                    className="w-20 h-20 rounded-2xl object-cover border-2 border-stone-300 shadow-sm shrink-0 bg-stone-100"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-2xl bg-amber-100 border-2 border-amber-300 flex items-center justify-center text-amber-900 shrink-0">
+                    <User className="w-10 h-10 text-amber-700/80" />
+                  </div>
+                )}
+
+                <div className="space-y-1 text-center sm:text-left flex-1 min-w-0">
+                  <h4 className="text-lg sm:text-xl font-bold font-title text-stone-900 leading-tight">
+                    {scannedVoluntario.nombres_apellidos}
+                  </h4>
+                  <p className="text-xs font-mono font-bold text-stone-500">
+                    DNI: <span className="text-diocesis-redDark">{scannedVoluntario.dni || 'Sin DNI'}</span> • Código: <span>{scannedVoluntario.codigo || `VOL-${scannedVoluntario.dni}`}</span>
+                  </p>
+                  
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 pt-1">
+                    <span className="text-[10px] font-bold bg-stone-100 text-stone-700 px-2 py-0.5 rounded border border-stone-200">
+                      {scannedVoluntario.servicio || 'Servicio General'}
+                    </span>
+                    {scannedVoluntario.responsable_nombre && (
+                      <span className="text-[10px] font-bold bg-blue-50 text-blue-800 px-2 py-0.5 rounded border border-blue-200">
+                        Resp: {scannedVoluntario.responsable_nombre}
+                      </span>
+                    )}
+                    {scannedVoluntario.lugar_asignado && (
+                      <span className="text-[10px] font-bold bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200">
+                        {scannedVoluntario.lugar_asignado}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* DESTACADO: Talla de Polo del Voluntario */}
+              <div className="p-3.5 bg-amber-100/80 border-2 border-amber-400 rounded-2xl flex items-center justify-between shadow-2xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-amber-400 text-amber-950 flex items-center justify-center shadow-xs">
+                    <Shirt className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-black tracking-wider text-amber-900 block">
+                      Talla Oficial Registrada
+                    </span>
+                    <span className="text-2xl font-black font-mono text-amber-950">
+                      {scannedVoluntario.talla || 'NO ESPECIFICADA'}
+                    </span>
+                  </div>
+                </div>
+                <span className="text-xs text-amber-800 font-semibold text-right max-w-[130px] hidden sm:block">
+                  Entrega esta prenda del almacén
+                </span>
+              </div>
+
+              {/* FORMULARIO DE ACCIÓN: MODO KITS */}
+              {activeTab === 'kits' && (
+                <div className="space-y-3 pt-2 border-t border-stone-200">
+                  {/* Checkboxes de Selección de Entrega */}
+                  <div className="space-y-2">
+                    <span className="text-xs font-bold text-stone-700 block">
+                      Selecciona los artículos a entregar:
+                    </span>
+
+                    <label className="flex items-center gap-3 p-2.5 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl cursor-pointer transition">
+                      <input
+                        type="checkbox"
+                        checked={entregaKitCompleto}
+                        onChange={(e) => setEntregaKitCompleto(e.target.checked)}
+                        className="w-4 h-4 rounded text-diocesis-redDark focus:ring-diocesis-mustard"
+                      />
+                      <div className="text-xs">
+                        <span className="font-bold text-stone-900 block">📦 Kit Completo Oficial</span>
+                        <span className="text-stone-500">Mochila, cartilla, gafete y credencial</span>
+                      </div>
+                    </label>
+
+                    <label className="flex items-center gap-3 p-2.5 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl cursor-pointer transition">
+                      <input
+                        type="checkbox"
+                        checked={entregaPolo}
+                        onChange={(e) => setEntregaPolo(e.target.checked)}
+                        className="w-4 h-4 rounded text-diocesis-redDark focus:ring-diocesis-mustard"
+                      />
+                      <div className="text-xs">
+                        <span className="font-bold text-stone-900 block">
+                          👕 Polo Oficial (Talla {scannedVoluntario.talla || 'L'})
+                        </span>
+                        <span className="text-stone-500">Prenda textil oficial Visita Papal</span>
+                      </div>
+                    </label>
+                  </div>
+
+                  {/* Botón de Confirmación */}
+                  <button
+                    type="button"
+                    disabled={savingAction || (!entregaKitCompleto && !entregaPolo)}
+                    onClick={handleConfirmKitDelivery}
+                    className="w-full py-3 px-4 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white rounded-2xl font-bold text-sm shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                  >
+                    {savingAction ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                        <span>Guardando entrega...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-5 h-5 text-emerald-200" />
+                        <span>Confirmar Entrega de Kit</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* FORMULARIO DE ACCIÓN: MODO ASISTENCIA */}
+              {activeTab === 'asistencia' && (
+                <div className="space-y-3 pt-2 border-t border-stone-200">
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">
+                      Punto o Puerta de Asistencia:
+                    </label>
+                    <select
+                      value={puntoAsistencia}
+                      onChange={(e) => setPuntoAsistencia(e.target.value)}
+                      className="w-full py-2.5 px-3 bg-stone-50 border border-stone-300 rounded-xl text-xs font-semibold text-stone-800 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
+                    >
+                      <option value="Punto Principal">📍 Puerta Principal de Acceso</option>
+                      <option value="Capacitación General">🎓 Capacitación General / USAT</option>
+                      <option value="Sede Santuario">⛪ Sede Santuario</option>
+                      <option value="Sede Zaña">📍 Sede Zaña</option>
+                      <option value="Sede Santa Cruz">📍 Sede Santa Cruz</option>
+                      <option value="Punto de Resguardo">🛡️ Punto de Resguardo y Orden</option>
+                    </select>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={savingAction || scannedVoluntario.asistencia_dia_d}
+                    onClick={handleConfirmAttendance}
+                    className="w-full py-3 px-4 bg-blue-700 hover:bg-blue-800 active:bg-blue-900 text-white rounded-2xl font-bold text-sm shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                  >
+                    {savingAction ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                        <span>Registrando presencia...</span>
+                      </>
+                    ) : (
+                      <>
+                        <MapPin className="w-5 h-5 text-blue-200" />
+                        <span>
+                          {scannedVoluntario.asistencia_dia_d ? 'Asistencia Ya Registrada' : 'Marcar Asistencia Oficial'}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Footer del Modal con botón destacado para siguiente voluntario */}
+            <div className="bg-stone-50 border-t border-stone-200 p-4 flex flex-col-reverse sm:flex-row items-center justify-between gap-2.5">
+              <button
+                type="button"
+                onClick={handleNextVolunteer}
+                className="w-full sm:w-auto px-4 py-2 text-stone-600 hover:text-stone-900 text-xs font-semibold transition cursor-pointer"
+              >
+                Cerrar Ventana
+              </button>
+              
+              <button
+                type="button"
+                onClick={handleNextVolunteer}
+                className="w-full sm:w-auto px-5 py-2.5 bg-stone-900 hover:bg-black text-white rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+              >
+                <QrCode className="w-4 h-4 text-diocesis-mustard" />
+                <span>Escanear Siguiente Voluntario</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="py-3 text-center text-xs text-stone-400 bg-white border-t border-stone-200">
