@@ -1088,6 +1088,38 @@ export default function Dashboard() {
     }
   };
 
+  // Cambiar rol de un usuario existente (Exclusivo Administrador)
+  const handleCambiarRol = async (id, nombre, nuevoRol) => {
+    if (!window.confirm(`¿Confirmas cambiar el rol de ${nombre} a "${nuevoRol.toUpperCase()}"?`)) {
+      return;
+    }
+    try {
+      setLoadingSolicitudes(true);
+      setSolicitudActionMsg(null);
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
+      const res = await fetch(`${apiUrl}/api/auth/usuarios/${id}/rol`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ rol: nuevoRol })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSolicitudActionMsg({ type: 'success', text: `¡Rol de ${nombre} cambiado a ${nuevoRol.toUpperCase()}!` });
+        await fetchSolicitudes();
+      } else {
+        setSolicitudActionMsg({ type: 'error', text: data.msg || 'Error al cambiar rol' });
+      }
+    } catch (err) {
+      setSolicitudActionMsg({ type: 'error', text: err.message });
+    } finally {
+      setLoadingSolicitudes(false);
+    }
+  };
+
   // Confirmar y procesar eliminación de voluntario (Exclusivo Administrador)
   const handleConfirmDeleteVolunteer = async () => {
     if (!volunteerToDelete || deletingVolunteer) return;
@@ -3498,6 +3530,7 @@ export default function Dashboard() {
                               <option value="responsable">🎖️ Responsable General</option>
                               <option value="lider">🛡️ Líder de Sector</option>
                               <option value="guia">🤝 Guía de Cuadrilla</option>
+                              <option value="validador">🔍 Validador (Kits y Asistencia)</option>
                               <option value="comision">Comisión (Colaborador)</option>
                               <option value="admin">Administrador General</option>
                             </select>
@@ -3577,23 +3610,38 @@ export default function Dashboard() {
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border uppercase tracking-wider ${
-                            u.rol === 'admin'
-                              ? 'bg-amber-50 text-amber-900 border-amber-300 font-extrabold'
-                              : u.rol === 'responsable'
-                              ? 'bg-amber-100 text-amber-950 border-amber-400 font-black'
-                              : u.rol === 'lider'
-                              ? 'bg-emerald-100 text-emerald-950 border-emerald-400 font-bold'
-                              : u.rol === 'guia'
-                              ? 'bg-blue-100 text-blue-950 border-blue-400 font-bold'
-                              : 'bg-blue-50 text-blue-800 border-blue-200'
-                          }`}>
-                            {u.rol === 'admin' ? 'Administrador' 
-                              : u.rol === 'responsable' ? '🎖️ Responsable'
-                              : u.rol === 'lider' ? '🛡️ Líder'
-                              : u.rol === 'guia' ? '🤝 Guía'
-                              : 'Comisión'}
-                          </span>
+                          {isCurrentUser ? (
+                            <span className="text-[10px] font-black px-2.5 py-1 rounded-lg border uppercase tracking-wider bg-amber-50 text-amber-950 border-amber-300">
+                              🛡️ Administrador (Tú)
+                            </span>
+                          ) : (
+                            <select
+                              value={u.rol || 'comision'}
+                              disabled={loadingSolicitudes}
+                              onChange={(e) => handleCambiarRol(u.id, u.nombre, e.target.value)}
+                              className={`text-[11px] font-bold py-1 px-2 rounded-xl border transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs ${
+                                u.rol === 'admin'
+                                  ? 'bg-amber-100 text-amber-950 border-amber-400 font-black'
+                                  : u.rol === 'validador'
+                                  ? 'bg-purple-100 text-purple-950 border-purple-400 font-extrabold'
+                                  : u.rol === 'responsable'
+                                  ? 'bg-amber-50 text-amber-900 border-amber-300 font-extrabold'
+                                  : u.rol === 'lider'
+                                  ? 'bg-emerald-100 text-emerald-950 border-emerald-400 font-bold'
+                                  : u.rol === 'guia'
+                                  ? 'bg-blue-100 text-blue-950 border-blue-400 font-bold'
+                                  : 'bg-stone-100 text-stone-800 border-stone-300'
+                              }`}
+                              title="Haz clic para cambiar el rol o perfil de este usuario"
+                            >
+                              <option value="admin">🛡️ Administrador</option>
+                              <option value="validador">🔍 Validador (Kits y Asistencia)</option>
+                              <option value="comision">👥 Comisión (Colaborador)</option>
+                              <option value="responsable">🎖️ Responsable General</option>
+                              <option value="lider">🛡️ Líder de Sector</option>
+                              <option value="guia">🤝 Guía de Cuadrilla</option>
+                            </select>
+                          )}
 
                           {!isCurrentUser && (
                             <button
