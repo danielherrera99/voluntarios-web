@@ -23,7 +23,8 @@ import {
   Check, 
   ShieldCheck,
   AlertCircle,
-  ExternalLink
+  ExternalLink,
+  SwitchCamera
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -73,6 +74,9 @@ export default function ValidadorDashboard() {
 
   // Estados de escáner y búsqueda
   const [isScanning, setIsScanning] = useState(false);
+  const [isStartingCamera, setIsStartingCamera] = useState(false);
+  const [camerasList, setCamerasList] = useState([]);
+  const [activeCameraIndex, setActiveCameraIndex] = useState(0);
   const [cameraError, setCameraError] = useState(null);
   const [manualInput, setManualInput] = useState('');
   const [searching, setSearching] = useState(false);
@@ -117,19 +121,69 @@ export default function ValidadorDashboard() {
     fetchStats();
   }, []);
 
-  // Iniciar / Detener Cámara
-  const startCamera = async () => {
+  // Iniciar Cámara con autodetección de sensor trasero y manejo resiliente
+  const startCamera = async (overrideCameraId = null) => {
     setCameraError(null);
+    setIsStartingCamera(true);
+
+    // Verificar contexto seguro (HTTPS o localhost) requerido por WebRTC
+    if (typeof window !== 'undefined' && window.isSecureContext === false) {
+      setCameraError('La cámara en teléfonos celulares requiere conexión segura HTTPS. Si estás probando en tu celular, ábrelo en el dominio de producción (Render con HTTPS) o usa la búsqueda manual por DNI abajo.');
+      setIsStartingCamera(false);
+      return;
+    }
+
     try {
+      // Si ya hay una instancia previa escaneando, detenerla primero
+      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+        try {
+          await html5QrCodeRef.current.stop();
+        } catch (e) {}
+      }
+
       if (!html5QrCodeRef.current) {
         html5QrCodeRef.current = new Html5Qrcode('qr-reader-container');
       }
 
+      // Obtener lista de cámaras si aún no la tenemos
+      let cams = camerasList;
+      if (!cams || cams.length === 0) {
+        try {
+          cams = await Html5Qrcode.getCameras();
+          if (cams && cams.length > 0) {
+            setCamerasList(cams);
+          }
+        } catch (camErr) {
+          console.warn('No se pudieron listar cámaras con antelación:', camErr);
+        }
+      }
+
+      // Determinar configuración de cámara
+      let cameraConfig;
+      if (overrideCameraId) {
+        cameraConfig = overrideCameraId;
+      } else if (cams && cams.length > 0) {
+        // Buscar cámara trasera por etiqueta
+        const backIdx = cams.findIndex(c => /back|rear|trasera|environment|externa/i.test(c.label));
+        const chosenIdx = backIdx !== -1 ? backIdx : cams.length - 1;
+        setActiveCameraIndex(chosenIdx);
+        cameraConfig = cams[chosenIdx].id;
+      } else {
+        cameraConfig = { facingMode: 'environment' };
+      }
+
+      // Pequeño retardo para asegurar que el DOM layout esté listo
+      await new Promise(r => setTimeout(r, 60));
+
       await html5QrCodeRef.current.start(
-        { facingMode: 'environment' },
+        cameraConfig,
         {
-          fps: 10,
-          qrbox: { width: 250, height: 250 }
+          fps: 15,
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+            const size = Math.max(160, Math.floor(minEdge * 0.72));
+            return { width: size, height: size };
+          }
         },
         (decodedText) => {
           handleQrDecoded(decodedText);
@@ -139,9 +193,34 @@ export default function ValidadorDashboard() {
 
       setIsScanning(true);
     } catch (err) {
-      console.error('Error al encender cámara:', err);
-      setCameraError('No se pudo acceder a la cámara. Revisa los permisos en tu navegador o usa la búsqueda manual.');
-      setIsScanning(false);
+      console.warn('Fallo primer intento con ID de cámara, intentando facingMode:', err);
+      // Intento fallback con facingMode: environment
+      try {
+        if (!html5QrCodeRef.current) {
+          html5QrCodeRef.current = new Html5Qrcode('qr-reader-container');
+        }
+        await html5QrCodeRef.current.start(
+          { facingMode: 'environment' },
+          {
+            fps: 10,
+            qrbox: (w, h) => {
+              const m = Math.min(w, h);
+              return { width: Math.max(150, Math.floor(m * 0.7)), height: Math.max(150, Math.floor(m * 0.7)) };
+            }
+          },
+          (decodedText) => {
+            handleQrDecoded(decodedText);
+          },
+          () => {}
+        );
+        setIsScanning(true);
+      } catch (fallbackErr) {
+        console.error('Error definitivo al encender cámara:', fallbackErr);
+        setCameraError('No se pudo acceder a la cámara. Asegúrate de otorgar permisos o utiliza la búsqueda manual por DNI abajo.');
+        setIsScanning(false);
+      }
+    } finally {
+      setIsStartingCamera(false);
     }
   };
 
@@ -150,10 +229,20 @@ export default function ValidadorDashboard() {
       if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
         await html5QrCodeRef.current.stop();
       }
-      setIsScanning(false);
     } catch (err) {
       console.error('Error apagando cámara:', err);
+    } finally {
+      setIsScanning(false);
     }
+  };
+
+  // Alternar entre cámaras si el dispositivo tiene más de una
+  const switchCamera = async () => {
+    if (!camerasList || camerasList.length <= 1) return;
+    const nextIdx = (activeCameraIndex + 1) % camerasList.length;
+    setActiveCameraIndex(nextIdx);
+    await stopCamera();
+    await startCamera(camerasList[nextIdx].id);
   };
 
   useEffect(() => {
@@ -491,46 +580,77 @@ export default function ValidadorDashboard() {
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={isScanning ? stopCamera : startCamera}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs ${
-                    isScanning
-                      ? 'bg-rose-50 text-rose-700 border border-rose-300 hover:bg-rose-100'
-                      : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                  }`}
-                >
-                  {isScanning ? (
-                    <>
-                      <CameraOff className="w-3.5 h-3.5" />
-                      <span>Apagar Cámara</span>
-                    </>
-                  ) : (
-                    <>
-                      <Camera className="w-3.5 h-3.5" />
-                      <span>Encender Cámara</span>
-                    </>
+                <div className="flex items-center gap-1.5">
+                  {isScanning && camerasList.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={switchCamera}
+                      className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-stone-100 hover:bg-stone-200 text-stone-700 transition flex items-center gap-1 cursor-pointer"
+                      title="Cambiar entre lentes de la cámara"
+                    >
+                      <SwitchCamera className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Girar</span>
+                    </button>
                   )}
-                </button>
+
+                  <button
+                    type="button"
+                    onClick={isScanning ? stopCamera : () => startCamera()}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                      isScanning
+                        ? 'bg-rose-50 text-rose-700 border border-rose-300 hover:bg-rose-100'
+                        : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                    }`}
+                  >
+                    {isScanning ? (
+                      <>
+                        <CameraOff className="w-3.5 h-3.5" />
+                        <span>Apagar</span>
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="w-3.5 h-3.5" />
+                        <span>Encender Cámara</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
               {/* Contenedor del Lector de Cámara */}
-              <div className="relative rounded-2xl overflow-hidden bg-stone-950 min-h-[240px] flex items-center justify-center border-2 border-dashed border-stone-300">
+              <div className="relative rounded-2xl overflow-hidden bg-stone-950 min-h-[260px] flex items-center justify-center border-2 border-stone-800 shadow-inner">
+                {/* Contenedor Html5Qrcode: SIEMPRE visible en el layout del DOM */}
                 <div 
                   id="qr-reader-container" 
-                  className={`w-full ${isScanning ? 'block' : 'hidden'}`}
+                  className="w-full h-full"
                 />
                 
                 {!isScanning && (
-                  <div className="p-6 text-center space-y-2 text-stone-400">
-                    <QrCode className="w-12 h-12 mx-auto text-stone-500" />
-                    <p className="text-xs font-medium">Cámara apagada</p>
+                  <div className="absolute inset-0 bg-stone-900 flex flex-col items-center justify-center p-6 text-center space-y-3 text-stone-300 z-10">
+                    <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-amber-400 shadow-inner">
+                      <QrCode className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-white">Escáner de Código QR</p>
+                      <p className="text-xs text-stone-400">Activa la cámara para apuntar al fotocheck</p>
+                    </div>
                     <button
                       type="button"
-                      onClick={startCamera}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition cursor-pointer"
+                      disabled={isStartingCamera}
+                      onClick={() => startCamera()}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 text-xs font-black transition cursor-pointer shadow-md disabled:opacity-50"
                     >
-                      Activar Escáner Móvil
+                      {isStartingCamera ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>Iniciando sensor...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Camera className="w-4 h-4" />
+                          <span>Activar Cámara</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 )}

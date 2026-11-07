@@ -332,3 +332,32 @@ tr:hover {
     display: block !important;
   }
 }
+
+/* ==========================================================================
+   ESTILOS OPTIMIZADOS PARA ESCÁNER QR EN TELÉFONOS MÓVILES (Html5Qrcode)
+   ========================================================================== */
+#qr-reader-container {
+  width: 100% !important;
+  border: none !important;
+  background-color: #0c0a09 !important;
+  position: relative !important;
+  display: block !important;
+}
+
+#qr-reader-container video {
+  width: 100% !important;
+  height: auto !important;
+  max-height: 380px !important;
+  object-fit: cover !important;
+  border-radius: 0.75rem !important;
+  display: block !important;
+  margin: 0 auto !important;
+}
+
+#qr-reader-container__scan_region {
+  min-height: 240px !important;
+}
+
+#qr-shaded-region {
+  border-color: rgba(0, 0, 0, 0.55) !important;
+}
