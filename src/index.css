@@ -309,21 +309,23 @@ tr:hover {
     display: block !important;
   }
 
-  #constanciaImprimible {
+  #constanciaImprimible,
+  #credencialImprimible {
     display: block !important;
     position: static !important;
     width: 100% !important;
-    max-width: 100% !important;
+    max-width: 520px !important;
     margin: 0 auto !important;
     padding: 0 !important;
-    border: 2px solid #059669 !important;
-    border-radius: 16px !important;
+    border: 2px solid #851C1D !important;
+    border-radius: 20px !important;
     box-shadow: none !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
 
-  #constanciaImprimible * {
+  #constanciaImprimible *,
+  #credencialImprimible * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
