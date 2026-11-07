@@ -66,13 +66,6 @@ const SOPORTE_CONTACTOS = [
     waNumber: '51947429053',
     descripcion: 'Consultas generales y orientación',
   },
-  {
-    id: 5,
-    titulo: 'Línea de Atención 5',
-    telefono: '+51 981 574 685',
-    waNumber: '51981574685',
-    descripcion: 'Consultas generales y orientación',
-  },
 ];
 
 const formatearSedeEspecial = (sede) => {
