@@ -58,6 +58,15 @@ const playSound = (type = 'success') => {
 
 export default function ValidadorDashboard() {
   const { user, logout } = useAuth();
+
+  const formatFotoUrl = (url) => {
+    if (!url) return null;
+    const m1 = url.match(/id=([a-zA-Z0-9_-]+)/);
+    if (m1) return `https://lh3.googleusercontent.com/d/${m1[1]}`;
+    const m2 = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (m2) return `https://lh3.googleusercontent.com/d/${m2[1]}`;
+    return url;
+  };
   
   // Modos de operación: 'kits' (Entrega de Kits) | 'asistencia' (Control de Asistencia)
   const [activeTab, setActiveTab] = useState('kits');
@@ -702,9 +711,12 @@ export default function ValidadorDashboard() {
                     {/* Foto / Avatar */}
                     {scannedVoluntario.fotografia_url ? (
                       <img
-                        src={scannedVoluntario.fotografia_url}
+                        src={formatFotoUrl(scannedVoluntario.fotografia_url)}
                         alt={scannedVoluntario.nombres_apellidos}
-                        className="w-20 h-20 rounded-2xl object-cover border-2 border-stone-300 shadow-sm shrink-0"
+                        className="w-20 h-20 rounded-2xl object-cover border-2 border-stone-300 shadow-sm shrink-0 bg-stone-100"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
                       />
                     ) : (
                       <div className="w-20 h-20 rounded-2xl bg-amber-100 border-2 border-amber-300 flex items-center justify-center text-amber-900 shrink-0">
@@ -913,3 +925,4 @@ export default function ValidadorDashboard() {
     </div>
   );
 }
+

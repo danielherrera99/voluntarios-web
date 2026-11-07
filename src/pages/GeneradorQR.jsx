@@ -28,6 +28,15 @@ export default function GeneradorQR() {
   const [qrDataUrl, setQrDataUrl] = useState('');
   const credentialRef = useRef(null);
 
+  const formatFotoUrl = (url) => {
+    if (!url) return null;
+    const m1 = url.match(/id=([a-zA-Z0-9_-]+)/);
+    if (m1) return `https://lh3.googleusercontent.com/d/${m1[1]}`;
+    const m2 = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (m2) return `https://lh3.googleusercontent.com/d/${m2[1]}`;
+    return url;
+  };
+
   // Generar QR cuando se carga el voluntario
   useEffect(() => {
     if (volunteer) {
@@ -243,9 +252,12 @@ export default function GeneradorQR() {
                   <div className="relative">
                     {volunteer.fotografia_url ? (
                       <img
-                        src={volunteer.fotografia_url}
+                        src={formatFotoUrl(volunteer.fotografia_url)}
                         alt={volunteer.nombres_apellidos}
-                        className="w-24 h-24 rounded-2xl object-cover border-4 border-amber-400 shadow-md"
+                        className="w-24 h-24 rounded-2xl object-cover border-4 border-amber-400 shadow-md bg-stone-100"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
                       />
                     ) : (
                       <div className="w-24 h-24 rounded-2xl bg-amber-100 border-4 border-amber-400 flex items-center justify-center text-amber-900 shadow-md">
@@ -389,3 +401,4 @@ export default function GeneradorQR() {
     </div>
   );
 }
+
