@@ -11,12 +11,13 @@ import {
   Share2,
   Sparkles,
   AlertCircle,
-  MapPin
+  MapPin,
+  Image as ImageIcon
 } from 'lucide-react';
 
 const DEFAULT_CONFIG = {
   id: 'capacitaciones',
-  activo: true,
+  activo: false,
   modo_sedes: 'ambas',
   titulo: 'Jornadas Oficiales de Capacitación',
   subtitulo: 'Voluntariado Diocesano • Visita del Santo Padre',
@@ -35,7 +36,7 @@ const DEFAULT_CONFIG = {
   chiclayo_hora: '04:00 p.m.',
   chiclayo_lugar: 'Coliseo del Colegio Manuel Pardo',
   chiclayo_vestimenta: 'Polo Blanco',
-  chiclayo_imagen_url: '/banners/banner_chiclayo.png',
+  chiclayo_imagen_url: '',
   
   // Santa Cruz
   santacruz_titulo: 'Voluntariado Santa Cruz',
@@ -43,7 +44,7 @@ const DEFAULT_CONFIG = {
   santacruz_hora: '07:30 p.m.',
   santacruz_lugar: 'Teatro Parroquial Santa Cruz',
   santacruz_vestimenta: 'Polo Blanco',
-  santacruz_imagen_url: '/banners/banner_santacruz.jpg',
+  santacruz_imagen_url: '',
 };
 
 export default function GestionCapacitacion() {
@@ -533,22 +534,28 @@ export default function GestionCapacitacion() {
 
             {/* Subida y Vista Previa de la Imagen */}
             <div className="flex items-center gap-4 bg-stone-50 p-3.5 rounded-2xl border border-stone-200">
-              <img 
-                src={config.chiclayo_imagen_url || '/banners/banner_chiclayo.png'} 
-                alt="Afiche Chiclayo"
-                className="w-16 h-20 object-cover rounded-xl shadow-xs border border-stone-300 shrink-0"
-              />
+              {config.chiclayo_imagen_url ? (
+                <img 
+                  src={config.chiclayo_imagen_url} 
+                  alt="Afiche Chiclayo"
+                  className="w-16 h-20 object-cover rounded-xl shadow-xs border border-stone-300 shrink-0"
+                />
+              ) : (
+                <div className="w-16 h-20 bg-stone-100 rounded-xl border border-dashed border-stone-300 flex flex-col items-center justify-center text-stone-400 shrink-0 text-center p-1">
+                  <ImageIcon size={20} className="mb-0.5" />
+                  <span className="text-[9px] font-bold">Sin foto</span>
+                </div>
+              )}
               <div className="flex-grow space-y-2">
                 <label className="block text-[11px] font-bold text-stone-700 uppercase">
-                  URL de Imagen (Cloudinary o ruta local)
+                  URL de Imagen (Cloudinary o ruta externa)
                 </label>
                 <input
                   type="text"
-                  value={config.chiclayo_imagen_url}
+                  value={config.chiclayo_imagen_url || ''}
                   onChange={(e) => setConfig({ ...config, chiclayo_imagen_url: e.target.value })}
                   className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-xs font-mono"
-                  placeholder="https://res.cloudinary.com/... o /banners/..."
-                  required
+                  placeholder="Opcional: https://res.cloudinary.com/..."
                 />
                 <div>
                   <input
@@ -656,22 +663,28 @@ export default function GestionCapacitacion() {
 
             {/* Subida y Vista Previa de la Imagen */}
             <div className="flex items-center gap-4 bg-stone-50 p-3.5 rounded-2xl border border-stone-200">
-              <img 
-                src={config.santacruz_imagen_url || '/banners/banner_santacruz.jpg'} 
-                alt="Afiche Santa Cruz"
-                className="w-16 h-20 object-cover rounded-xl shadow-xs border border-stone-300 shrink-0"
-              />
+              {config.santacruz_imagen_url ? (
+                <img 
+                  src={config.santacruz_imagen_url} 
+                  alt="Afiche Santa Cruz"
+                  className="w-16 h-20 object-cover rounded-xl shadow-xs border border-stone-300 shrink-0"
+                />
+              ) : (
+                <div className="w-16 h-20 bg-stone-100 rounded-xl border border-dashed border-stone-300 flex flex-col items-center justify-center text-stone-400 shrink-0 text-center p-1">
+                  <ImageIcon size={20} className="mb-0.5" />
+                  <span className="text-[9px] font-bold">Sin foto</span>
+                </div>
+              )}
               <div className="flex-grow space-y-2">
                 <label className="block text-[11px] font-bold text-stone-700 uppercase">
-                  URL de Imagen (Cloudinary o ruta local)
+                  URL de Imagen (Cloudinary o ruta externa)
                 </label>
                 <input
                   type="text"
-                  value={config.santacruz_imagen_url}
+                  value={config.santacruz_imagen_url || ''}
                   onChange={(e) => setConfig({ ...config, santacruz_imagen_url: e.target.value })}
                   className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-xs font-mono"
-                  placeholder="https://res.cloudinary.com/... o /banners/..."
-                  required
+                  placeholder="Opcional: https://res.cloudinary.com/..."
                 />
                 <div>
                   <input

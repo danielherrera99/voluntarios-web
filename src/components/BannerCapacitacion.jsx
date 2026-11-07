@@ -9,7 +9,7 @@ const resolveImageUrl = (url) => {
 };
 
 const DEFAULT_CONFIG = {
-  activo: true,
+  activo: false,
   modo_sedes: 'ambas',
   titulo: 'Jornadas Oficiales de Capacitación',
   subtitulo: 'Voluntariado Diocesano • Visita del Santo Padre',
@@ -28,7 +28,7 @@ const DEFAULT_CONFIG = {
   chiclayo_hora: '04:00 p.m.',
   chiclayo_lugar: 'Coliseo del Colegio Manuel Pardo',
   chiclayo_vestimenta: 'Polo Blanco',
-  chiclayo_imagen_url: import.meta.env.BASE_URL + 'banners/banner_chiclayo.png',
+  chiclayo_imagen_url: '',
   
   // Santa Cruz
   santacruz_titulo: 'Voluntariado Santa Cruz',
@@ -36,12 +36,13 @@ const DEFAULT_CONFIG = {
   santacruz_hora: '07:30 p.m.',
   santacruz_lugar: 'Teatro Parroquial Santa Cruz',
   santacruz_vestimenta: 'Polo Blanco',
-  santacruz_imagen_url: import.meta.env.BASE_URL + 'banners/banner_santacruz.jpg',
+  santacruz_imagen_url: '',
 };
 
 export default function BannerCapacitacion() {
   const [sede, setSede] = useState('chiclayo');
   const [config, setConfig] = useState(DEFAULT_CONFIG);
+  const [loaded, setLoaded] = useState(false);
   const [modalImagen, setModalImagen] = useState(null);
   const [minimizado, setMinimizado] = useState(false);
 
@@ -55,28 +56,30 @@ export default function BannerCapacitacion() {
           .maybeSingle();
 
         if (data && !error) {
-          const loaded = {
+          const loadedData = {
             ...DEFAULT_CONFIG,
             ...data,
-            chiclayo_imagen_url: data.chiclayo_imagen_url || DEFAULT_CONFIG.chiclayo_imagen_url,
-            santacruz_imagen_url: data.santacruz_imagen_url || DEFAULT_CONFIG.santacruz_imagen_url,
+            chiclayo_imagen_url: data.chiclayo_imagen_url || '',
+            santacruz_imagen_url: data.santacruz_imagen_url || '',
           };
-          setConfig(loaded);
-          if (loaded.modo_sedes === 'santacruz') {
+          setConfig(loadedData);
+          if (loadedData.modo_sedes === 'santacruz') {
             setSede('santacruz');
-          } else if (loaded.modo_sedes === 'chiclayo') {
+          } else if (loadedData.modo_sedes === 'chiclayo') {
             setSede('chiclayo');
           }
         }
       } catch (err) {
         console.warn('Usando configuración por defecto de capacitaciones:', err);
+      } finally {
+        setLoaded(true);
       }
     }
     loadConfig();
   }, []);
 
-  // Si el administrador desactivó el banner, no renderizar nada
-  if (!config.activo) return null;
+  // Si aún no termina de cargar o el banner está desactivado, no renderizar absolutamente nada (evita parpadeo estático)
+  if (!loaded || !config.activo) return null;
 
   const modoSedes = config.modo_sedes || 'ambas';
   const effectiveSede = modoSedes === 'santacruz' ? 'santacruz' : (modoSedes === 'chiclayo' ? 'chiclayo' : sede);
@@ -180,35 +183,28 @@ export default function BannerCapacitacion() {
         <div className="p-5 sm:p-6">
           <div className="flex flex-col md:flex-row gap-6 items-center">
             
-            {/* AFICHE GRÁFICO (CLIC PARA AMPLIAR) */}
-            <div 
-              onClick={() => setModalImagen(currentImg)}
-              className="w-full md:w-56 aspect-[3/4] bg-stone-100 rounded-2xl overflow-hidden relative shadow-md group cursor-pointer border border-stone-200 shrink-0 hover:shadow-xl transition-all"
-              title="Haz clic para ver el afiche en tamaño completo"
-            >
-              <img 
-                src={currentImg} 
-                alt={`Afiche de Capacitación ${currentTitulo}`}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                onError={(e) => {
-                  // Fallback preventivo
-                  const fallback = isChiclayo 
-                    ? import.meta.env.BASE_URL + 'banners/banner_chiclayo.png'
-                    : import.meta.env.BASE_URL + 'banners/banner_santacruz.jpg';
-                  if (e.target.src !== fallback) {
-                    e.target.src = fallback;
-                  }
-                }}
-              />
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white p-3 text-center">
-                <i className="fa-solid fa-magnifying-glass-plus text-2xl mb-1 text-amber-300"></i>
-                <span className="text-xs font-bold">Clic para ampliar afiche</span>
+            {/* AFICHE GRÁFICO (CLIC PARA AMPLIAR) SI EXISTE */}
+            {currentImg ? (
+              <div 
+                onClick={() => setModalImagen(currentImg)}
+                className="w-full md:w-56 aspect-[3/4] bg-stone-100 rounded-2xl overflow-hidden relative shadow-md group cursor-pointer border border-stone-200 shrink-0 hover:shadow-xl transition-all"
+                title="Haz clic para ver el afiche en tamaño completo"
+              >
+                <img 
+                  src={currentImg} 
+                  alt={`Afiche de Capacitación ${currentTitulo}`}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white p-3 text-center">
+                  <i className="fa-solid fa-magnifying-glass-plus text-2xl mb-1 text-amber-300"></i>
+                  <span className="text-xs font-bold">Clic para ampliar afiche</span>
+                </div>
+                <span className="absolute bottom-2 left-2 right-2 bg-black/75 backdrop-blur-xs text-white text-[11px] font-bold py-1 px-2 rounded-lg text-center shadow-xs flex items-center justify-center gap-1.5">
+                  <i className="fa-solid fa-expand text-[10px] text-amber-400"></i>
+                  <span>Ver Afiche Oficial</span>
+                </span>
               </div>
-              <span className="absolute bottom-2 left-2 right-2 bg-black/75 backdrop-blur-xs text-white text-[11px] font-bold py-1 px-2 rounded-lg text-center shadow-xs flex items-center justify-center gap-1.5">
-                <i className="fa-solid fa-expand text-[10px] text-amber-400"></i>
-                <span>Ver Afiche Oficial</span>
-              </span>
-            </div>
+            ) : null}
 
             {/* INFORMACIÓN DEL EVENTO Y ENLACES DE FACEBOOK */}
             <div className="flex-grow space-y-4 w-full">
