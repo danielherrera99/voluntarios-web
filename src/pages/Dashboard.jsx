@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabase';
 import { 
@@ -36,7 +37,8 @@ import {
   MapPin,
   Layers,
   Pencil,
-  Compass
+  Compass,
+  QrCode
 } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import MapaTactico from '../components/MapaTactico';
@@ -1271,6 +1273,16 @@ export default function Dashboard() {
                 )}
               </button>
             )}
+
+            {/* MÓDULO VALIDADOR (KITS Y ASISTENCIA) */}
+            <Link
+              to="/validador"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-stone-900/60 hover:bg-stone-900 text-diocesis-mustard border border-diocesis-mustard/40 shadow transition cursor-pointer"
+              title="Abrir Módulo de Validadores (Entrega de Kits y Control de Asistencia)"
+            >
+              <QrCode className="w-4 h-4 text-diocesis-mustard" />
+              <span className="hidden sm:inline">Validador QR</span>
+            </Link>
 
             <div className="hidden md:flex flex-col text-right">
               <span className="text-xs font-bold text-stone-200">{user?.nombre || user?.correo || user?.email}</span>

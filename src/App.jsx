@@ -5,7 +5,9 @@ import Dashboard from './pages/Dashboard';
 import ResponsableDashboard from './pages/ResponsableDashboard';
 import LiderDashboard from './pages/LiderDashboard';
 import GuiaDashboard from './pages/GuiaDashboard';
+import ValidadorDashboard from './pages/ValidadorDashboard';
 import ConsultaVoluntariado from './pages/ConsultaVoluntariado';
+import GeneradorQR from './pages/GeneradorQR';
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useAuth();
@@ -15,6 +17,7 @@ const ProtectedRoute = ({ children }) => {
 
 const DashboardRouter = () => {
   const { user } = useAuth();
+  if (user?.rol === 'validador') return <ValidadorDashboard />;
   if (user?.rol === 'responsable') return <ResponsableDashboard />;
   if (user?.rol === 'lider') return <LiderDashboard />;
   if (user?.rol === 'guia') return <GuiaDashboard />;
@@ -45,6 +48,9 @@ function AppRoutes() {
       {/* Portal Público de Consulta (o Login si es la App instalada) */}
       <Route path="/" element={<PublicOrPwaRoot />} />
       <Route path="/consulta" element={<ConsultaVoluntariado />} />
+      
+      {/* Generación discreta de Credencial con QR (Ruta dedicada para voluntarios) */}
+      <Route path="/qr" element={<GeneradorQR />} />
 
       {/* Acceso Administrativo y Jerárquico */}
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
@@ -53,6 +59,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <DashboardRouter />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/validador" 
+        element={
+          <ProtectedRoute>
+            <ValidadorDashboard />
           </ProtectedRoute>
         } 
       />
