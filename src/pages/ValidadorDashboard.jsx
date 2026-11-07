@@ -73,8 +73,8 @@ export default function ValidadorDashboard() {
     return url;
   };
   
-  // Modos de operación: 'kits' (Entrega de Kits) | 'asistencia' (Control de Asistencia)
-  const [activeTab, setActiveTab] = useState('kits');
+  // Modos de operación: 'asistencia' (Control de Asistencia) | 'kits' (Entrega de Kits) | 'visor' (Visor en Vivo)
+  const [activeTab, setActiveTab] = useState('asistencia');
 
   // Estados de escáner y búsqueda
   const [isScanning, setIsScanning] = useState(false);
@@ -364,8 +364,8 @@ export default function ValidadorDashboard() {
 
       setScannedVoluntario(record);
 
-      // Sonido de alerta si ya se le entregó el kit
-      if (activeTab === 'kits' && record.kit_entregado) {
+      // Sonido de alerta si ya se procesó según el modo activo
+      if ((activeTab === 'kits' && record.kit_entregado) || (activeTab === 'asistencia' && record.asistencia_dia_d)) {
         playSound('warning');
       } else {
         playSound('success');
@@ -708,22 +708,6 @@ export default function ValidadorDashboard() {
             <button
               type="button"
               onClick={() => {
-                setActiveTab('kits');
-                setScannedVoluntario(null);
-              }}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
-                activeTab === 'kits'
-                  ? 'bg-amber-100 text-amber-950 border border-amber-300 shadow-2xs'
-                  : 'bg-stone-50 text-stone-600 hover:bg-stone-100 border border-stone-200'
-              }`}
-            >
-              <PackageCheck className="w-4 h-4 text-amber-700" />
-              <span>1. Entrega de Kits & Polos</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
                 setActiveTab('asistencia');
                 setScannedVoluntario(null);
               }}
@@ -734,7 +718,23 @@ export default function ValidadorDashboard() {
               }`}
             >
               <ClipboardCheck className="w-4 h-4 text-blue-700" />
-              <span>2. Control de Asistencia</span>
+              <span>1. Control de Asistencia</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('kits');
+                setScannedVoluntario(null);
+              }}
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
+                activeTab === 'kits'
+                  ? 'bg-amber-100 text-amber-950 border border-amber-300 shadow-2xs'
+                  : 'bg-stone-50 text-stone-600 hover:bg-stone-100 border border-stone-200'
+              }`}
+            >
+              <PackageCheck className="w-4 h-4 text-amber-700" />
+              <span>2. Entrega de Kits & Polos</span>
             </button>
 
             <button
@@ -767,19 +767,6 @@ export default function ValidadorDashboard() {
               type="button"
               onClick={() => {
                 setActiveTab('visor');
-                setVisorFilter('KITS');
-                stopCamera();
-                fetchVisorRecords();
-              }}
-              className="flex items-center gap-1 bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-xl border border-amber-200 text-amber-900 transition cursor-pointer"
-              title="Ver en el Visor la lista de quienes recibieron su Kit"
-            >
-              🎁 Kits: <strong className="text-amber-950">{stats.kitsHoy}</strong>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('visor');
                 setVisorFilter('ASISTENCIA');
                 stopCamera();
                 fetchVisorRecords();
@@ -788,6 +775,19 @@ export default function ValidadorDashboard() {
               title="Ver en el Visor la lista de quienes marcaron Asistencia"
             >
               📋 Asistencias: <strong className="text-blue-950">{stats.asistenciaHoy}</strong>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('visor');
+                setVisorFilter('KITS');
+                stopCamera();
+                fetchVisorRecords();
+              }}
+              className="flex items-center gap-1 bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-xl border border-amber-200 text-amber-900 transition cursor-pointer"
+              title="Ver en el Visor la lista de quienes recibieron su Kit"
+            >
+              🎁 Kits: <strong className="text-amber-950">{stats.kitsHoy}</strong>
             </button>
           </div>
 
@@ -889,18 +889,6 @@ export default function ValidadorDashboard() {
 
                   <button
                     type="button"
-                    onClick={() => setVisorFilter('KITS')}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
-                      visorFilter === 'KITS'
-                        ? 'bg-amber-600 text-white shadow-xs'
-                        : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200'
-                    }`}
-                  >
-                    🎁 Kits ({visorRecords.filter(r => r.kit_entregado).length})
-                  </button>
-
-                  <button
-                    type="button"
                     onClick={() => setVisorFilter('ASISTENCIA')}
                     className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
                       visorFilter === 'ASISTENCIA'
@@ -909,6 +897,18 @@ export default function ValidadorDashboard() {
                     }`}
                   >
                     📋 Asistencias ({visorRecords.filter(r => r.asistencia_dia_d).length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setVisorFilter('KITS')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                      visorFilter === 'KITS'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200'
+                    }`}
+                  >
+                    🎁 Kits ({visorRecords.filter(r => r.kit_entregado).length})
                   </button>
                 </div>
               </div>
@@ -1015,40 +1015,9 @@ export default function ValidadorDashboard() {
                       </div>
                     </div>
 
-                    {/* Fila Secundaria: Estados de Kit y Asistencia + Botones de Anulación */}
+                    {/* Fila Secundaria: Estados de Asistencia y Kit + Botones de Anulación */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2 border-t border-stone-100 text-xs">
                       
-                      {/* Estado Kit */}
-                      <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
-                        item.kit_entregado 
-                          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
-                          : 'bg-stone-50 border-stone-200 text-stone-400'
-                      }`}>
-                        <div className="min-w-0">
-                          <span className="font-bold block truncate">
-                            {item.kit_entregado ? '🎁 Kit Entregado' : '⚪ Kit Pendiente'}
-                          </span>
-                          {item.kit_entregado && (
-                            <span className="text-[10px] text-stone-600 block truncate">
-                              {item.kit_items_entregados || 'Kit Oficial'} • {item.kit_fecha_entrega ? new Date(item.kit_fecha_entrega).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''} por <strong>{item.kit_entregado_por || 'Validador'}</strong>
-                            </span>
-                          )}
-                        </div>
-
-                        {user?.rol === 'admin' && item.kit_entregado && (
-                          <button
-                            type="button"
-                            disabled={savingAction}
-                            onClick={() => handleResetKit(item)}
-                            className="px-2.5 py-1 text-[11px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded-lg flex items-center gap-1 shrink-0 transition cursor-pointer shadow-2xs disabled:opacity-50"
-                            title="Anular entrega y volver a estado pendiente (Exclusivo Administrador)"
-                          >
-                            <RotateCcw className="w-3 h-3" />
-                            <span>Anular Kit</span>
-                          </button>
-                        )}
-                      </div>
-
                       {/* Estado Asistencia */}
                       <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
                         item.asistencia_dia_d 
@@ -1076,6 +1045,37 @@ export default function ValidadorDashboard() {
                           >
                             <RotateCcw className="w-3 h-3" />
                             <span>Anular Asistencia</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Estado Kit */}
+                      <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
+                        item.kit_entregado 
+                          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                          : 'bg-stone-50 border-stone-200 text-stone-400'
+                      }`}>
+                        <div className="min-w-0">
+                          <span className="font-bold block truncate">
+                            {item.kit_entregado ? '🎁 Kit Entregado' : '⚪ Kit Pendiente'}
+                          </span>
+                          {item.kit_entregado && (
+                            <span className="text-[10px] text-stone-600 block truncate">
+                              {item.kit_items_entregados || 'Kit Oficial'} • {item.kit_fecha_entrega ? new Date(item.kit_fecha_entrega).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''} por <strong>{item.kit_entregado_por || 'Validador'}</strong>
+                            </span>
+                          )}
+                        </div>
+
+                        {user?.rol === 'admin' && item.kit_entregado && (
+                          <button
+                            type="button"
+                            disabled={savingAction}
+                            onClick={() => handleResetKit(item)}
+                            className="px-2.5 py-1 text-[11px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded-lg flex items-center gap-1 shrink-0 transition cursor-pointer shadow-2xs disabled:opacity-50"
+                            title="Anular entrega y volver a estado pendiente (Exclusivo Administrador)"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            <span>Anular Kit</span>
                           </button>
                         )}
                       </div>
@@ -1483,7 +1483,35 @@ export default function ValidadorDashboard() {
             ) : (
               <>
             {/* Banner de Estado Específico */}
-            {activeTab === 'kits' ? (
+            {activeTab === 'asistencia' ? (
+              // MODO ASISTENCIA
+              scannedVoluntario.asistencia_dia_d ? (
+                <div className="bg-emerald-600 text-white p-4 pr-12 text-center space-y-0.5">
+                  <span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-0.5 rounded-full inline-block">
+                    ✅ PRESENTE
+                  </span>
+                  <h3 className="text-base sm:text-lg font-black font-title">
+                    ASISTENCIA YA REGISTRADA
+                  </h3>
+                  <p className="text-xs text-emerald-100">
+                    Marcado el {new Date(scannedVoluntario.asistencia_fecha).toLocaleTimeString()} por {scannedVoluntario.asistencia_registrada_por}.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-blue-600 text-white p-4 pr-12 text-center space-y-0.5">
+                  <span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-0.5 rounded-full inline-block">
+                    📋 CONTROL DE ASISTENCIA
+                  </span>
+                  <h3 className="text-base sm:text-lg font-black font-title">
+                    PENDIENTE DE MARCAR ASISTENCIA
+                  </h3>
+                  <p className="text-xs text-blue-100">
+                    Confirma la presencia del voluntario en su punto asignado.
+                  </p>
+                </div>
+              )
+            ) : (
+              // MODO KITS
               scannedVoluntario.kit_entregado ? (
                 // 🔴 ALERTA: KIT YA ENTREGADO
                 <div className="bg-rose-600 text-white p-4 pr-12 text-center space-y-1">
@@ -1517,33 +1545,6 @@ export default function ValidadorDashboard() {
                   </h3>
                   <p className="text-xs text-emerald-100">
                     Verifica su identidad y selecciona los ítems entregados.
-                  </p>
-                </div>
-              )
-            ) : (
-              // MODO ASISTENCIA
-              scannedVoluntario.asistencia_dia_d ? (
-                <div className="bg-emerald-600 text-white p-4 pr-12 text-center space-y-0.5">
-                  <span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-0.5 rounded-full inline-block">
-                    ✅ PRESENTE
-                  </span>
-                  <h3 className="text-base sm:text-lg font-black font-title">
-                    ASISTENCIA YA REGISTRADA
-                  </h3>
-                  <p className="text-xs text-emerald-100">
-                    Marcado el {new Date(scannedVoluntario.asistencia_fecha).toLocaleTimeString()} por {scannedVoluntario.asistencia_registrada_por}.
-                  </p>
-                </div>
-              ) : (
-                <div className="bg-blue-600 text-white p-4 pr-12 text-center space-y-0.5">
-                  <span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-0.5 rounded-full inline-block">
-                    📋 CONTROL DE ASISTENCIA
-                  </span>
-                  <h3 className="text-base sm:text-lg font-black font-title">
-                    PENDIENTE DE MARCAR ASISTENCIA
-                  </h3>
-                  <p className="text-xs text-blue-100">
-                    Confirma la presencia del voluntario en su punto asignado.
                   </p>
                 </div>
               )
@@ -1672,6 +1673,50 @@ export default function ValidadorDashboard() {
                 </span>
               </div>
 
+              {/* FORMULARIO DE ACCIÓN: MODO ASISTENCIA */}
+              {activeTab === 'asistencia' && (
+                <div className="space-y-3 pt-2 border-t border-stone-200">
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">
+                      Punto o Puerta de Asistencia:
+                    </label>
+                    <select
+                      value={puntoAsistencia}
+                      onChange={(e) => setPuntoAsistencia(e.target.value)}
+                      className="w-full py-2.5 px-3 bg-stone-50 border border-stone-300 rounded-xl text-xs font-semibold text-stone-800 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
+                    >
+                      <option value="Punto Principal">📍 Puerta Principal de Acceso</option>
+                      <option value="Capacitación General">🎓 Capacitación General / USAT</option>
+                      <option value="Sede Santuario">⛪ Sede Santuario</option>
+                      <option value="Sede Zaña">📍 Sede Zaña</option>
+                      <option value="Sede Santa Cruz">📍 Sede Santa Cruz</option>
+                      <option value="Punto de Resguardo">🛡️ Punto de Resguardo y Orden</option>
+                    </select>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={savingAction || scannedVoluntario.asistencia_dia_d}
+                    onClick={handleConfirmAttendance}
+                    className="w-full py-3 px-4 bg-blue-700 hover:bg-blue-800 active:bg-blue-900 text-white rounded-2xl font-bold text-sm shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                  >
+                    {savingAction ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                        <span>Registrando presencia...</span>
+                      </>
+                    ) : (
+                      <>
+                        <MapPin className="w-5 h-5 text-blue-200" />
+                        <span>
+                          {scannedVoluntario.asistencia_dia_d ? 'Asistencia Ya Registrada' : 'Marcar Asistencia Oficial'}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
               {/* FORMULARIO DE ACCIÓN: MODO KITS */}
               {activeTab === 'kits' && (
                 <div className="space-y-3 pt-2 border-t border-stone-200">
@@ -1726,50 +1771,6 @@ export default function ValidadorDashboard() {
                       <>
                         <Check className="w-5 h-5 text-emerald-200" />
                         <span>Confirmar Entrega de Kit</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
-
-              {/* FORMULARIO DE ACCIÓN: MODO ASISTENCIA */}
-              {activeTab === 'asistencia' && (
-                <div className="space-y-3 pt-2 border-t border-stone-200">
-                  <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1">
-                      Punto o Puerta de Asistencia:
-                    </label>
-                    <select
-                      value={puntoAsistencia}
-                      onChange={(e) => setPuntoAsistencia(e.target.value)}
-                      className="w-full py-2.5 px-3 bg-stone-50 border border-stone-300 rounded-xl text-xs font-semibold text-stone-800 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
-                    >
-                      <option value="Punto Principal">📍 Puerta Principal de Acceso</option>
-                      <option value="Capacitación General">🎓 Capacitación General / USAT</option>
-                      <option value="Sede Santuario">⛪ Sede Santuario</option>
-                      <option value="Sede Zaña">📍 Sede Zaña</option>
-                      <option value="Sede Santa Cruz">📍 Sede Santa Cruz</option>
-                      <option value="Punto de Resguardo">🛡️ Punto de Resguardo y Orden</option>
-                    </select>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={savingAction || scannedVoluntario.asistencia_dia_d}
-                    onClick={handleConfirmAttendance}
-                    className="w-full py-3 px-4 bg-blue-700 hover:bg-blue-800 active:bg-blue-900 text-white rounded-2xl font-bold text-sm shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
-                  >
-                    {savingAction ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                        <span>Registrando presencia...</span>
-                      </>
-                    ) : (
-                      <>
-                        <MapPin className="w-5 h-5 text-blue-200" />
-                        <span>
-                          {scannedVoluntario.asistencia_dia_d ? 'Asistencia Ya Registrada' : 'Marcar Asistencia Oficial'}
-                        </span>
                       </>
                     )}
                   </button>
