@@ -90,6 +90,7 @@ export default function ValidadorDashboard() {
   const [actionError, setActionError] = useState(null);
   const [savingAction, setSavingAction] = useState(false);
   const [actionSuccessMsg, setActionSuccessMsg] = useState(null);
+  const [justConfirmed, setJustConfirmed] = useState(null); // null | 'KIT' | 'ASISTENCIA'
 
   // Formulario de Entrega de Kits
   const [entregaKitCompleto, setEntregaKitCompleto] = useState(true);
@@ -325,6 +326,7 @@ export default function ValidadorDashboard() {
     setSearching(true);
     setActionError(null);
     setActionSuccessMsg(null);
+    setJustConfirmed(null);
     setScannedVoluntario(null);
 
     try {
@@ -415,6 +417,7 @@ export default function ValidadorDashboard() {
 
       playSound('success');
       setActionSuccessMsg(`¡Kit entregado exitosamente a ${scannedVoluntario.nombres_apellidos}!`);
+      setJustConfirmed('KIT');
 
       // Actualizar estado local
       const updated = { ...scannedVoluntario, ...updateData };
@@ -469,6 +472,7 @@ export default function ValidadorDashboard() {
 
       playSound('success');
       setActionSuccessMsg(`¡Asistencia registrada para ${scannedVoluntario.nombres_apellidos}!`);
+      setJustConfirmed('ASISTENCIA');
 
       // Actualizar estado local
       const updated = { ...scannedVoluntario, ...updateData };
@@ -537,6 +541,7 @@ export default function ValidadorDashboard() {
 
       // Actualizar tarjeta si es el voluntario escaneado en el modal
       if (scannedVoluntario && scannedVoluntario.id === voluntario.id) {
+        setJustConfirmed(null);
         setScannedVoluntario(prev => ({ ...prev, ...resetData }));
         setActionSuccessMsg(`Entrega de kit anulada correctamente para ${voluntarioNombre}.`);
       }
@@ -586,6 +591,7 @@ export default function ValidadorDashboard() {
 
       // Actualizar tarjeta si es el voluntario escaneado en el modal
       if (scannedVoluntario && scannedVoluntario.id === voluntario.id) {
+        setJustConfirmed(null);
         setScannedVoluntario(prev => ({ ...prev, ...resetData }));
         setActionSuccessMsg(`Asistencia anulada correctamente para ${voluntarioNombre}.`);
       }
@@ -604,6 +610,7 @@ export default function ValidadorDashboard() {
     setScannedVoluntario(null);
     setActionError(null);
     setActionSuccessMsg(null);
+    setJustConfirmed(null);
     setManualInput('');
     startCamera();
   };
@@ -1380,6 +1387,101 @@ export default function ValidadorDashboard() {
               <X className="w-4 h-4" />
             </button>
 
+            {justConfirmed ? (
+              /* ======================================================== */
+              /* PANTALLA DE ÉXITO TRAS CONFIRMAR ACCIÓN                  */
+              /* ======================================================== */
+              <div className="p-6 sm:p-8 text-center space-y-5 animate-in zoom-in-95 duration-200">
+                <div className="w-16 h-16 rounded-3xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner border-2 border-emerald-300">
+                  <CheckCircle2 className="w-10 h-10" />
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[11px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-800 px-3 py-0.5 rounded-full inline-block">
+                    ✅ {justConfirmed === 'KIT' ? 'ENTREGA REGISTRADA' : 'ASISTENCIA REGISTRADA'}
+                  </span>
+                  <h3 className="text-xl sm:text-2xl font-black font-title text-stone-900 leading-tight">
+                    {justConfirmed === 'KIT' ? '¡Kit Entregado con Éxito!' : '¡Asistencia Registrada!'}
+                  </h3>
+                  <p className="text-xs text-stone-500">
+                    El registro se guardó correctamente en la base de datos oficial.
+                  </p>
+                </div>
+
+                {/* Resumen del Voluntario */}
+                <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200 text-left flex items-center gap-3">
+                  {scannedVoluntario.fotografia_url ? (
+                    <img
+                      src={formatFotoUrl(scannedVoluntario.fotografia_url)}
+                      alt={scannedVoluntario.nombres_apellidos}
+                      className="w-14 h-14 rounded-xl object-cover border border-stone-300 shrink-0 bg-white"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  ) : (
+                    <div className="w-14 h-14 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-800 shrink-0">
+                      <User className="w-7 h-7" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-bold text-sm text-stone-900 truncate">
+                      {scannedVoluntario.nombres_apellidos}
+                    </h4>
+                    <p className="text-xs font-mono text-stone-500">
+                      DNI: <strong className="text-diocesis-redDark">{scannedVoluntario.dni || 'S/D'}</strong> • Código: <span>{scannedVoluntario.codigo || `VOL-${scannedVoluntario.dni}`}</span>
+                    </p>
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      {justConfirmed === 'KIT' && (
+                        <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded border border-amber-200">
+                          👕 Talla {scannedVoluntario.talla || 'L'} • {scannedVoluntario.kit_items_entregados}
+                        </span>
+                      )}
+                      {justConfirmed === 'ASISTENCIA' && (
+                        <span className="text-[10px] font-bold bg-blue-100 text-blue-900 px-2 py-0.5 rounded border border-blue-200">
+                          📍 {scannedVoluntario.asistencia_punto}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botón Principal: Escanear Siguiente Voluntario */}
+                <div className="space-y-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleNextVolunteer}
+                    className="w-full py-4 px-6 bg-stone-900 hover:bg-black active:bg-stone-800 text-white rounded-2xl font-bold text-base shadow-lg transition flex items-center justify-center gap-2.5 cursor-pointer"
+                  >
+                    <QrCode className="w-5 h-5 text-diocesis-mustard" />
+                    <span>Escanear Siguiente Voluntario</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleNextVolunteer}
+                    className="text-xs text-stone-500 hover:text-stone-800 underline cursor-pointer"
+                  >
+                    Cerrar ventana y volver a la cámara
+                  </button>
+
+                  {/* Opción de anulación para Administrador */}
+                  {user?.rol === 'admin' && (
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (justConfirmed === 'KIT') handleResetKit(scannedVoluntario);
+                          else handleResetAttendance(scannedVoluntario);
+                        }}
+                        className="text-xs text-rose-600 hover:text-rose-800 underline cursor-pointer"
+                      >
+                        ¿Fue un error? Anular esta {justConfirmed === 'KIT' ? 'entrega de kit' : 'asistencia'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <>
             {/* Banner de Estado Específico */}
             {activeTab === 'kits' ? (
               scannedVoluntario.kit_entregado ? (
@@ -1694,6 +1796,8 @@ export default function ValidadorDashboard() {
                 <span>Escanear Siguiente Voluntario</span>
               </button>
             </div>
+            </>
+          )}
 
           </div>
         </div>
