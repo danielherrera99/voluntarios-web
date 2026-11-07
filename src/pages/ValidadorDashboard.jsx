@@ -25,7 +25,10 @@ import {
   ShieldCheck,
   AlertCircle,
   ExternalLink,
-  SwitchCamera
+  SwitchCamera,
+  Eye,
+  RotateCcw,
+  Filter
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -102,6 +105,12 @@ export default function ValidadorDashboard() {
   // Métricas rápidas de la sesión
   const [stats, setStats] = useState({ kitsHoy: 0, asistenciaHoy: 0 });
 
+  // Estados del Visor de Asistentes y Entregas en Tiempo Real
+  const [visorRecords, setVisorRecords] = useState([]);
+  const [loadingVisor, setLoadingVisor] = useState(false);
+  const [visorSearch, setVisorSearch] = useState('');
+  const [visorFilter, setVisorFilter] = useState('ALL'); // 'ALL' | 'KITS' | 'ASISTENCIA'
+
   const html5QrCodeRef = useRef(null);
 
   // Cargar métricas iniciales del validador
@@ -118,8 +127,44 @@ export default function ValidadorDashboard() {
     } catch (e) {}
   };
 
+  // Cargar registros completos del Visor en Tiempo Real
+  const fetchVisorRecords = async () => {
+    setLoadingVisor(true);
+    try {
+      const [{ data: vF2, error: e2 }, { data: vF1, error: e1 }] = await Promise.all([
+        supabase.from('voluntarios')
+          .select('id, dni, codigo, nombres_apellidos, talla, servicio, responsable_nombre, lugar_asignado, fotografia_url, kit_entregado, kit_polo_entregado, kit_items_entregados, kit_fecha_entrega, kit_entregado_por, asistencia_dia_d, asistencia_fecha, asistencia_registrada_por, asistencia_punto, fase, estado')
+          .or('kit_entregado.eq.true,asistencia_dia_d.eq.true'),
+        supabase.from('voluntarios_general')
+          .select('id, dni, codigo, nombres_apellidos, talla, servicio, responsable_nombre, lugar_asignado, fotografia_url, kit_entregado, kit_polo_entregado, kit_items_entregados, kit_fecha_entrega, kit_entregado_por, asistencia_dia_d, asistencia_fecha, asistencia_registrada_por, asistencia_punto, fase, estado')
+          .or('kit_entregado.eq.true,asistencia_dia_d.eq.true')
+      ]);
+
+      if (e2) console.warn('Error fetching F2 visor:', e2);
+      if (e1) console.warn('Error fetching F1 visor:', e1);
+
+      // Combinar y deduplicar por DNI o ID (Fase 2 tiene precedencia)
+      const map = new Map();
+      (vF1 || []).forEach(item => map.set(item.dni || item.id, item));
+      (vF2 || []).forEach(item => map.set(item.dni || item.id, item));
+
+      const combined = Array.from(map.values()).sort((a, b) => {
+        const timeA = new Date(a.kit_fecha_entrega || a.asistencia_fecha || 0).getTime();
+        const timeB = new Date(b.kit_fecha_entrega || b.asistencia_fecha || 0).getTime();
+        return timeB - timeA;
+      });
+
+      setVisorRecords(combined);
+    } catch (err) {
+      console.error('Error cargando visor:', err);
+    } finally {
+      setLoadingVisor(false);
+    }
+  };
+
   useEffect(() => {
     fetchStats();
+    fetchVisorRecords();
   }, []);
 
   // Iniciar Cámara con autodetección de sensor trasero y manejo resiliente
@@ -451,6 +496,109 @@ export default function ValidadorDashboard() {
     }
   };
 
+  // ========================================================
+  // REVERSIÓN / ANULACIÓN DE PRUEBAS (EXCLUSIVO ADMINISTRADOR)
+  // ========================================================
+  const handleResetKit = async (voluntario) => {
+    if (user?.rol !== 'admin') {
+      alert('Acceso restringido: Solo los administradores pueden anular o revertir entregas de kit.');
+      return;
+    }
+
+    const voluntarioNombre = voluntario.nombres_apellidos || 'este voluntario';
+    if (!window.confirm(`¿Estás seguro de ANULAR la entrega de kit de ${voluntarioNombre}?\n\nEl registro volverá a figurar como PENDIENTE de entrega.`)) {
+      return;
+    }
+
+    setSavingAction(true);
+    setActionError(null);
+    try {
+      const resetData = {
+        kit_entregado: false,
+        kit_polo_entregado: false,
+        kit_items_entregados: null,
+        kit_fecha_entrega: null,
+        kit_entregado_por: null,
+        kit_observaciones: null
+      };
+
+      const tableName = voluntario.fase === '3' || voluntario.estado === 'SELECCIONADO' 
+        ? 'voluntarios' 
+        : 'voluntarios_general';
+
+      const { error } = await supabase
+        .from(tableName)
+        .update(resetData)
+        .eq('id', voluntario.id);
+
+      if (error) throw error;
+
+      playSound('success');
+
+      // Actualizar tarjeta si es el voluntario escaneado en el modal
+      if (scannedVoluntario && scannedVoluntario.id === voluntario.id) {
+        setScannedVoluntario(prev => ({ ...prev, ...resetData }));
+        setActionSuccessMsg(`Entrega de kit anulada correctamente para ${voluntarioNombre}.`);
+      }
+
+      await Promise.all([fetchStats(), fetchVisorRecords()]);
+    } catch (err) {
+      console.error('Error anulando kit:', err);
+      setActionError('No se pudo anular la entrega del kit.');
+    } finally {
+      setSavingAction(false);
+    }
+  };
+
+  const handleResetAttendance = async (voluntario) => {
+    if (user?.rol !== 'admin') {
+      alert('Acceso restringido: Solo los administradores pueden anular o revertir registros de asistencia.');
+      return;
+    }
+
+    const voluntarioNombre = voluntario.nombres_apellidos || 'este voluntario';
+    if (!window.confirm(`¿Estás seguro de ANULAR la asistencia de ${voluntarioNombre}?\n\nEl registro volverá a figurar como NO MARCADO.`)) {
+      return;
+    }
+
+    setSavingAction(true);
+    setActionError(null);
+    try {
+      const resetData = {
+        asistencia_dia_d: false,
+        asistencia_fecha: null,
+        asistencia_registrada_por: null,
+        asistencia_punto: null
+      };
+
+      const tableName = voluntario.fase === '3' || voluntario.estado === 'SELECCIONADO' 
+        ? 'voluntarios' 
+        : 'voluntarios_general';
+
+      const { error } = await supabase
+        .from(tableName)
+        .update(resetData)
+        .eq('id', voluntario.id);
+
+      if (error) throw error;
+
+      playSound('success');
+
+      // Actualizar tarjeta si es el voluntario escaneado en el modal
+      if (scannedVoluntario && scannedVoluntario.id === voluntario.id) {
+        setScannedVoluntario(prev => ({ ...prev, ...resetData }));
+        setActionSuccessMsg(`Asistencia anulada correctamente para ${voluntarioNombre}.`);
+      }
+
+      await Promise.all([fetchStats(), fetchVisorRecords()]);
+    } catch (err) {
+      console.error('Error anulando asistencia:', err);
+      setActionError('No se pudo anular la asistencia.');
+    } finally {
+      setSavingAction(false);
+    }
+  };
+
   // Reset para siguiente escaneo
   const handleNextVolunteer = () => {
     setScannedVoluntario(null);
@@ -479,6 +627,22 @@ export default function ValidadorDashboard() {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [scannedVoluntario]);
+
+  // Filtrado de registros en el Visor
+  const filteredVisorRecords = visorRecords.filter(item => {
+    if (visorFilter === 'KITS' && !item.kit_entregado) return false;
+    if (visorFilter === 'ASISTENCIA' && !item.asistencia_dia_d) return false;
+    if (visorSearch.trim()) {
+      const term = visorSearch.toLowerCase().trim();
+      const matchName = item.nombres_apellidos?.toLowerCase().includes(term);
+      const matchDni = item.dni?.includes(term);
+      const matchCodigo = item.codigo?.toLowerCase().includes(term);
+      const matchResp = item.responsable_nombre?.toLowerCase().includes(term);
+      const matchVal = (item.kit_entregado_por || '').toLowerCase().includes(term) || (item.asistencia_registrada_por || '').toLowerCase().includes(term);
+      return matchName || matchDni || matchCodigo || matchResp || matchVal;
+    }
+    return true;
+  });
 
   return (
     <div className="min-h-screen bg-stone-100 flex flex-col font-sans selection:bg-amber-200">
@@ -529,18 +693,18 @@ export default function ValidadorDashboard() {
         </div>
       </header>
 
-      {/* Selector de Modo de Operación (2 Pestañas Clave) */}
+      {/* Selector de Modo de Operación (Kits, Asistencia y Visor en Vivo) */}
       <div className="bg-white border-b border-stone-200 shadow-2xs">
         <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-between flex-wrap gap-2">
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
               onClick={() => {
                 setActiveTab('kits');
                 setScannedVoluntario(null);
               }}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
                 activeTab === 'kits'
                   ? 'bg-amber-100 text-amber-950 border border-amber-300 shadow-2xs'
                   : 'bg-stone-50 text-stone-600 hover:bg-stone-100 border border-stone-200'
@@ -556,7 +720,7 @@ export default function ValidadorDashboard() {
                 setActiveTab('asistencia');
                 setScannedVoluntario(null);
               }}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
                 activeTab === 'asistencia'
                   ? 'bg-blue-100 text-blue-950 border border-blue-300 shadow-2xs'
                   : 'bg-stone-50 text-stone-600 hover:bg-stone-100 border border-stone-200'
@@ -565,16 +729,59 @@ export default function ValidadorDashboard() {
               <ClipboardCheck className="w-4 h-4 text-blue-700" />
               <span>2. Control de Asistencia</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('visor');
+                setScannedVoluntario(null);
+                stopCamera();
+                fetchVisorRecords();
+              }}
+              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
+                activeTab === 'visor'
+                  ? 'bg-purple-100 text-purple-950 border border-purple-300 shadow-2xs'
+                  : 'bg-stone-50 text-stone-600 hover:bg-stone-100 border border-stone-200'
+              }`}
+            >
+              <Eye className="w-4 h-4 text-purple-700" />
+              <span>3. Visor de Asistentes & Entregas</span>
+              {visorRecords.length > 0 && (
+                <span className="bg-purple-200 text-purple-950 px-1.5 py-0.2 rounded-full text-[10px] font-black">
+                  {visorRecords.length}
+                </span>
+              )}
+            </button>
           </div>
 
-          {/* Métricas Rápidas */}
-          <div className="flex items-center gap-3 text-xs font-mono font-bold text-stone-600">
-            <span className="flex items-center gap-1 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 text-amber-900">
+          {/* Métricas Rápidas Interactivas (Hacen clic directo al visor) */}
+          <div className="flex items-center gap-2 text-xs font-mono font-bold text-stone-600">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('visor');
+                setVisorFilter('KITS');
+                stopCamera();
+                fetchVisorRecords();
+              }}
+              className="flex items-center gap-1 bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-xl border border-amber-200 text-amber-900 transition cursor-pointer"
+              title="Ver en el Visor la lista de quienes recibieron su Kit"
+            >
               🎁 Kits: <strong className="text-amber-950">{stats.kitsHoy}</strong>
-            </span>
-            <span className="flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 text-blue-900">
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('visor');
+                setVisorFilter('ASISTENCIA');
+                stopCamera();
+                fetchVisorRecords();
+              }}
+              className="flex items-center gap-1 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-xl border border-blue-200 text-blue-900 transition cursor-pointer"
+              title="Ver en el Visor la lista de quienes marcaron Asistencia"
+            >
               📋 Asistencias: <strong className="text-blue-950">{stats.asistenciaHoy}</strong>
-            </span>
+            </button>
           </div>
 
         </div>
@@ -583,6 +790,298 @@ export default function ValidadorDashboard() {
       {/* Contenido Principal */}
       <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 space-y-6">
         
+        {activeTab === 'visor' ? (
+          /* ======================================================== */
+          /* PESTAÑA 3: VISOR EN VIVO DE ENTREGAS Y ASISTENCIAS      */
+          /* ======================================================== */
+          <div className="space-y-5 animate-in fade-in duration-150">
+            
+            {/* Header del Visor */}
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-stone-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-800 flex items-center justify-center border border-purple-200 shadow-2xs">
+                    <Eye className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-bold font-title text-stone-900 leading-tight">
+                      Padrón en Vivo • Entregas y Asistencias
+                    </h2>
+                    <p className="text-xs text-stone-500">
+                      Visualiza en tiempo real a los voluntarios que han llegado y recibido implementos.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                {user?.rol === 'admin' ? (
+                  <span className="px-3 py-1.5 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs">
+                    <ShieldCheck className="w-4 h-4 text-rose-600" />
+                    <span>Modo Administrador (Anulación habilitada)</span>
+                  </span>
+                ) : (
+                  <span className="px-3 py-1.5 bg-stone-100 border border-stone-200 text-stone-700 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                    <Eye className="w-4 h-4 text-stone-500" />
+                    <span>Validador (Solo lectura)</span>
+                  </span>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    fetchVisorRecords();
+                    fetchStats();
+                  }}
+                  disabled={loadingVisor}
+                  className="px-3.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  title="Recargar datos desde la base de datos"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingVisor ? 'animate-spin' : ''}`} />
+                  <span>Actualizar</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Barra de Filtros y Búsqueda */}
+            <div className="bg-white rounded-2xl p-4 border border-stone-200 shadow-2xs space-y-3">
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                {/* Input de Búsqueda */}
+                <div className="relative flex-1 w-full">
+                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
+                  <input
+                    type="text"
+                    value={visorSearch}
+                    onChange={(e) => setVisorSearch(e.target.value)}
+                    placeholder="Buscar por nombre, DNI, código o validador..."
+                    className="w-full pl-9 pr-8 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs font-medium text-stone-900 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
+                  />
+                  {visorSearch && (
+                    <button
+                      onClick={() => setVisorSearch('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filtros Tipo Pills */}
+                <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+                  <button
+                    type="button"
+                    onClick={() => setVisorFilter('ALL')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                      visorFilter === 'ALL'
+                        ? 'bg-stone-900 text-white shadow-xs'
+                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                    }`}
+                  >
+                    Todos ({visorRecords.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setVisorFilter('KITS')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                      visorFilter === 'KITS'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200'
+                    }`}
+                  >
+                    🎁 Kits ({visorRecords.filter(r => r.kit_entregado).length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setVisorFilter('ASISTENCIA')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                      visorFilter === 'ASISTENCIA'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'bg-blue-50 text-blue-900 hover:bg-blue-100 border border-blue-200'
+                    }`}
+                  >
+                    📋 Asistencias ({visorRecords.filter(r => r.asistencia_dia_d).length})
+                  </button>
+                </div>
+              </div>
+
+              {/* Conteo filtrado */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-stone-500 pt-1 border-t border-stone-100 gap-1">
+                <span>
+                  Mostrando <strong>{filteredVisorRecords.length}</strong> de <strong>{visorRecords.length}</strong> voluntario(s) con actividad registrada.
+                </span>
+                {user?.rol === 'admin' && (
+                  <span className="text-[11px] text-rose-700 font-semibold">
+                    💡 Como Administrador puedes anular registros erróneos o pruebas usando el botón "Anular".
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Listado de Voluntarios en el Visor */}
+            {loadingVisor ? (
+              <div className="p-12 text-center bg-white rounded-3xl border border-stone-200 shadow-sm space-y-3">
+                <RefreshCw className="w-8 h-8 animate-spin text-diocesis-redDark mx-auto" />
+                <p className="text-xs font-bold text-stone-600">Cargando registros del padrón en vivo...</p>
+              </div>
+            ) : filteredVisorRecords.length === 0 ? (
+              <div className="p-12 text-center bg-white rounded-3xl border border-stone-200 shadow-sm space-y-3">
+                <div className="w-16 h-16 rounded-3xl bg-stone-100 text-stone-400 flex items-center justify-center mx-auto">
+                  <Users className="w-8 h-8" />
+                </div>
+                <h3 className="text-base font-bold font-title text-stone-800">
+                  {visorRecords.length === 0 
+                    ? 'Aún no se han registrado entregas ni asistencias hoy' 
+                    : 'Ningún voluntario coincide con la búsqueda o filtro'}
+                </h3>
+                <p className="text-xs text-stone-400 max-w-sm mx-auto">
+                  {visorRecords.length === 0
+                    ? 'Regresa a la pestaña de "Entrega de Kits" o "Control de Asistencia" para escanear el primer código QR.'
+                    : 'Prueba cambiando el término de búsqueda o seleccionando "Todos".'}
+                </p>
+                {visorRecords.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('kits')}
+                    className="px-4 py-2 bg-diocesis-redDark hover:bg-diocesis-red text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                  >
+                    Ir a Escanear Kits
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredVisorRecords.map((item) => (
+                  <div
+                    key={item.id}
+                    className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200 shadow-sm hover:border-stone-300 transition space-y-3"
+                  >
+                    {/* Fila Principal: Foto, Datos y Talla */}
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {item.fotografia_url ? (
+                          <img
+                            src={formatFotoUrl(item.fotografia_url)}
+                            alt={item.nombres_apellidos}
+                            className="w-12 h-12 rounded-xl object-cover border border-stone-300 shrink-0 bg-stone-100"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-900 shrink-0">
+                            <User className="w-6 h-6 text-amber-700" />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-sm text-stone-900 truncate">
+                            {item.nombres_apellidos}
+                          </h4>
+                          <p className="text-xs font-mono text-stone-500">
+                            DNI: <strong className="text-diocesis-redDark">{item.dni || 'S/D'}</strong> • Código: <span className="font-bold">{item.codigo || `VOL-${item.dni}`}</span>
+                          </p>
+                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                            {item.servicio && (
+                              <span className="text-[10px] bg-stone-100 text-stone-700 px-1.5 py-0.2 rounded font-medium">
+                                {item.servicio}
+                              </span>
+                            )}
+                            {item.responsable_nombre && (
+                              <span className="text-[10px] bg-blue-50 text-blue-800 px-1.5 py-0.2 rounded font-medium">
+                                Resp: {item.responsable_nombre}
+                              </span>
+                            )}
+                            {item.lugar_asignado && (
+                              <span className="text-[10px] bg-emerald-50 text-emerald-800 px-1.5 py-0.2 rounded font-medium">
+                                {item.lugar_asignado}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Talla Oficial */}
+                      <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                        <span className="text-[10px] uppercase font-bold text-stone-400">Talla:</span>
+                        <span className="px-2.5 py-1 bg-amber-100 border border-amber-300 text-amber-950 font-black font-mono text-xs rounded-lg">
+                          {item.talla || 'No especificada'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Fila Secundaria: Estados de Kit y Asistencia + Botones de Anulación */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2 border-t border-stone-100 text-xs">
+                      
+                      {/* Estado Kit */}
+                      <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
+                        item.kit_entregado 
+                          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                          : 'bg-stone-50 border-stone-200 text-stone-400'
+                      }`}>
+                        <div className="min-w-0">
+                          <span className="font-bold block truncate">
+                            {item.kit_entregado ? '🎁 Kit Entregado' : '⚪ Kit Pendiente'}
+                          </span>
+                          {item.kit_entregado && (
+                            <span className="text-[10px] text-stone-600 block truncate">
+                              {item.kit_items_entregados || 'Kit Oficial'} • {item.kit_fecha_entrega ? new Date(item.kit_fecha_entrega).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''} por <strong>{item.kit_entregado_por || 'Validador'}</strong>
+                            </span>
+                          )}
+                        </div>
+
+                        {user?.rol === 'admin' && item.kit_entregado && (
+                          <button
+                            type="button"
+                            disabled={savingAction}
+                            onClick={() => handleResetKit(item)}
+                            className="px-2.5 py-1 text-[11px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded-lg flex items-center gap-1 shrink-0 transition cursor-pointer shadow-2xs disabled:opacity-50"
+                            title="Anular entrega y volver a estado pendiente (Exclusivo Administrador)"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            <span>Anular Kit</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Estado Asistencia */}
+                      <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
+                        item.asistencia_dia_d 
+                          ? 'bg-blue-50/70 border-blue-200 text-blue-950'
+                          : 'bg-stone-50 border-stone-200 text-stone-400'
+                      }`}>
+                        <div className="min-w-0">
+                          <span className="font-bold block truncate">
+                            {item.asistencia_dia_d ? '📋 Asistencia Confirmada' : '⚪ Asistencia No Marcada'}
+                          </span>
+                          {item.asistencia_dia_d && (
+                            <span className="text-[10px] text-stone-600 block truncate">
+                              {item.asistencia_punto || 'Punto Oficial'} • {item.asistencia_fecha ? new Date(item.asistencia_fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''} por <strong>{item.asistencia_registrada_por || 'Validador'}</strong>
+                            </span>
+                          )}
+                        </div>
+
+                        {user?.rol === 'admin' && item.asistencia_dia_d && (
+                          <button
+                            type="button"
+                            disabled={savingAction}
+                            onClick={() => handleResetAttendance(item)}
+                            className="px-2.5 py-1 text-[11px] font-bold bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 rounded-lg flex items-center gap-1 shrink-0 transition cursor-pointer shadow-2xs disabled:opacity-50"
+                            title="Anular asistencia y volver a estado no marcado (Exclusivo Administrador)"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            <span>Anular Asistencia</span>
+                          </button>
+                        )}
+                      </div>
+
+                    </div>
+
+                  </div>
+                ))}
+              </div>
+            )}
+
+          </div>
+        ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
           {/* COLUMNA IZQUIERDA: Escáner y Búsqueda (5 cols) */}
@@ -853,6 +1352,7 @@ export default function ValidadorDashboard() {
           </div>
 
         </div>
+        )}
 
       </main>
 
@@ -964,6 +1464,43 @@ export default function ValidadorDashboard() {
                 <div className="text-xs flex-1">
                   <span className="font-bold block">¡Acción Confirmada!</span>
                   <span>{actionSuccessMsg}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Opciones de Anulación / Reversión Exclusivas para Administrador */}
+            {user?.rol === 'admin' && (scannedVoluntario.kit_entregado || scannedVoluntario.asistencia_dia_d) && (
+              <div className="m-4 mb-0 p-3.5 bg-rose-50 border-2 border-rose-300 rounded-2xl space-y-2 animate-in fade-in">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-rose-900 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-rose-600" />
+                  Opciones de Administrador (Pruebas / Reversión):
+                </span>
+                <p className="text-[11px] text-rose-700 leading-tight">
+                  Puedes anular este registro para volver a probar el escaneo o corregir una entrega errónea.
+                </p>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {scannedVoluntario.kit_entregado && (
+                    <button
+                      type="button"
+                      disabled={savingAction}
+                      onClick={() => handleResetKit(scannedVoluntario)}
+                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Anular Entrega de Kit</span>
+                    </button>
+                  )}
+                  {scannedVoluntario.asistencia_dia_d && (
+                    <button
+                      type="button"
+                      disabled={savingAction}
+                      onClick={() => handleResetAttendance(scannedVoluntario)}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Anular Asistencia</span>
+                    </button>
+                  )}
                 </div>
               </div>
             )}
