@@ -1055,11 +1055,8 @@ export default function ConsultaVoluntariado() {
                                       Número Directo de Contacto:
                                     </span>
                                     <div className="flex items-center gap-2">
-                                      <span className="text-base md:text-lg font-black text-stone-900 font-mono tracking-wide">
+                                      <span className="text-lg md:text-xl font-black text-stone-900 font-mono tracking-wide whitespace-nowrap">
                                         {formatearCelular(result.responsableTelefono)}
-                                      </span>
-                                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-200 text-emerald-900">
-                                        WhatsApp Oficial
                                       </span>
                                     </div>
                                   </div>
