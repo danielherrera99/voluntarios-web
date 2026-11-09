@@ -1037,11 +1037,6 @@ export default function ConsultaVoluntariado() {
                                   <span className="inline-block text-[11px] font-semibold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-md">
                                     ✓ Coordinación de Sector y Cuadrillas
                                   </span>
-                                  {result.responsableDni && (
-                                    <span className="text-[11px] font-mono text-stone-500">
-                                      DNI: {result.responsableDni}
-                                    </span>
-                                  )}
                                 </div>
                               </div>
                             </div>
