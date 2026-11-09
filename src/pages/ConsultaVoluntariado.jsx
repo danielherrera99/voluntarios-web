@@ -82,6 +82,111 @@ const formatearSedeEspecial = (sede) => {
   return sede;
 };
 
+// Directorio Oficial de Contactos de Responsables Generales
+const DIRECT_LIDER_CONTACTS = {
+  'SEBASTIÁN LEÓN SALOMÉ': { nombre: 'SEBASTIÁN LEÓN SALOMÉ', dni: '73050638', telefono: '969262965' },
+  'CRISTINA NOMBERA BAZÁN': { nombre: 'CRISTINA NOMBERA BAZÁN', dni: '72648617', telefono: '965855389' },
+  'MARIA SOLEDAD LONGA GRANDA': { nombre: 'MARIA SOLEDAD LONGA GRANDA', dni: '47584113', telefono: '973448224' },
+  'PEDRO ALEJANDRO LEÓN BONILLA': { nombre: 'PEDRO ALEJANDRO LEÓN BONILLA', dni: '16654195', telefono: '977647804' },
+  'JHONATAN FRANCISCO FIESTAS PATAZCA': { nombre: 'JHONATAN FRANCISCO FIESTAS PATAZCA', dni: '47844514', telefono: '902090251' },
+  'FATIMA ELIZABETH GONZALES FIESTAS': { nombre: 'FATIMA ELIZABETH GONZALES FIESTAS', dni: '74447092', telefono: '902464835' },
+  'MARÍA ISABEL BAUDAT SANCHEZ': { nombre: 'MARÍA ISABEL BAUDAT SANCHEZ', dni: '75262428', telefono: '933355980' },
+  'RICARDO ACOSTA DEL AGUILA': { nombre: 'RICARDO ACOSTA DEL AGUILA', dni: '77212304', telefono: '978775922' },
+  'ANNGHY GABRIELA SALAZAR GONZALES': { nombre: 'ANNGHY GABRIELA SALAZAR GONZALES', dni: '72693556', telefono: '902889214' },
+  'ELENA XIOMARA SOPLOPUCO LOCONI': { nombre: 'ELENA XIOMARA SOPLOPUCO LOCONI', dni: '76069148', telefono: '948977709' },
+  'PAMELA DEL MILAGRO QUICIO MONJE': { nombre: 'PAMELA DEL MILAGRO QUICIO MONJE', dni: '73381541', telefono: '971113192' },
+  'PRISCILLA NIÑO MALDONADO': { nombre: 'PRISCILLA NIÑO MALDONADO', dni: '75194090', telefono: '916323470' },
+  'LUIS MIGUEL CHUMAN MONTERO': { nombre: 'LUIS MIGUEL CHUMAN MONTERO', dni: '71436152', telefono: '988337192' },
+  'WALTER GARCIA': { nombre: 'WALTER GARCIA', dni: '46066172', telefono: '979355434' },
+  'SANDY TATIANA LIMO ORÉ': { nombre: 'SANDY TATIANA LIMO ORÉ', dni: '72307847', telefono: '985663156' },
+  'KATHERYN MELISA MARTINEZ BARBADILLO': { nombre: 'KATHERYN MELISA MARTINEZ BARBADILLO', dni: '75245598', telefono: '962263041' },
+  'CHISCUL ESQUIVES ANYELO HERNAN': { nombre: 'CHISCUL ESQUIVES ANYELO HERNAN', dni: '46054145', telefono: '970227489' },
+  'SANTOS MAXIMO FIESTAS PATAZCA': { nombre: 'SANTOS MAXIMO FIESTAS PATAZCA', dni: '75879740', telefono: '946951209' },
+  'WILDER ANIBAL LÓPEZ ALARCÓN': { nombre: 'WILDER ANIBAL LÓPEZ ALARCÓN', dni: '47814182', telefono: '920381638' }
+};
+
+const LIDER_ALIASES = {
+  'SEBASTIAN': 'SEBASTIÁN LEÓN SALOMÉ',
+  'CRISTINA': 'CRISTINA NOMBERA BAZÁN',
+  'CRISTINA NOMBERA': 'CRISTINA NOMBERA BAZÁN',
+  'MARIA LONGA': 'MARIA SOLEDAD LONGA GRANDA',
+  'JHONATAN': 'JHONATAN FRANCISCO FIESTAS PATAZCA',
+  'FATIMA': 'FATIMA ELIZABETH GONZALES FIESTAS',
+  'MARIA BAUDAT': 'MARÍA ISABEL BAUDAT SANCHEZ',
+  'RICARDO': 'RICARDO ACOSTA DEL AGUILA',
+  'ANNGHY': 'ANNGHY GABRIELA SALAZAR GONZALES',
+  'ANGIE': 'ANNGHY GABRIELA SALAZAR GONZALES',
+  'XIOMARA': 'ELENA XIOMARA SOPLOPUCO LOCONI',
+  'PAMELA': 'PAMELA DEL MILAGRO QUICIO MONJE',
+  'PRISCILA': 'PRISCILLA NIÑO MALDONADO',
+  'PRISCILLA': 'PRISCILLA NIÑO MALDONADO',
+  'WALTER': 'WALTER GARCIA',
+  'SANDY': 'SANDY TATIANA LIMO ORÉ',
+  'SANDY LIMO ORÉ': 'SANDY TATIANA LIMO ORÉ',
+  'SANDY LIMO ORE': 'SANDY TATIANA LIMO ORÉ',
+  'MELISSA': 'KATHERYN MELISA MARTINEZ BARBADILLO',
+  'KATHERYN MELISA MARTINEZ': 'KATHERYN MELISA MARTINEZ BARBADILLO',
+  'ANYELO': 'CHISCUL ESQUIVES ANYELO HERNAN',
+  'ANYELO HERNAN CHISCUL ESQUIVES': 'CHISCUL ESQUIVES ANYELO HERNAN',
+  'MAX': 'SANTOS MAXIMO FIESTAS PATAZCA',
+  'SANTOS MÁXIMO FIESTAS PATAZCA': 'SANTOS MAXIMO FIESTAS PATAZCA',
+  'WILDER': 'WILDER ANIBAL LÓPEZ ALARCÓN',
+  'PEDRO LEON': 'PEDRO ALEJANDRO LEÓN BONILLA',
+  'PEDRO LEÓN': 'PEDRO ALEJANDRO LEÓN BONILLA',
+  'LUIS CHUMAN': 'LUIS MIGUEL CHUMAN MONTERO'
+};
+
+const LIDERES_DNI_MAP = {
+  '73050638': 'SEBASTIÁN LEÓN SALOMÉ',
+  '47584113': 'MARIA SOLEDAD LONGA GRANDA',
+  '47814182': 'WILDER ANIBAL LÓPEZ ALARCÓN',
+  '47844514': 'JHONATAN FRANCISCO FIESTAS PATAZCA',
+  '72648617': 'CRISTINA NOMBERA BAZÁN',
+  '16654195': 'PEDRO ALEJANDRO LEÓN BONILLA',
+  '74447092': 'FATIMA ELIZABETH GONZALES FIESTAS',
+  '75262428': 'MARÍA ISABEL BAUDAT SANCHEZ',
+  '77212304': 'RICARDO ACOSTA DEL AGUILA',
+  '72693556': 'ANNGHY GABRIELA SALAZAR GONZALES',
+  '76069148': 'ELENA XIOMARA SOPLOPUCO LOCONI',
+  '73381541': 'PAMELA DEL MILAGRO QUICIO MONJE',
+  '75194090': 'PRISCILLA NIÑO MALDONADO',
+  '71436152': 'LUIS MIGUEL CHUMAN MONTERO',
+  '46066172': 'WALTER GARCIA',
+  '72307847': 'SANDY TATIANA LIMO ORÉ',
+  '75245598': 'KATHERYN MELISA MARTINEZ BARBADILLO',
+  '46054145': 'CHISCUL ESQUIVES ANYELO HERNAN',
+  '75879740': 'SANTOS MAXIMO FIESTAS PATAZCA'
+};
+
+const resolverContactoResponsable = (rawName, rawDni) => {
+  if (rawDni && LIDERES_DNI_MAP[rawDni]) {
+    const canonical = LIDERES_DNI_MAP[rawDni];
+    if (DIRECT_LIDER_CONTACTS[canonical]) return DIRECT_LIDER_CONTACTS[canonical];
+  }
+  if (!rawName) return null;
+  const clean = String(rawName).replace(/^Equipo\s+/i, '').trim().toUpperCase();
+  if (DIRECT_LIDER_CONTACTS[clean]) return DIRECT_LIDER_CONTACTS[clean];
+  if (LIDER_ALIASES[clean] && DIRECT_LIDER_CONTACTS[LIDER_ALIASES[clean]]) {
+    return DIRECT_LIDER_CONTACTS[LIDER_ALIASES[clean]];
+  }
+  return null;
+};
+
+const formatearCelular = (cel) => {
+  if (!cel) return '';
+  const clean = String(cel).replace(/\D/g, '');
+  if (clean.length === 9) {
+    return `${clean.slice(0, 3)} ${clean.slice(3, 6)} ${clean.slice(6, 9)}`;
+  }
+  return clean;
+};
+
+const obtenerPrimerNombre = (nombreCompleto) => {
+  if (!nombreCompleto) return 'Responsable';
+  const parts = nombreCompleto.trim().split(/\s+/);
+  return parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
+};
+
 export default function ConsultaVoluntariado() {
   const [dniInput, setDniInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -212,6 +317,14 @@ export default function ConsultaVoluntariado() {
           const apiData = await res.json();
           if (apiData.found) {
             const isObserved = Boolean(apiData.esVerificar) || Boolean(apiData.observacion) || (apiData.estado && String(apiData.estado).toUpperCase().includes('REVISI'));
+            
+            // Resolver contacto del responsable si no vino o para asegurar teléfono
+            const respNombre = apiData.responsable_asignado || (apiData.lugar_asignado && /^Equipo\s+/i.test(apiData.lugar_asignado) ? apiData.lugar_asignado.replace(/^Equipo\s+/i, '').trim() : null);
+            const contactoLocal = resolverContactoResponsable(respNombre, apiData.responsable_dni);
+            const responsableTelefono = apiData.responsable_telefono || (contactoLocal ? contactoLocal.telefono : null);
+            const responsableDni = apiData.responsable_dni || (contactoLocal ? contactoLocal.dni : null);
+            const responsableAsignadoFinal = (contactoLocal ? contactoLocal.nombre : respNombre) || apiData.responsable_asignado;
+
             setResult({
               status: apiData.status === 'FASE1_REGISTRADO' ? 'FASE1' : apiData.status,
               fase: apiData.fase || '1',
@@ -223,8 +336,10 @@ export default function ConsultaVoluntariado() {
               esVerificar: apiData.status === 'PENDING' && isObserved,
               observacion: apiData.observacion || null,
               lugarAsignado: apiData.lugar_asignado || null,
-              responsableAsignado: apiData.responsable_asignado || null,
-              tipoAsignacion: apiData.tipo_asignacion || null
+              responsableAsignado: responsableAsignadoFinal,
+              responsableTelefono,
+              responsableDni,
+              tipoAsignacion: apiData.tipo_asignacion || (responsableAsignadoFinal ? 'EQUIPO_LIDER' : null)
             });
             return;
           } else {
@@ -242,7 +357,7 @@ export default function ConsultaVoluntariado() {
       // 2. Respaldo directo a Supabase (consultando ÚNICAMENTE campos públicos, sin datos personales sensibles)
       const { data: f2Data, error: f2Error } = await supabase
         .from('voluntarios')
-        .select('dni, nombres_apellidos, codigo, servicio, departamento, estado, fase, observacion, info_validada, lugar_asignado')
+        .select('dni, nombres_apellidos, codigo, servicio, departamento, estado, fase, observacion, info_validada, lugar_asignado, responsable_nombre')
         .eq('dni', cleanDni)
         .maybeSingle();
 
@@ -267,8 +382,18 @@ export default function ConsultaVoluntariado() {
 
         const lugarAsignado = f2Data.lugar_asignado || null;
         const isEquipo = lugarAsignado && /^Equipo\s+/i.test(lugarAsignado);
-        const responsableAsignado = isEquipo ? lugarAsignado.replace(/^Equipo\s+/i, '').trim() : null;
-        const tipoAsignacion = lugarAsignado ? (isEquipo ? 'EQUIPO_LIDER' : 'SEDE_ESPECIAL') : null;
+        let rawRespName = f2Data.responsable_nombre || (isEquipo ? lugarAsignado.replace(/^Equipo\s+/i, '').trim() : null);
+        let tipoAsignacion = lugarAsignado ? (isEquipo ? 'EQUIPO_LIDER' : 'SEDE_ESPECIAL') : null;
+        let responsableTelefono = null;
+        let responsableDni = null;
+
+        const contactoF2 = resolverContactoResponsable(rawRespName);
+        if (contactoF2) {
+          rawRespName = contactoF2.nombre;
+          responsableTelefono = contactoF2.telefono;
+          responsableDni = contactoF2.dni;
+          tipoAsignacion = 'EQUIPO_LIDER';
+        }
 
         setResult({
           status: mappedStatus,
@@ -281,7 +406,9 @@ export default function ConsultaVoluntariado() {
           esVerificar: isVerificar,
           observacion: f2Data.observacion || null,
           lugarAsignado,
-          responsableAsignado,
+          responsableAsignado: rawRespName,
+          responsableTelefono,
+          responsableDni,
           tipoAsignacion
         });
         return;
@@ -290,7 +417,7 @@ export default function ConsultaVoluntariado() {
       // Consultar en Fase 1 (únicamente campos necesarios)
       const { data: f1Data, error: f1Error } = await supabase
         .from('voluntarios_general')
-        .select('dni, nombres_apellidos, codigo, servicio, departamento, estado, fase, lugar_asignado')
+        .select('dni, nombres_apellidos, codigo, servicio, departamento, estado, fase, lugar_asignado, responsable_nombre')
         .eq('dni', cleanDni)
         .maybeSingle();
 
@@ -301,8 +428,18 @@ export default function ConsultaVoluntariado() {
       if (f1Data) {
         const lugarAsignadoF1 = f1Data.lugar_asignado || null;
         const isEquipoF1 = lugarAsignadoF1 && /^Equipo\s+/i.test(lugarAsignadoF1);
-        const responsableAsignadoF1 = isEquipoF1 ? lugarAsignadoF1.replace(/^Equipo\s+/i, '').trim() : null;
-        const tipoAsignacionF1 = lugarAsignadoF1 ? (isEquipoF1 ? 'EQUIPO_LIDER' : 'SEDE_ESPECIAL') : null;
+        let rawRespNameF1 = f1Data.responsable_nombre || (isEquipoF1 ? lugarAsignadoF1.replace(/^Equipo\s+/i, '').trim() : null);
+        let tipoAsignacionF1 = lugarAsignadoF1 ? (isEquipoF1 ? 'EQUIPO_LIDER' : 'SEDE_ESPECIAL') : null;
+        let responsableTelefonoF1 = null;
+        let responsableDniF1 = null;
+
+        const contactoF1 = resolverContactoResponsable(rawRespNameF1);
+        if (contactoF1) {
+          rawRespNameF1 = contactoF1.nombre;
+          responsableTelefonoF1 = contactoF1.telefono;
+          responsableDniF1 = contactoF1.dni;
+          tipoAsignacionF1 = 'EQUIPO_LIDER';
+        }
 
         setResult({
           status: 'FASE1',
@@ -314,7 +451,9 @@ export default function ConsultaVoluntariado() {
           area: f1Data.departamento || 'Diócesis de Chiclayo y Santa Cruz',
           observacion: 'Te encuentras registrado/a en el Padrón General inicial (Fase 1). Si completaste tu ficha o documentos de la Fase 2 recientemente, tu expediente está en proceso de validación.',
           lugarAsignado: lugarAsignadoF1,
-          responsableAsignado: responsableAsignadoF1,
+          responsableAsignado: rawRespNameF1,
+          responsableTelefono: responsableTelefonoF1,
+          responsableDni: responsableDniF1,
           tipoAsignacion: tipoAsignacionF1
         });
         return;
@@ -883,24 +1022,87 @@ export default function ConsultaVoluntariado() {
                           </div>
                         </div>
                       ) : (
-                        <div className="bg-white/90 rounded-xl p-4 border border-amber-200/80 space-y-3">
-                          <div className="flex items-start gap-3.5">
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center text-2xl shrink-0 shadow-sm">
-                              🎖️
-                            </div>
-                            <div className="space-y-0.5">
-                              <span className="text-xs text-amber-800 uppercase font-bold tracking-wider">Responsable General Asignado</span>
-                              <h5 className="text-lg md:text-xl font-title font-bold text-stone-900">
-                                {result.responsableAsignado || result.lugarAsignado.replace(/^Equipo\s+/i, '')}
-                              </h5>
-                              <span className="inline-block text-[11px] font-semibold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-md">
-                                ✓ Coordinación de Sector y Cuadrillas
-                              </span>
+                        <div className="bg-white/95 rounded-2xl p-4 md:p-5 border-2 border-amber-300 shadow-sm space-y-4">
+                          <div className="flex items-start justify-between flex-wrap gap-3">
+                            <div className="flex items-start gap-3.5">
+                              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center text-2xl shrink-0 shadow-sm">
+                                🎖️
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-xs text-amber-800 uppercase font-bold tracking-wider">Responsable General Asignado</span>
+                                <h5 className="text-lg md:text-xl font-title font-bold text-stone-900">
+                                  {result.responsableAsignado || result.lugarAsignado.replace(/^Equipo\s+/i, '')}
+                                </h5>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="inline-block text-[11px] font-semibold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-md">
+                                    ✓ Coordinación de Sector y Cuadrillas
+                                  </span>
+                                  {result.responsableDni && (
+                                    <span className="text-[11px] font-mono text-stone-500">
+                                      DNI: {result.responsableDni}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                           </div>
-                          <div className="bg-amber-50/80 rounded-lg p-3 border border-amber-100 text-xs text-stone-700 leading-relaxed">
-                            <strong>Próximo paso:</strong> Tu Responsable General, junto con los líderes y guías de cuadrilla, te estarán contactando directamente vía WhatsApp o llamada para coordinar tu cuadrilla, lugar exacto de encuentro y entrega de credenciales.
-                          </div>
+
+                          {/* CAJA DE CONTACTO DIRECTO DEL RESPONSABLE */}
+                          {result.responsableTelefono ? (
+                            <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100/50 rounded-xl p-4 border border-emerald-300 shadow-xs space-y-3">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-lg shadow shrink-0">
+                                    <i className="fa-brands fa-whatsapp"></i>
+                                  </div>
+                                  <div>
+                                    <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wide block">
+                                      Número Directo de Contacto:
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-base md:text-lg font-black text-stone-900 font-mono tracking-wide">
+                                        {formatearCelular(result.responsableTelefono)}
+                                      </span>
+                                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-200 text-emerald-900">
+                                        WhatsApp Oficial
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 w-full sm:w-auto">
+                                  <a
+                                    href={`https://wa.me/51${String(result.responsableTelefono).replace(/\D/g, '')}?text=${encodeURIComponent(
+                                      `¡Hola ${obtenerPrimerNombre(result.responsableAsignado)}! 👋 Te saluda ${result.name}, voluntario/a asignado/a a tu equipo para la Visita Papal 2026. Te escribo para ponerme a tu disposición y coordinar mi cuadrilla. (DNI: ${result.dni})`
+                                    )}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs md:text-sm rounded-xl shadow-md transition cursor-pointer"
+                                  >
+                                    <i className="fa-brands fa-whatsapp text-base"></i>
+                                    <span>Escribir por WhatsApp</span>
+                                  </a>
+
+                                  <a
+                                    href={`tel:+51${String(result.responsableTelefono).replace(/\D/g, '')}`}
+                                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-white hover:bg-stone-50 text-stone-700 font-bold text-xs rounded-xl border border-stone-300 transition shadow-2xs"
+                                    title="Llamar directamente"
+                                  >
+                                    <i className="fa-solid fa-phone text-xs text-stone-600"></i>
+                                    <span className="hidden sm:inline">Llamar</span>
+                                  </a>
+                                </div>
+                              </div>
+
+                              <p className="text-[11px] text-emerald-950 font-medium leading-relaxed bg-white/70 p-2.5 rounded-lg border border-emerald-200/60">
+                                💬 <strong>¡Comunícate con tu responsable!</strong> Puedes enviarle un mensaje por WhatsApp presentándote para que te agregue a tu grupo de cuadrilla y te brinde los detalles de tu punto de encuentro.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="bg-amber-50/80 rounded-lg p-3 border border-amber-100 text-xs text-stone-700 leading-relaxed">
+                              <strong>Próximo paso:</strong> Tu Responsable General, junto con los líderes y guías de cuadrilla, te estarán contactando directamente vía WhatsApp o llamada para coordinar tu cuadrilla, lugar exacto de encuentro y entrega de credenciales.
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1019,6 +1221,24 @@ export default function ConsultaVoluntariado() {
                           ? `Equipo ${result.responsableAsignado}` 
                           : (result.lugarAsignado ? formatearSedeEspecial(result.lugarAsignado) : (result.comision || 'En proceso'))}
                       </span>
+                      {result.responsableTelefono && (
+                        <div className="mt-2 flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-mono font-bold text-stone-700 bg-white/80 px-2 py-0.5 rounded border border-amber-200">
+                            📱 {formatearCelular(result.responsableTelefono)}
+                          </span>
+                          <a
+                            href={`https://wa.me/51${String(result.responsableTelefono).replace(/\D/g, '')}?text=${encodeURIComponent(
+                              `¡Hola ${obtenerPrimerNombre(result.responsableAsignado)}! 👋 Te saluda ${result.name} (DNI: ${result.dni}), postulante asignado/a preliminarmente a tu equipo para la Visita Papal 2026.`
+                            )}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 px-2.5 py-1 rounded-lg border border-emerald-300 transition"
+                          >
+                            <i className="fa-brands fa-whatsapp text-emerald-700"></i>
+                            <span>WhatsApp</span>
+                          </a>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1167,6 +1387,35 @@ export default function ConsultaVoluntariado() {
                         {result.comision || 'Servicio General'}
                       </span>
                     </div>
+
+                    {result.responsableAsignado && (
+                      <div className="md:col-span-2 pt-2 border-t border-sky-200/80">
+                        <span className="text-xs text-sky-900 uppercase font-bold block">Equipo / Responsable Preliminar</span>
+                        <div className="flex items-center gap-2 flex-wrap mt-1">
+                          <span className="text-stone-900 font-bold text-sm">
+                            Equipo {result.responsableAsignado}
+                          </span>
+                          {result.responsableTelefono && (
+                            <>
+                              <span className="text-xs font-mono font-bold text-stone-700 bg-white/80 px-2 py-0.5 rounded border border-sky-200">
+                                📱 {formatearCelular(result.responsableTelefono)}
+                              </span>
+                              <a
+                                href={`https://wa.me/51${String(result.responsableTelefono).replace(/\D/g, '')}?text=${encodeURIComponent(
+                                  `¡Hola ${obtenerPrimerNombre(result.responsableAsignado)}! 👋 Te saluda ${result.name} (DNI: ${result.dni}), postulante registrado/a en el padrón de la Visita Papal 2026 asignado/a a tu equipo.`
+                                )}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 px-2 py-0.5 rounded-md transition"
+                              >
+                                <i className="fa-brands fa-whatsapp text-emerald-700"></i>
+                                <span>WhatsApp</span>
+                              </a>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="bg-white border-l-4 border-sky-600 p-4 rounded-r-2xl shadow-sm bg-stone-50">
