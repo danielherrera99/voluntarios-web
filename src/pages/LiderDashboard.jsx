@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabase';
 import { 
   Shield, Users, CheckCircle2, XCircle, Clock, AlertCircle, 
   Search, FileSpreadsheet, RefreshCw, LogOut, Check, X, Phone, 
-  MessageCircle, AlertTriangle, HeartPulse, Droplets, ShieldAlert, Coffee, Sparkles, MapPin
+  MessageCircle, AlertTriangle, HeartPulse, Droplets, ShieldAlert, Coffee, Sparkles, MapPin, QrCode
 } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import MapaTactico from '../components/MapaTactico';
@@ -396,6 +397,15 @@ export default function LiderDashboard() {
           </div>
 
           <div className="flex items-center gap-3">
+            <Link
+              to="/validador"
+              className="px-3.5 py-1.5 text-xs font-black bg-diocesis-mustard hover:bg-amber-400 text-stone-950 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+              title="Abrir Módulo de Escáner QR de Campo"
+            >
+              <QrCode className="w-4 h-4 text-stone-900" />
+              <span>Escanear QR</span>
+            </Link>
+
             <div className="hidden sm:flex flex-col text-right">
               <span className="text-xs font-bold text-white leading-tight">{liderNombre}</span>
               <span className="text-[11px] text-diocesis-mustard font-mono">DNI: {user?.dni}</span>
@@ -432,6 +442,15 @@ export default function LiderDashboard() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to="/validador"
+              className="px-3.5 py-2 text-xs font-black text-stone-950 bg-amber-400 hover:bg-amber-300 border border-amber-500 rounded-xl transition flex items-center gap-2 cursor-pointer shadow-xs"
+              title="Abrir lector QR para validar kits, asistencia, desayuno y cena"
+            >
+              <QrCode className="w-4 h-4 text-stone-950" />
+              <span>Escanear QRs de Voluntarios</span>
+            </Link>
+
             <button
               onClick={fetchData}
               disabled={loading}
@@ -577,6 +596,15 @@ export default function LiderDashboard() {
 
         {/* Pestañas de Navegación con Estilo Diócesis */}
         <div className="flex border-b-2 border-diocesis-mustard/30 gap-2 overflow-x-auto pb-1">
+          <Link
+            to="/validador"
+            className="py-2.5 px-4 text-xs sm:text-sm font-black text-amber-900 bg-amber-100 hover:bg-amber-200 border-b-4 border-amber-500 rounded-t-xl transition flex items-center gap-2 cursor-pointer whitespace-nowrap shadow-xs"
+            title="Abrir Módulo de Validación y Escáner QR de Campo"
+          >
+            <QrCode className="w-4 h-4 text-amber-700" />
+            <span>📷 Escáner QR de Campo</span>
+          </Link>
+
           <button
             onClick={() => setActiveTab('supervision')}
             className={`py-2.5 px-4 text-xs sm:text-sm font-bold border-b-4 transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${

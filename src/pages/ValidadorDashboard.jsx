@@ -254,6 +254,20 @@ export default function ValidadorDashboard() {
     fetchLideres();
   }, []);
 
+  // Preseleccionar automáticamente al Responsable logueado si ingresa a este módulo
+  useEffect(() => {
+    if (user?.rol === 'responsable' && !selectedLeader && lideresList.length > 0) {
+      const myName = (user.responsable_nombre || user.nombre || '').toUpperCase().trim();
+      const match = lideresList.find(l => {
+        const lNom = l.nombre.toUpperCase().trim();
+        return myName.includes(lNom) || lNom.includes(myName) || (user.dni && l.dni === user.dni);
+      });
+      if (match) {
+        handleSelectLeader(match.nombre);
+      }
+    }
+  }, [lideresList, user]);
+
   // Iniciar Cámara con autodetección de sensor trasero y manejo resiliente
   const startCamera = async (overrideCameraId = null) => {
     setCameraError(null);
@@ -1142,17 +1156,21 @@ export default function ValidadorDashboard() {
             <div className="hidden sm:flex flex-col text-right">
               <span className="text-xs font-bold text-white leading-tight">{user?.nombre || 'Validador Oficial'}</span>
               <span className="text-[10px] text-diocesis-mustard uppercase font-extrabold">
-                {user?.rol === 'admin' ? '🛡️ Administrador' : '🔍 Validador Acreditado'}
+                {user?.rol === 'admin' ? '🛡️ Administrador' :
+                 user?.rol === 'responsable' ? '👑 Responsable General' :
+                 user?.rol === 'lider' ? '⭐ Líder de Sector' :
+                 user?.rol === 'guia' ? '🚩 Guía de Cuadrilla' :
+                 '🔍 Validador Acreditado'}
               </span>
             </div>
 
-            {user?.rol === 'admin' && (
+            {(user?.rol === 'admin' || user?.rol === 'responsable' || user?.rol === 'lider' || user?.rol === 'guia') && (
               <Link
                 to="/dashboard"
                 className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-stone-200 transition"
-                title="Volver al panel de Administrador"
+                title="Volver a mi panel de gestión"
               >
-                Volver a Dashboard
+                Volver a Mi Panel
               </Link>
             )}
 
@@ -2942,7 +2960,7 @@ export default function ValidadorDashboard() {
                           {scannedVoluntario.kit_entregado 
                             ? 'Kit Ya Entregado' 
                             : scannedVoluntario.kit_estado === 'EN_CUSTODIA_RESPONSABLE'
-                            ? 'Confirmar Entrega Individual Final'
+                            ? 'Confirmar Entrega Final al Voluntario (Sacar de Custodia)'
                             : 'Confirmar Entrega de Kit'}
                         </span>
                       </>
@@ -2972,7 +2990,7 @@ export default function ValidadorDashboard() {
                           {scannedVoluntario.desayuno_entregado 
                             ? 'Desayuno Ya Entregado' 
                             : scannedVoluntario.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE'
-                            ? 'Confirmar Entrega Individual de Desayuno'
+                            ? 'Confirmar Entrega Final de Desayuno (Sacar de Custodia)'
                             : 'Confirmar Entrega de Desayuno'}
                         </span>
                       </>
@@ -3002,7 +3020,7 @@ export default function ValidadorDashboard() {
                           {scannedVoluntario.cena_entregada 
                             ? 'Cena Ya Entregada' 
                             : scannedVoluntario.cena_estado === 'EN_CUSTODIA_RESPONSABLE'
-                            ? 'Confirmar Entrega Individual de Cena'
+                            ? 'Confirmar Entrega Final de Cena (Sacar de Custodia)'
                             : 'Confirmar Entrega de Cena'}
                         </span>
                       </>

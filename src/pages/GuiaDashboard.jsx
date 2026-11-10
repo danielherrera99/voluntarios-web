@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabase';
 import { 
   Users, Shield, LogOut, Phone, Mail, CheckCircle2, Clock, 
   AlertCircle, MessageCircle, FileSpreadsheet, RefreshCw, UserCheck,
-  AlertTriangle, Check, X, ShieldAlert, HeartPulse, Droplets, MapPin, Coffee, Sparkles
+  AlertTriangle, Check, X, ShieldAlert, HeartPulse, Droplets, MapPin, Coffee, Sparkles, QrCode
 } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import MapaTactico from '../components/MapaTactico';
@@ -145,7 +146,16 @@ export default function GuiaDashboard() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link
+              to="/validador"
+              className="px-3 py-1.5 text-xs font-black bg-diocesis-mustard hover:bg-amber-400 text-stone-950 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+              title="Abrir Módulo de Escáner QR de Campo"
+            >
+              <QrCode className="w-4 h-4 text-stone-900" />
+              <span>Escanear QR</span>
+            </Link>
+
             <div className="hidden md:flex flex-col text-right">
               <span className="text-xs font-bold text-stone-100">{guiaNombre}</span>
               <span className="text-[10px] text-diocesis-mustard uppercase font-semibold">
@@ -194,6 +204,15 @@ export default function GuiaDashboard() {
           </div>
 
           <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
+            <Link
+              to="/validador"
+              className="px-3.5 py-2 text-xs font-black text-stone-950 bg-amber-400 hover:bg-amber-300 rounded-xl transition shadow flex items-center gap-1.5 cursor-pointer"
+              title="Escanear QR de los voluntarios de tu cuadrilla"
+            >
+              <QrCode className="w-4 h-4 text-stone-950" />
+              <span>Escanear QRs Cuadrilla</span>
+            </Link>
+
             <button
               onClick={fetchCuadrilla}
               disabled={loading}
