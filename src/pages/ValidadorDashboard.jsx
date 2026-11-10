@@ -172,8 +172,8 @@ export default function ValidadorDashboard() {
   const [visorSearch, setVisorSearch] = useState('');
   const [visorFilter, setVisorFilter] = useState('ALL'); // 'ALL' | 'PENDING_ASISTENCIA' | 'ASISTENCIA' | 'KITS' | 'DESAYUNO' | 'CENA'
   const [selectedVisorLeader, setSelectedVisorLeader] = useState('');
-  const [markingAttendanceId, setMarkingAttendanceId] = useState(null);
-  const [justMarkedIds, setJustMarkedIds] = useState(new Set());
+  const [markingActionKey, setMarkingActionKey] = useState(null);
+  const [sessionUndoSnapshots, setSessionUndoSnapshots] = useState({});
 
   // ========================================================
   // ESTADOS DEL MÓDULO DE DESPACHO EN BLOQUE A RESPONSABLES
@@ -341,6 +341,15 @@ export default function ValidadorDashboard() {
       });
 
       setVisorRecords(combined);
+
+      if (scopeOr || !targetLeader) {
+        setStats({
+          kitsHoy: combined.filter(r => r.kit_entregado).length,
+          asistenciaHoy: combined.filter(r => r.asistencia_dia_d).length,
+          desayunoHoy: combined.filter(r => r.desayuno_entregado).length,
+          cenaHoy: combined.filter(r => r.cena_entregada).length
+        });
+      }
     } catch (err) {
       console.error('Error cargando visor:', err);
     } finally {
@@ -1008,115 +1017,183 @@ export default function ValidadorDashboard() {
   };
 
   // ========================================================
-  // MARCACIÓN RÁPIDA DE ASISTENCIA A 1 CLIC (DESDE EL PADRÓN/VISOR)
+  // HELPER SINCRONIZACIÓN DUAL DE TABLAS (POR DNI O ID)
   // ========================================================
-  const handleQuickMarkAttendance = async (voluntario) => {
-    const key = voluntario.dni || voluntario.id;
-    if (!key) return;
-
-    setMarkingAttendanceId(key);
-    const nowIso = new Date().toISOString();
-    const punto = puntoAsistencia || 'Punto Principal / Lista en Campo';
-    const validadorNombre = user?.nombre || 'Responsable Oficial';
-
-    const updateData = {
-      asistencia_dia_d: true,
-      asistencia_fecha: nowIso,
-      asistencia_registrada_por: validadorNombre,
-      asistencia_punto: punto
-    };
-
-    // Actualización optimista instantánea en UI (cero lag)
-    setVisorRecords(prev => prev.map(item => {
-      const match = (voluntario.dni && item.dni === voluntario.dni) || (item.id === voluntario.id);
-      return match ? { ...item, ...updateData } : item;
-    }));
-
-    setStats(prev => ({ ...prev, asistenciaHoy: (prev.asistenciaHoy || 0) + 1 }));
-    setJustMarkedIds(prev => new Set([...prev, key]));
-    playSound('success');
-
-    try {
-      if (voluntario.dni) {
-        await Promise.all([
-          supabase.from('voluntarios').update(updateData).eq('dni', voluntario.dni),
-          supabase.from('voluntarios_general').update(updateData).eq('dni', voluntario.dni)
-        ]);
-      } else {
-        const tbl = voluntario._origenTabla || (voluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
-        const { error } = await supabase.from(tbl).update(updateData).eq('id', voluntario.id);
-        if (error) throw error;
-      }
-    } catch (err) {
-      console.error('Error marcando asistencia rápida:', err);
-      alert('Ocurrió un error al guardar la asistencia en el servidor. Intenta nuevamente.');
-      // Revertir optimismo
-      setVisorRecords(prev => prev.map(item => {
-        const match = (voluntario.dni && item.dni === voluntario.dni) || (item.id === voluntario.id);
-        return match ? { ...item, asistencia_dia_d: false, asistencia_fecha: null, asistencia_registrada_por: null, asistencia_punto: null } : item;
-      }));
-      setStats(prev => ({ ...prev, asistenciaHoy: Math.max(0, (prev.asistenciaHoy || 1) - 1) }));
-    } finally {
-      setMarkingAttendanceId(null);
+  const syncVolunteerPatch = async (voluntario, patchData) => {
+    if (voluntario.dni) {
+      const results = await Promise.all([
+        supabase.from('voluntarios').update(patchData).eq('dni', voluntario.dni),
+        supabase.from('voluntarios_general').update(patchData).eq('dni', voluntario.dni)
+      ]);
+      const err = results.find(r => r.error)?.error;
+      if (err) throw err;
+    } else {
+      const tbl = voluntario._origenTabla || (voluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
+      const { error } = await supabase.from(tbl).update(patchData).eq('id', voluntario.id);
+      if (error) throw error;
     }
   };
 
-  const handleQuickUndoAttendance = async (voluntario) => {
-    const key = voluntario.dni || voluntario.id;
-    if (!key) return;
+  // ========================================================
+  // ACCIONES RÁPIDAS A 1 CLIC EN EL VISOR (ASISTENCIA, KIT, DESAYUNO, CENA)
+  // ========================================================
+  const getQuickActionSpec = (tipo, voluntario) => {
+    const nowIso = new Date().toISOString();
+    const userName = user?.nombre || 'Responsable Oficial';
+    const specs = {
+      ASISTENCIA: {
+        statKey: 'asistenciaHoy',
+        snapshot: {
+          asistencia_dia_d: voluntario.asistencia_dia_d || false,
+          asistencia_fecha: voluntario.asistencia_fecha || null,
+          asistencia_registrada_por: voluntario.asistencia_registrada_por || null,
+          asistencia_punto: voluntario.asistencia_punto || null
+        },
+        patch: {
+          asistencia_dia_d: true,
+          asistencia_fecha: nowIso,
+          asistencia_registrada_por: userName,
+          asistencia_punto: puntoAsistencia || 'Punto Principal'
+        }
+      },
+      KIT: {
+        statKey: 'kitsHoy',
+        snapshot: {
+          kit_entregado: voluntario.kit_entregado || false,
+          kit_polo_entregado: voluntario.kit_polo_entregado || false,
+          kit_items_entregados: voluntario.kit_items_entregados || null,
+          kit_fecha_entrega: voluntario.kit_fecha_entrega || null,
+          kit_entregado_por: voluntario.kit_entregado_por || null,
+          kit_estado: voluntario.kit_estado || 'PENDIENTE'
+        },
+        patch: {
+          kit_entregado: true,
+          kit_polo_entregado: true,
+          kit_items_entregados: `Kit Oficial + Polo (Talla ${voluntario.talla || 'Estándar'})`,
+          kit_fecha_entrega: nowIso,
+          kit_entregado_por: userName,
+          kit_estado: 'ENTREGADO_FINAL'
+        }
+      },
+      DESAYUNO: {
+        statKey: 'desayunoHoy',
+        snapshot: {
+          desayuno_entregado: voluntario.desayuno_entregado || false,
+          desayuno_estado: voluntario.desayuno_estado || 'PENDIENTE',
+          desayuno_fecha: voluntario.desayuno_fecha || null,
+          desayuno_entregado_por: voluntario.desayuno_entregado_por || null,
+          desayuno_punto: voluntario.desayuno_punto || null
+        },
+        patch: {
+          desayuno_entregado: true,
+          desayuno_estado: 'ENTREGADO_FINAL',
+          desayuno_fecha: nowIso,
+          desayuno_entregado_por: userName,
+          desayuno_punto: puntoAlimentos || 'Comedor Principal / Almacén'
+        }
+      },
+      CENA: {
+        statKey: 'cenaHoy',
+        snapshot: {
+          cena_entregada: voluntario.cena_entregada || false,
+          cena_estado: voluntario.cena_estado || 'PENDIENTE',
+          cena_fecha: voluntario.cena_fecha || null,
+          cena_entregada_por: voluntario.cena_entregada_por || null,
+          cena_punto: voluntario.cena_punto || null
+        },
+        patch: {
+          cena_entregada: true,
+          cena_estado: 'ENTREGADO_FINAL',
+          cena_fecha: nowIso,
+          cena_entregada_por: userName,
+          cena_punto: puntoAlimentos || 'Comedor Principal / Almacén'
+        }
+      }
+    };
+    return specs[tipo];
+  };
 
-    const voluntarioNombre = voluntario.nombres_apellidos || 'este voluntario';
-    const isJustMarked = justMarkedIds.has(key);
+  const handleQuickAction = async (voluntario, tipo) => {
+    const idKey = voluntario.dni || voluntario.id;
+    if (!idKey) return;
+    const actionKey = `${idKey}_${tipo}`;
+    const spec = getQuickActionSpec(tipo, voluntario);
+    if (!spec) return;
 
-    if (user?.rol !== 'admin' && !isJustMarked) {
-      alert('Solo los administradores o quien acaba de marcar el registro pueden anular la asistencia.');
+    setMarkingActionKey(actionKey);
+
+    // Actualización optimista instantánea en UI
+    setVisorRecords(prev => prev.map(item => {
+      const match = (voluntario.dni && item.dni === voluntario.dni) || (item.id === voluntario.id);
+      return match ? { ...item, ...spec.patch } : item;
+    }));
+    setStats(prev => ({ ...prev, [spec.statKey]: (prev[spec.statKey] || 0) + 1 }));
+    setSessionUndoSnapshots(prev => ({ ...prev, [actionKey]: spec.snapshot }));
+    playSound('success');
+
+    try {
+      await syncVolunteerPatch(voluntario, spec.patch);
+    } catch (err) {
+      console.error(`Error marcando ${tipo} rápido:`, err);
+      alert('Ocurrió un error al guardar el registro en el servidor. Intenta nuevamente.');
+      // Revertir optimismo
+      setVisorRecords(prev => prev.map(item => {
+        const match = (voluntario.dni && item.dni === voluntario.dni) || (item.id === voluntario.id);
+        return match ? { ...item, ...spec.snapshot } : item;
+      }));
+      setStats(prev => ({ ...prev, [spec.statKey]: Math.max(0, (prev[spec.statKey] || 1) - 1) }));
+      setSessionUndoSnapshots(prev => {
+        const next = { ...prev };
+        delete next[actionKey];
+        return next;
+      });
+    } finally {
+      setMarkingActionKey(null);
+    }
+  };
+
+  const handleQuickUndo = async (voluntario, tipo) => {
+    const idKey = voluntario.dni || voluntario.id;
+    if (!idKey) return;
+    const actionKey = `${idKey}_${tipo}`;
+    const snapshot = sessionUndoSnapshots[actionKey];
+
+    // Si no se marcó en esta sesión y es Admin, usar anulación oficial con confirmación
+    if (!snapshot) {
+      if (user?.rol !== 'admin') {
+        alert('Solo los administradores o quien acaba de marcar el registro pueden anularlo.');
+        return;
+      }
+      if (tipo === 'ASISTENCIA') return handleResetAttendance(voluntario);
+      if (tipo === 'KIT') return handleResetKit(voluntario);
+      if (tipo === 'DESAYUNO') return handleResetDesayuno(voluntario);
+      if (tipo === 'CENA') return handleResetCena(voluntario);
       return;
     }
 
-    if (!isJustMarked && user?.rol === 'admin') {
-      if (!window.confirm(`¿Estás seguro de anular la asistencia de ${voluntarioNombre}?`)) {
-        return;
-      }
-    }
+    const spec = getQuickActionSpec(tipo, voluntario);
+    setMarkingActionKey(actionKey);
 
-    setMarkingAttendanceId(key);
-    const resetData = {
-      asistencia_dia_d: false,
-      asistencia_fecha: null,
-      asistencia_registrada_por: null,
-      asistencia_punto: null
-    };
-
-    // Actualización optimista
+    // Restaurar exactamente el estado previo (incluyendo si estaba EN_CUSTODIA_RESPONSABLE)
     setVisorRecords(prev => prev.map(item => {
       const match = (voluntario.dni && item.dni === voluntario.dni) || (item.id === voluntario.id);
-      return match ? { ...item, ...resetData } : item;
+      return match ? { ...item, ...snapshot } : item;
     }));
-
-    setStats(prev => ({ ...prev, asistenciaHoy: Math.max(0, (prev.asistenciaHoy || 1) - 1) }));
-    setJustMarkedIds(prev => {
-      const next = new Set(prev);
-      next.delete(key);
+    setStats(prev => ({ ...prev, [spec.statKey]: Math.max(0, (prev[spec.statKey] || 1) - 1) }));
+    setSessionUndoSnapshots(prev => {
+      const next = { ...prev };
+      delete next[actionKey];
       return next;
     });
 
     try {
-      if (voluntario.dni) {
-        await Promise.all([
-          supabase.from('voluntarios').update(resetData).eq('dni', voluntario.dni),
-          supabase.from('voluntarios_general').update(resetData).eq('dni', voluntario.dni)
-        ]);
-      } else {
-        const tbl = voluntario._origenTabla || (voluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
-        const { error } = await supabase.from(tbl).update(resetData).eq('id', voluntario.id);
-        if (error) throw error;
-      }
+      await syncVolunteerPatch(voluntario, snapshot);
     } catch (err) {
-      console.error('Error anulando asistencia rápida:', err);
-      alert('No se pudo anular la asistencia en el servidor.');
+      console.error(`Error revirtiendo ${tipo}:`, err);
+      alert('No se pudo deshacer el cambio en el servidor.');
       await fetchVisorRecords();
     } finally {
-      setMarkingAttendanceId(null);
+      setMarkingActionKey(null);
     }
   };
 
@@ -2037,12 +2114,12 @@ export default function ValidadorDashboard() {
                 {user?.rol === 'admin' ? (
                   <span className="px-3 py-1.5 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs">
                     <ShieldCheck className="w-4 h-4 text-rose-600" />
-                    <span>Modo Administrador (Anulación habilitada)</span>
+                    <span>Modo Administrador (Control Total y Anulación)</span>
                   </span>
                 ) : (
                   <span className="px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-xl text-xs font-bold flex items-center gap-1.5">
                     <ClipboardCheck className="w-4 h-4 text-blue-600" />
-                    <span>Asistencia Rápida a 1 Clic</span>
+                    <span>Control Rápido a 1 Clic</span>
                   </span>
                 )}
 
@@ -2064,9 +2141,10 @@ export default function ValidadorDashboard() {
 
             {/* Barra de Filtros y Búsqueda */}
             <div className="bg-white rounded-2xl p-4 border border-stone-200 shadow-2xs space-y-3">
-              <div className="flex flex-col sm:flex-row items-center gap-3">
+              {/* Fila 1: Búsqueda amplia y Selectores de Punto / Sector */}
+              <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2.5">
                 {/* Input de Búsqueda */}
-                <div className="relative flex-1 w-full">
+                <div className="relative flex-1 min-w-0">
                   <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
                   <input
                     type="text"
@@ -2085,87 +2163,14 @@ export default function ValidadorDashboard() {
                   )}
                 </div>
 
-                {/* Filtros Tipo Pills */}
-                <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => setVisorFilter('ALL')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
-                      visorFilter === 'ALL'
-                        ? 'bg-stone-900 text-white shadow-xs'
-                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                    }`}
-                  >
-                    Todos ({visorRecords.length})
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setVisorFilter('PENDING_ASISTENCIA')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
-                      visorFilter === 'PENDING_ASISTENCIA'
-                        ? 'bg-rose-700 text-white shadow-xs'
-                        : 'bg-rose-50 text-rose-900 hover:bg-rose-100 border border-rose-200'
-                    }`}
-                  >
-                    ⏳ Sin Asistencia ({visorRecords.filter(r => !r.asistencia_dia_d).length})
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setVisorFilter('ASISTENCIA')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
-                      visorFilter === 'ASISTENCIA'
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'bg-blue-50 text-blue-900 hover:bg-blue-100 border border-blue-200'
-                    }`}
-                  >
-                    📋 Asistencias ({visorRecords.filter(r => r.asistencia_dia_d).length})
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setVisorFilter('KITS')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
-                      visorFilter === 'KITS'
-                        ? 'bg-amber-600 text-white shadow-xs'
-                        : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200'
-                    }`}
-                  >
-                    🎁 Kits ({visorRecords.filter(r => r.kit_entregado || r.kit_estado === 'EN_CUSTODIA_RESPONSABLE').length})
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setVisorFilter('DESAYUNO')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
-                      visorFilter === 'DESAYUNO'
-                        ? 'bg-orange-600 text-white shadow-xs'
-                        : 'bg-orange-50 text-orange-900 hover:bg-orange-100 border border-orange-200'
-                    }`}
-                  >
-                    ☕ Desayunos ({visorRecords.filter(r => r.desayuno_entregado || r.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE').length})
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setVisorFilter('CENA')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
-                      visorFilter === 'CENA'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100 border border-emerald-200'
-                    }`}
-                  >
-                    🍽️ Cenas ({visorRecords.filter(r => r.cena_entregada || r.cena_estado === 'EN_CUSTODIA_RESPONSABLE').length})
-                  </button>
-
-                  {/* Selector de Punto de Asistencia para el botón rápido */}
-                  <div className="flex items-center gap-1 text-xs ml-auto">
-                    <span className="text-[10px] font-bold text-stone-500 hidden sm:inline">Punto al marcar:</span>
+                {/* Selectores rápidos al marcar */}
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-1 text-xs">
+                    <span className="text-[10px] font-bold text-stone-500">Punto:</span>
                     <select
                       value={puntoAsistencia}
                       onChange={(e) => setPuntoAsistencia(e.target.value)}
-                      className="py-1 px-2 bg-stone-50 border border-stone-300 rounded-xl text-xs font-semibold text-stone-800 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
+                      className="py-1.5 px-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs font-semibold text-stone-800 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
                     >
                       <option value="Punto Principal">📍 Puerta Principal</option>
                       <option value="Lista en Campo / Cuadrilla">📱 Lista en Campo</option>
@@ -2177,35 +2182,122 @@ export default function ValidadorDashboard() {
                     </select>
                   </div>
 
+                  <div className="flex items-center gap-1 text-xs">
+                    <span className="text-[10px] font-bold text-stone-500">Comedor:</span>
+                    <select
+                      value={puntoAlimentos}
+                      onChange={(e) => setPuntoAlimentos(e.target.value)}
+                      className="py-1.5 px-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs font-semibold text-stone-800 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
+                    >
+                      <option value="Comedor Principal / Almacén">🍽️ Comedor Principal</option>
+                      <option value="Comedor Sector Santuario">⛪ Sector Santuario</option>
+                      <option value="Comedor USAT">🎓 Comedor USAT</option>
+                      <option value="Punto Móvil Cuadrillas">🚚 Cuadrillas</option>
+                    </select>
+                  </div>
+
                   {/* Filtro por Responsable para Administrador / Validador General */}
                   {(!user || user.rol === 'admin' || user.rol === 'validador') && (
-                    <div className="flex items-center gap-1 text-xs">
-                      <select
-                        value={selectedVisorLeader}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setSelectedVisorLeader(val);
-                          fetchVisorRecords(val);
-                        }}
-                        className="py-1 px-2 bg-stone-50 border border-stone-300 rounded-xl text-xs font-semibold text-stone-800 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard max-w-[200px] truncate"
-                        title="Filtrar padrón completo por Responsable"
-                      >
-                        <option value="">👤 Todos los Sectores (Con Actividad)</option>
-                        {lideresList.map(l => (
-                          <option key={l.dni || l.nombre} value={l.nombre}>
-                            👤 {l.nombre}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <select
+                      value={selectedVisorLeader}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSelectedVisorLeader(val);
+                        fetchVisorRecords(val);
+                      }}
+                      className="py-1.5 px-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs font-semibold text-stone-800 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard max-w-[200px] truncate"
+                      title="Filtrar padrón completo por Responsable"
+                    >
+                      <option value="">👤 Todos los Sectores (Con Actividad)</option>
+                      {lideresList.map(l => (
+                        <option key={l.dni || l.nombre} value={l.nombre}>
+                          👤 {l.nombre}
+                        </option>
+                      ))}
+                    </select>
                   )}
                 </div>
+              </div>
+
+              {/* Fila 2: Filtros Tipo Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setVisorFilter('ALL')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                    visorFilter === 'ALL'
+                      ? 'bg-stone-900 text-white shadow-xs'
+                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                  }`}
+                >
+                  Todos ({visorRecords.length})
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setVisorFilter('PENDING_ASISTENCIA')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                    visorFilter === 'PENDING_ASISTENCIA'
+                      ? 'bg-rose-700 text-white shadow-xs'
+                      : 'bg-rose-50 text-rose-900 hover:bg-rose-100 border border-rose-200'
+                  }`}
+                >
+                  ⏳ Sin Asistencia ({visorRecords.filter(r => !r.asistencia_dia_d).length})
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setVisorFilter('ASISTENCIA')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                    visorFilter === 'ASISTENCIA'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-blue-50 text-blue-900 hover:bg-blue-100 border border-blue-200'
+                  }`}
+                >
+                  📋 Asistencias ({visorRecords.filter(r => r.asistencia_dia_d).length})
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setVisorFilter('KITS')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                    visorFilter === 'KITS'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200'
+                  }`}
+                >
+                  🎁 Kits ({visorRecords.filter(r => r.kit_entregado || r.kit_estado === 'EN_CUSTODIA_RESPONSABLE').length})
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setVisorFilter('DESAYUNO')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                    visorFilter === 'DESAYUNO'
+                      ? 'bg-orange-600 text-white shadow-xs'
+                      : 'bg-orange-50 text-orange-900 hover:bg-orange-100 border border-orange-200'
+                  }`}
+                >
+                  ☕ Desayunos ({visorRecords.filter(r => r.desayuno_entregado || r.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE').length})
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setVisorFilter('CENA')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                    visorFilter === 'CENA'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100 border border-emerald-200'
+                  }`}
+                >
+                  🍽️ Cenas ({visorRecords.filter(r => r.cena_entregada || r.cena_estado === 'EN_CUSTODIA_RESPONSABLE').length})
+                </button>
               </div>
 
               {/* Conteo filtrado */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-stone-500 pt-1 border-t border-stone-100 gap-1">
                 <span>
-                  Mostrando <strong>{filteredVisorRecords.length}</strong> de <strong>{visorRecords.length}</strong> voluntario(s) con actividad registrada.
+                  Mostrando <strong>{filteredVisorRecords.length}</strong> de <strong>{visorRecords.length}</strong> voluntario(s) {(user?.rol === 'responsable' || user?.rol === 'lider' || user?.rol === 'guia' || selectedVisorLeader) ? 'asignados a este sector' : 'con actividad registrada'}.
                 </span>
                 {user?.rol === 'admin' && (
                   <span className="text-[11px] text-rose-700 font-semibold">
@@ -2239,9 +2331,11 @@ export default function ValidadorDashboard() {
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredVisorRecords.map((item) => (
+                {filteredVisorRecords.map((item) => {
+                  const idKey = item.dni || item.id;
+                  return (
                   <div
-                    key={item.id}
+                    key={idKey}
                     className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200 shadow-sm hover:border-stone-300 transition space-y-3"
                   >
                     {/* Fila Principal: Foto, Datos y Talla */}
@@ -2309,7 +2403,7 @@ export default function ValidadorDashboard() {
                             <span className="font-bold block truncate">
                               {item.asistencia_dia_d ? '📋 Asistencia OK' : '⚪ Asist. No Marcada'}
                             </span>
-                            {markingAttendanceId === (item.dni || item.id) && (
+                            {markingActionKey === `${idKey}_ASISTENCIA` && (
                               <RefreshCw className="w-3 h-3 animate-spin text-blue-600 shrink-0" />
                             )}
                           </div>
@@ -2323,8 +2417,8 @@ export default function ValidadorDashboard() {
                         {!item.asistencia_dia_d ? (
                           <button
                             type="button"
-                            disabled={markingAttendanceId === (item.dni || item.id)}
-                            onClick={() => handleQuickMarkAttendance(item)}
+                            disabled={markingActionKey === `${idKey}_ASISTENCIA`}
+                            onClick={() => handleQuickAction(item, 'ASISTENCIA')}
                             className="w-full mt-1 py-1.5 px-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
                             title="Haz clic para marcar asistencia inmediatamente"
                           >
@@ -2332,37 +2426,42 @@ export default function ValidadorDashboard() {
                             <span>Marcar Asistencia</span>
                           </button>
                         ) : (
-                          (user?.rol === 'admin' || justMarkedIds.has(item.dni || item.id)) && (
+                          (user?.rol === 'admin' || sessionUndoSnapshots[`${idKey}_ASISTENCIA`]) && (
                             <button
                               type="button"
-                              disabled={savingAction || markingAttendanceId === (item.dni || item.id)}
-                              onClick={() => handleQuickUndoAttendance(item)}
+                              disabled={savingAction || markingActionKey === `${idKey}_ASISTENCIA`}
+                              onClick={() => handleQuickUndo(item, 'ASISTENCIA')}
                               className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50 mt-1"
-                              title={user?.rol === 'admin' ? 'Anular asistencia' : 'Deshacer asistencia marcada recién'}
+                              title={sessionUndoSnapshots[`${idKey}_ASISTENCIA`] ? 'Deshacer marca recién hecha' : 'Anular asistencia'}
                             >
                               <RotateCcw className="w-2.5 h-2.5" />
-                              <span>{user?.rol === 'admin' ? 'Anular' : 'Deshacer'}</span>
+                              <span>{sessionUndoSnapshots[`${idKey}_ASISTENCIA`] ? 'Deshacer' : 'Anular'}</span>
                             </button>
                           )
                         )}
                       </div>
 
                       {/* 2. Kit & Polo */}
-                      <div className={`p-2.5 rounded-xl border flex flex-col justify-between gap-1.5 ${
+                      <div className={`p-2.5 rounded-xl border flex flex-col justify-between gap-1.5 transition-colors ${
                         item.kit_entregado 
                           ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
                           : item.kit_estado === 'EN_CUSTODIA_RESPONSABLE'
                           ? 'bg-amber-50/80 border-amber-300 text-amber-950'
-                          : 'bg-stone-50 border-stone-200 text-stone-400'
+                          : 'bg-stone-50 border-stone-200 text-stone-700'
                       }`}>
                         <div>
-                          <span className="font-bold block truncate">
-                            {item.kit_entregado 
-                              ? '🎁 Kit Entregado' 
-                              : item.kit_estado === 'EN_CUSTODIA_RESPONSABLE'
-                              ? '📦 En Custodia Líder'
-                              : '⚪ Kit Pendiente'}
-                          </span>
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-bold block truncate">
+                              {item.kit_entregado 
+                                ? '🎁 Kit Entregado' 
+                                : item.kit_estado === 'EN_CUSTODIA_RESPONSABLE'
+                                ? '📦 En Custodia Líder'
+                                : '⚪ Kit Pendiente'}
+                            </span>
+                            {markingActionKey === `${idKey}_KIT` && (
+                              <RefreshCw className="w-3 h-3 animate-spin text-emerald-600 shrink-0" />
+                            )}
+                          </div>
                           {item.kit_entregado && (
                             <span className="text-[10px] text-stone-600 block truncate">
                               {item.kit_items_entregados || 'Kit Oficial'} • {item.kit_fecha_entrega ? new Date(item.kit_fecha_entrega).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
@@ -2375,35 +2474,70 @@ export default function ValidadorDashboard() {
                           )}
                         </div>
 
-                        {user?.rol === 'admin' && (item.kit_entregado || item.kit_estado === 'EN_CUSTODIA_RESPONSABLE') && (
-                          <button
-                            type="button"
-                            disabled={savingAction}
-                            onClick={() => handleResetKit(item)}
-                            className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50"
-                          >
-                            <RotateCcw className="w-2.5 h-2.5" />
-                            <span>Anular</span>
-                          </button>
+                        {!item.kit_entregado ? (
+                          <div className="flex flex-col gap-1 mt-1">
+                            <button
+                              type="button"
+                              disabled={markingActionKey === `${idKey}_KIT`}
+                              onClick={() => handleQuickAction(item, 'KIT')}
+                              className={`w-full py-1.5 px-2.5 text-white rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 ${
+                                item.kit_estado === 'EN_CUSTODIA_RESPONSABLE'
+                                  ? 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800'
+                                  : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800'
+                              }`}
+                              title={item.kit_estado === 'EN_CUSTODIA_RESPONSABLE' ? 'Confirmar entrega final del kit al voluntario' : 'Entregar Kit & Polo en 1 clic'}
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>{item.kit_estado === 'EN_CUSTODIA_RESPONSABLE' ? 'Entregar al Vol.' : 'Entregar Kit'}</span>
+                            </button>
+                            {user?.rol === 'admin' && item.kit_estado === 'EN_CUSTODIA_RESPONSABLE' && (
+                              <button
+                                type="button"
+                                disabled={savingAction}
+                                onClick={() => handleResetKit(item)}
+                                className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50"
+                              >
+                                <RotateCcw className="w-2.5 h-2.5" />
+                                <span>Anular Custodia</span>
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          (user?.rol === 'admin' || sessionUndoSnapshots[`${idKey}_KIT`]) && (
+                            <button
+                              type="button"
+                              disabled={savingAction || markingActionKey === `${idKey}_KIT`}
+                              onClick={() => handleQuickUndo(item, 'KIT')}
+                              className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50 mt-1"
+                            >
+                              <RotateCcw className="w-2.5 h-2.5" />
+                              <span>{sessionUndoSnapshots[`${idKey}_KIT`] ? 'Deshacer' : 'Anular'}</span>
+                            </button>
+                          )
                         )}
                       </div>
 
                       {/* 3. Desayuno */}
-                      <div className={`p-2.5 rounded-xl border flex flex-col justify-between gap-1.5 ${
+                      <div className={`p-2.5 rounded-xl border flex flex-col justify-between gap-1.5 transition-colors ${
                         item.desayuno_entregado 
                           ? 'bg-orange-50/80 border-orange-200 text-orange-950'
                           : item.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE'
                           ? 'bg-amber-50/80 border-amber-300 text-amber-950'
-                          : 'bg-stone-50 border-stone-200 text-stone-400'
+                          : 'bg-stone-50 border-stone-200 text-stone-700'
                       }`}>
                         <div>
-                          <span className="font-bold block truncate">
-                            {item.desayuno_entregado 
-                              ? '☕ Desayuno Entregado' 
-                              : item.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE'
-                              ? '📦 Desayuno en Líder'
-                              : '⚪ Desayuno Pendiente'}
-                          </span>
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-bold block truncate">
+                              {item.desayuno_entregado 
+                                ? '☕ Desayuno Entregado' 
+                                : item.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE'
+                                ? '📦 Desayuno en Líder'
+                                : '⚪ Desayuno Pendiente'}
+                            </span>
+                            {markingActionKey === `${idKey}_DESAYUNO` && (
+                              <RefreshCw className="w-3 h-3 animate-spin text-orange-600 shrink-0" />
+                            )}
+                          </div>
                           {item.desayuno_entregado && (
                             <span className="text-[10px] text-stone-600 block truncate">
                               {item.desayuno_fecha ? new Date(item.desayuno_fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''} por {item.desayuno_entregado_por || 'Validador'}
@@ -2416,35 +2550,70 @@ export default function ValidadorDashboard() {
                           )}
                         </div>
 
-                        {user?.rol === 'admin' && (item.desayuno_entregado || item.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE') && (
-                          <button
-                            type="button"
-                            disabled={savingAction}
-                            onClick={() => handleResetDesayuno(item)}
-                            className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50"
-                          >
-                            <RotateCcw className="w-2.5 h-2.5" />
-                            <span>Anular</span>
-                          </button>
+                        {!item.desayuno_entregado ? (
+                          <div className="flex flex-col gap-1 mt-1">
+                            <button
+                              type="button"
+                              disabled={markingActionKey === `${idKey}_DESAYUNO`}
+                              onClick={() => handleQuickAction(item, 'DESAYUNO')}
+                              className={`w-full py-1.5 px-2.5 text-white rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 ${
+                                item.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE'
+                                  ? 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800'
+                                  : 'bg-orange-600 hover:bg-orange-700 active:bg-orange-800'
+                              }`}
+                              title={item.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE' ? 'Confirmar entrega final de desayuno al voluntario' : 'Entregar Desayuno en 1 clic'}
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>{item.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE' ? 'Entregar al Vol.' : 'Entregar Desayuno'}</span>
+                            </button>
+                            {user?.rol === 'admin' && item.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE' && (
+                              <button
+                                type="button"
+                                disabled={savingAction}
+                                onClick={() => handleResetDesayuno(item)}
+                                className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50"
+                              >
+                                <RotateCcw className="w-2.5 h-2.5" />
+                                <span>Anular Custodia</span>
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          (user?.rol === 'admin' || sessionUndoSnapshots[`${idKey}_DESAYUNO`]) && (
+                            <button
+                              type="button"
+                              disabled={savingAction || markingActionKey === `${idKey}_DESAYUNO`}
+                              onClick={() => handleQuickUndo(item, 'DESAYUNO')}
+                              className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50 mt-1"
+                            >
+                              <RotateCcw className="w-2.5 h-2.5" />
+                              <span>{sessionUndoSnapshots[`${idKey}_DESAYUNO`] ? 'Deshacer' : 'Anular'}</span>
+                            </button>
+                          )
                         )}
                       </div>
 
                       {/* 4. Cena */}
-                      <div className={`p-2.5 rounded-xl border flex flex-col justify-between gap-1.5 ${
+                      <div className={`p-2.5 rounded-xl border flex flex-col justify-between gap-1.5 transition-colors ${
                         item.cena_entregada 
                           ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
                           : item.cena_estado === 'EN_CUSTODIA_RESPONSABLE'
                           ? 'bg-amber-50/80 border-amber-300 text-amber-950'
-                          : 'bg-stone-50 border-stone-200 text-stone-400'
+                          : 'bg-stone-50 border-stone-200 text-stone-700'
                       }`}>
                         <div>
-                          <span className="font-bold block truncate">
-                            {item.cena_entregada 
-                              ? '🍽️ Cena Entregada' 
-                              : item.cena_estado === 'EN_CUSTODIA_RESPONSABLE'
-                              ? '📦 Cena en Líder'
-                              : '⚪ Cena Pendiente'}
-                          </span>
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-bold block truncate">
+                              {item.cena_entregada 
+                                ? '🍽️ Cena Entregada' 
+                                : item.cena_estado === 'EN_CUSTODIA_RESPONSABLE'
+                                ? '📦 Cena en Líder'
+                                : '⚪ Cena Pendiente'}
+                            </span>
+                            {markingActionKey === `${idKey}_CENA` && (
+                              <RefreshCw className="w-3 h-3 animate-spin text-emerald-600 shrink-0" />
+                            )}
+                          </div>
                           {item.cena_entregada && (
                             <span className="text-[10px] text-stone-600 block truncate">
                               {item.cena_fecha ? new Date(item.cena_fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''} por {item.cena_entregada_por || 'Validador'}
@@ -2457,23 +2626,54 @@ export default function ValidadorDashboard() {
                           )}
                         </div>
 
-                        {user?.rol === 'admin' && (item.cena_entregada || item.cena_estado === 'EN_CUSTODIA_RESPONSABLE') && (
-                          <button
-                            type="button"
-                            disabled={savingAction}
-                            onClick={() => handleResetCena(item)}
-                            className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50"
-                          >
-                            <RotateCcw className="w-2.5 h-2.5" />
-                            <span>Anular</span>
-                          </button>
+                        {!item.cena_entregada ? (
+                          <div className="flex flex-col gap-1 mt-1">
+                            <button
+                              type="button"
+                              disabled={markingActionKey === `${idKey}_CENA`}
+                              onClick={() => handleQuickAction(item, 'CENA')}
+                              className={`w-full py-1.5 px-2.5 text-white rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 ${
+                                item.cena_estado === 'EN_CUSTODIA_RESPONSABLE'
+                                  ? 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800'
+                                  : 'bg-teal-600 hover:bg-teal-700 active:bg-teal-800'
+                              }`}
+                              title={item.cena_estado === 'EN_CUSTODIA_RESPONSABLE' ? 'Confirmar entrega final de cena al voluntario' : 'Entregar Cena en 1 clic'}
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>{item.cena_estado === 'EN_CUSTODIA_RESPONSABLE' ? 'Entregar al Vol.' : 'Entregar Cena'}</span>
+                            </button>
+                            {user?.rol === 'admin' && item.cena_estado === 'EN_CUSTODIA_RESPONSABLE' && (
+                              <button
+                                type="button"
+                                disabled={savingAction}
+                                onClick={() => handleResetCena(item)}
+                                className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50"
+                              >
+                                <RotateCcw className="w-2.5 h-2.5" />
+                                <span>Anular Custodia</span>
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          (user?.rol === 'admin' || sessionUndoSnapshots[`${idKey}_CENA`]) && (
+                            <button
+                              type="button"
+                              disabled={savingAction || markingActionKey === `${idKey}_CENA`}
+                              onClick={() => handleQuickUndo(item, 'CENA')}
+                              className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50 mt-1"
+                            >
+                              <RotateCcw className="w-2.5 h-2.5" />
+                              <span>{sessionUndoSnapshots[`${idKey}_CENA`] ? 'Deshacer' : 'Anular'}</span>
+                            </button>
+                          )
                         )}
                       </div>
 
                     </div>
 
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
