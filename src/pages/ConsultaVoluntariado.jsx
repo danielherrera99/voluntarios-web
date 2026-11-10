@@ -82,13 +82,13 @@ const formatearSedeEspecial = (sede) => {
   return sede;
 };
 
-// Directorio Oficial de Contactos de Responsables Generales
+// Directorio Oficial de Contactos de Responsables Generales (Base de respaldo)
 const DIRECT_LIDER_CONTACTS = {
-  'SEBASTIÁN LEÓN SALOMÉ': { nombre: 'SEBASTIÁN LEÓN SALOMÉ', dni: '73050638', telefono: '969262965' },
+  'SEBASTIÁN LEÓN SALOMÉ': { nombre: 'SEBASTIÁN LEÓN SALOMÉ', dni: '73050638', telefono: '968262965' },
   'CRISTINA NOMBERA BAZÁN': { nombre: 'CRISTINA NOMBERA BAZÁN', dni: '72648617', telefono: '965855389' },
   'MARIA SOLEDAD LONGA GRANDA': { nombre: 'MARIA SOLEDAD LONGA GRANDA', dni: '47584113', telefono: '973448224' },
   'PEDRO ALEJANDRO LEÓN BONILLA': { nombre: 'PEDRO ALEJANDRO LEÓN BONILLA', dni: '16654195', telefono: '977647804' },
-  'JHONATAN FRANCISCO FIESTAS PATAZCA': { nombre: 'JHONATAN FRANCISCO FIESTAS PATAZCA', dni: '47844514', telefono: '902090251' },
+  'JHONATAN FRANCISCO FIESTAS PATAZCA': { nombre: 'JHONATAN FRANCISCO FIESTAS PATAZCA', dni: '47844514', telefono: '975514329' },
   'FATIMA ELIZABETH GONZALES FIESTAS': { nombre: 'FATIMA ELIZABETH GONZALES FIESTAS', dni: '74447092', telefono: '902464835' },
   'MARÍA ISABEL BAUDAT SANCHEZ': { nombre: 'MARÍA ISABEL BAUDAT SANCHEZ', dni: '75262428', telefono: '933355980' },
   'RICARDO ACOSTA DEL AGUILA': { nombre: 'RICARDO ACOSTA DEL AGUILA', dni: '77212304', telefono: '978775922' },
@@ -158,17 +158,41 @@ const LIDERES_DNI_MAP = {
   '75879740': 'SANTOS MAXIMO FIESTAS PATAZCA'
 };
 
-const resolverContactoResponsable = (rawName, rawDni) => {
+const resolverContactoResponsable = (rawName, rawDni, liveMap = null) => {
+  let canonical = null;
   if (rawDni && LIDERES_DNI_MAP[rawDni]) {
-    const canonical = LIDERES_DNI_MAP[rawDni];
-    if (DIRECT_LIDER_CONTACTS[canonical]) return DIRECT_LIDER_CONTACTS[canonical];
+    canonical = LIDERES_DNI_MAP[rawDni];
+  } else if (rawName) {
+    const clean = String(rawName).replace(/^Equipo\s+/i, '').trim().toUpperCase();
+    if (DIRECT_LIDER_CONTACTS[clean]) {
+      canonical = clean;
+    } else if (LIDER_ALIASES[clean]) {
+      canonical = LIDER_ALIASES[clean];
+    } else {
+      canonical = clean;
+    }
   }
-  if (!rawName) return null;
-  const clean = String(rawName).replace(/^Equipo\s+/i, '').trim().toUpperCase();
-  if (DIRECT_LIDER_CONTACTS[clean]) return DIRECT_LIDER_CONTACTS[clean];
-  if (LIDER_ALIASES[clean] && DIRECT_LIDER_CONTACTS[LIDER_ALIASES[clean]]) {
-    return DIRECT_LIDER_CONTACTS[LIDER_ALIASES[clean]];
+
+  if (!canonical) return null;
+
+  // 1. Prioridad: Buscar en la base de datos viva (estructura_mandos)
+  if (liveMap && liveMap[canonical] && liveMap[canonical].telefono) {
+    return liveMap[canonical];
   }
+
+  if (liveMap) {
+    const keys = Object.keys(liveMap);
+    const foundKey = keys.find(k => k === canonical || k.includes(canonical) || canonical.includes(k));
+    if (foundKey && liveMap[foundKey]?.telefono) {
+      return liveMap[foundKey];
+    }
+  }
+
+  // 2. Fallback a directorio base
+  if (DIRECT_LIDER_CONTACTS[canonical]) {
+    return DIRECT_LIDER_CONTACTS[canonical];
+  }
+
   return null;
 };
 
@@ -197,11 +221,44 @@ export default function ConsultaVoluntariado() {
   const [zoomPopupImage, setZoomPopupImage] = useState(false);
   const [captchaToken, setCaptchaToken] = useState(null);
   const [captchaError, setCaptchaError] = useState(null);
+  const [mandosContactos, setMandosContactos] = useState({});
 
   const recaptchaContainerRef = useRef(null);
   const widgetIdRef = useRef(null);
 
   const SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6Lde1vctAAAAAPSQWvEDDFmSTYP9rTux28z48aTQ';
+
+  // Cargar teléfonos actualizados de líderes y responsables desde la BD viva
+  useEffect(() => {
+    async function loadMandos() {
+      try {
+        const { data, error } = await supabase
+          .from('estructura_mandos')
+          .select('responsable_nombre, responsable_dni, responsable_telefono')
+          .not('responsable_nombre', 'is', null);
+
+        if (!error && data) {
+          const map = {};
+          data.forEach(r => {
+            if (r.responsable_nombre) {
+              const k = r.responsable_nombre.trim().toUpperCase();
+              if (!map[k] || (!map[k].telefono && r.responsable_telefono)) {
+                map[k] = {
+                  nombre: r.responsable_nombre,
+                  dni: r.responsable_dni,
+                  telefono: r.responsable_telefono
+                };
+              }
+            }
+          });
+          setMandosContactos(map);
+        }
+      } catch (err) {
+        console.warn('Error al cargar contactos de mandos:', err);
+      }
+    }
+    loadMandos();
+  }, []);
 
   // Cargar anuncio pop-up flotante
   useEffect(() => {
@@ -318,10 +375,10 @@ export default function ConsultaVoluntariado() {
           if (apiData.found) {
             const isObserved = Boolean(apiData.esVerificar) || Boolean(apiData.observacion) || (apiData.estado && String(apiData.estado).toUpperCase().includes('REVISI'));
             
-            // Resolver contacto del responsable si no vino o para asegurar teléfono
+            // Resolver contacto del responsable usando mandosContactos vivos de la BD
             const respNombre = apiData.responsable_asignado || (apiData.lugar_asignado && /^Equipo\s+/i.test(apiData.lugar_asignado) ? apiData.lugar_asignado.replace(/^Equipo\s+/i, '').trim() : null);
-            const contactoLocal = resolverContactoResponsable(respNombre, apiData.responsable_dni);
-            const responsableTelefono = apiData.responsable_telefono || (contactoLocal ? contactoLocal.telefono : null);
+            const contactoLocal = resolverContactoResponsable(respNombre, apiData.responsable_dni, mandosContactos);
+            const responsableTelefono = (contactoLocal && contactoLocal.telefono) || apiData.responsable_telefono || null;
             const responsableDni = apiData.responsable_dni || (contactoLocal ? contactoLocal.dni : null);
             const responsableAsignadoFinal = (contactoLocal ? contactoLocal.nombre : respNombre) || apiData.responsable_asignado;
 
@@ -387,7 +444,7 @@ export default function ConsultaVoluntariado() {
         let responsableTelefono = null;
         let responsableDni = null;
 
-        const contactoF2 = resolverContactoResponsable(rawRespName);
+        const contactoF2 = resolverContactoResponsable(rawRespName, null, mandosContactos);
         if (contactoF2) {
           rawRespName = contactoF2.nombre;
           responsableTelefono = contactoF2.telefono;
@@ -433,7 +490,7 @@ export default function ConsultaVoluntariado() {
         let responsableTelefonoF1 = null;
         let responsableDniF1 = null;
 
-        const contactoF1 = resolverContactoResponsable(rawRespNameF1);
+        const contactoF1 = resolverContactoResponsable(rawRespNameF1, null, mandosContactos);
         if (contactoF1) {
           rawRespNameF1 = contactoF1.nombre;
           responsableTelefonoF1 = contactoF1.telefono;
