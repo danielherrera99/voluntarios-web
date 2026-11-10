@@ -28,7 +28,14 @@ import {
   SwitchCamera,
   Eye,
   RotateCcw,
-  Filter
+  Filter,
+  Coffee,
+  Utensils,
+  Boxes,
+  Truck,
+  Printer,
+  FileCheck,
+  CheckCheck
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -61,6 +68,29 @@ const playSound = (type = 'success') => {
   } catch (e) {}
 };
 
+// Responsables Generales Canónicos
+const CANONICAL_LIDERES = [
+  { nombre: 'SEBASTIÁN LEÓN SALOMÉ', dni: '73050638' },
+  { nombre: 'CRISTINA NOMBERA BAZÁN', dni: '72648617' },
+  { nombre: 'MARIA SOLEDAD LONGA GRANDA', dni: '47584113' },
+  { nombre: 'JHONATAN FRANCISCO FIESTAS PATAZCA', dni: '47844514' },
+  { nombre: 'FATIMA ELIZABETH GONZALES FIESTAS', dni: '74447092' },
+  { nombre: 'MARÍA ISABEL BAUDAT SANCHEZ', dni: '75262428' },
+  { nombre: 'RICARDO ACOSTA DEL AGUILA', dni: '77212304' },
+  { nombre: 'ANNGHY GABRIELA SALAZAR GONZALES', dni: '72693556' },
+  { nombre: 'ELENA XIOMARA SOPLOPUCO LOCONI', dni: '76069148' },
+  { nombre: 'PAMELA DEL MILAGRO QUICIO MONJE', dni: '73381541' },
+  { nombre: 'PRISCILLA NIÑO MALDONADO', dni: '75194090' },
+  { nombre: 'PEDRO ALEJANDRO LEÓN BONILLA', dni: '16654195' },
+  { nombre: 'LUIS MIGUEL CHUMAN MONTERO', dni: '71436152' },
+  { nombre: 'WALTER GARCIA', dni: '46066172' },
+  { nombre: 'SANDY TATIANA LIMO ORÉ', dni: '72307847' },
+  { nombre: 'KATHERYN MELISA MARTINEZ BARBADILLO', dni: '75245598' },
+  { nombre: 'CHISCUL ESQUIVES ANYELO HERNAN', dni: '46054145' },
+  { nombre: 'SANTOS MAXIMO FIESTAS PATAZCA', dni: '75879740' },
+  { nombre: 'WILDER ANIBAL LÓPEZ ALARCÓN', dni: '47814182' }
+];
+
 export default function ValidadorDashboard() {
   const { user, logout } = useAuth();
 
@@ -73,7 +103,8 @@ export default function ValidadorDashboard() {
     return url;
   };
   
-  // Modos de operación: 'asistencia' (Control de Asistencia) | 'kits' (Entrega de Kits) | 'visor' (Visor en Vivo)
+  // Modos de operación: 
+  // 'asistencia' (1) | 'kits' (2) | 'desayuno' (3) | 'cena' (4) | 'despacho_lote' (5) | 'visor' (6)
   const [activeTab, setActiveTab] = useState('asistencia');
 
   // Estados de escáner y búsqueda
@@ -85,60 +116,114 @@ export default function ValidadorDashboard() {
   const [manualInput, setManualInput] = useState('');
   const [searching, setSearching] = useState(false);
   
-  // Voluntario escaneado/seleccionado
+  // Voluntario escaneado/seleccionado en Modal
   const [scannedVoluntario, setScannedVoluntario] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [savingAction, setSavingAction] = useState(false);
   const [actionSuccessMsg, setActionSuccessMsg] = useState(null);
-  const [justConfirmed, setJustConfirmed] = useState(null); // null | 'KIT' | 'ASISTENCIA'
+  const [justConfirmed, setJustConfirmed] = useState(null); // null | 'KIT' | 'ASISTENCIA' | 'DESAYUNO' | 'CENA'
 
   // Formulario de Entrega de Kits
   const [entregaKitCompleto, setEntregaKitCompleto] = useState(true);
   const [entregaPolo, setEntregaPolo] = useState(true);
   const [kitNotas, setKitNotas] = useState('');
 
-  // Formulario de Asistencia
+  // Formulario de Asistencia y Alimentos
   const [puntoAsistencia, setPuntoAsistencia] = useState('Punto Principal');
+  const [puntoAlimentos, setPuntoAlimentos] = useState('Comedor Principal / Almacén');
 
   // Historial de escaneos de la sesión actual
   const [sessionHistory, setSessionHistory] = useState([]);
 
   // Métricas rápidas de la sesión
-  const [stats, setStats] = useState({ kitsHoy: 0, asistenciaHoy: 0 });
+  const [stats, setStats] = useState({ 
+    kitsHoy: 0, 
+    asistenciaHoy: 0,
+    desayunoHoy: 0,
+    cenaHoy: 0
+  });
 
   // Estados del Visor de Asistentes y Entregas en Tiempo Real
   const [visorRecords, setVisorRecords] = useState([]);
   const [loadingVisor, setLoadingVisor] = useState(false);
   const [visorSearch, setVisorSearch] = useState('');
-  const [visorFilter, setVisorFilter] = useState('ALL'); // 'ALL' | 'KITS' | 'ASISTENCIA'
+  const [visorFilter, setVisorFilter] = useState('ALL'); // 'ALL' | 'ASISTENCIA' | 'KITS' | 'DESAYUNO' | 'CENA'
+
+  // ========================================================
+  // ESTADOS DEL MÓDULO DE DESPACHO EN BLOQUE A RESPONSABLES
+  // ========================================================
+  const [lideresList, setLideresList] = useState(CANONICAL_LIDERES);
+  const [selectedLeader, setSelectedLeader] = useState('');
+  const [loadingLote, setLoadingLote] = useState(false);
+  const [loteVoluntarios, setLoteVoluntarios] = useState([]);
+  const [despacharKitsCheck, setDespacharKitsCheck] = useState(true);
+  const [despacharDesayunoCheck, setDespacharDesayunoCheck] = useState(false);
+  const [despacharCenaCheck, setDespacharCenaCheck] = useState(false);
+  const [loteReceipt, setLoteReceipt] = useState(null);
+  const [confirmingLote, setConfirmingLote] = useState(false);
 
   const html5QrCodeRef = useRef(null);
+
+  // Cargar lista dinámica de líderes de estructura_mandos
+  const fetchLideres = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('estructura_mandos')
+        .select('responsable_general_nombre, responsable_general_dni')
+        .not('responsable_general_nombre', 'is', null);
+
+      if (!error && data && data.length > 0) {
+        const unique = new Map();
+        CANONICAL_LIDERES.forEach(l => unique.set(l.nombre.toUpperCase().trim(), l));
+        data.forEach(item => {
+          const norm = item.responsable_general_nombre.toUpperCase().trim();
+          if (!unique.has(norm)) {
+            unique.set(norm, {
+              nombre: item.responsable_general_nombre.trim(),
+              dni: item.responsable_general_dni || ''
+            });
+          }
+        });
+        setLideresList(Array.from(unique.values()).sort((a, b) => a.nombre.localeCompare(b.nombre)));
+      }
+    } catch (e) {
+      console.warn('Error fetching leaders list:', e);
+    }
+  };
 
   // Cargar métricas iniciales del validador
   const fetchStats = async () => {
     try {
-      const [{ count: kCount }, { count: aCount }] = await Promise.all([
+      const [{ count: kCount }, { count: aCount }, { count: dCount }, { count: cCount }] = await Promise.all([
         supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('kit_entregado', true),
-        supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('asistencia_dia_d', true)
+        supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('asistencia_dia_d', true),
+        supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('desayuno_entregado', true),
+        supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('cena_entregada', true)
       ]);
       setStats({
         kitsHoy: kCount || 0,
-        asistenciaHoy: aCount || 0
+        asistenciaHoy: aCount || 0,
+        desayunoHoy: dCount || 0,
+        cenaHoy: cCount || 0
       });
-    } catch (e) {}
+    } catch (e) {
+      console.warn('Error fetching stats:', e);
+    }
   };
 
   // Cargar registros completos del Visor en Tiempo Real
   const fetchVisorRecords = async () => {
     setLoadingVisor(true);
     try {
+      const selectCols = 'id, dni, codigo, nombres_apellidos, talla, servicio, responsable_nombre, lugar_asignado, fotografia_url, kit_entregado, kit_polo_entregado, kit_items_entregados, kit_fecha_entrega, kit_entregado_por, kit_estado, kit_custodio_nombre, kit_fecha_despacho_lote, asistencia_dia_d, asistencia_fecha, asistencia_registrada_por, asistencia_punto, desayuno_entregado, desayuno_fecha, desayuno_entregado_por, desayuno_punto, desayuno_estado, desayuno_custodio_nombre, cena_entregada, cena_fecha, cena_entregada_por, cena_punto, cena_estado, cena_custodio_nombre, fase, estado';
+
       const [{ data: vF2, error: e2 }, { data: vF1, error: e1 }] = await Promise.all([
         supabase.from('voluntarios')
-          .select('id, dni, codigo, nombres_apellidos, talla, servicio, responsable_nombre, lugar_asignado, fotografia_url, kit_entregado, kit_polo_entregado, kit_items_entregados, kit_fecha_entrega, kit_entregado_por, asistencia_dia_d, asistencia_fecha, asistencia_registrada_por, asistencia_punto, fase, estado')
-          .or('kit_entregado.eq.true,asistencia_dia_d.eq.true'),
+          .select(selectCols)
+          .or('kit_entregado.eq.true,asistencia_dia_d.eq.true,desayuno_entregado.eq.true,cena_entregada.eq.true,kit_estado.eq.EN_CUSTODIA_RESPONSABLE'),
         supabase.from('voluntarios_general')
-          .select('id, dni, codigo, nombres_apellidos, talla, servicio, responsable_nombre, lugar_asignado, fotografia_url, kit_entregado, kit_polo_entregado, kit_items_entregados, kit_fecha_entrega, kit_entregado_por, asistencia_dia_d, asistencia_fecha, asistencia_registrada_por, asistencia_punto, fase, estado')
-          .or('kit_entregado.eq.true,asistencia_dia_d.eq.true')
+          .select(selectCols)
+          .or('kit_entregado.eq.true,asistencia_dia_d.eq.true,desayuno_entregado.eq.true,cena_entregada.eq.true,kit_estado.eq.EN_CUSTODIA_RESPONSABLE')
       ]);
 
       if (e2) console.warn('Error fetching F2 visor:', e2);
@@ -150,8 +235,8 @@ export default function ValidadorDashboard() {
       (vF2 || []).forEach(item => map.set(item.dni || item.id, item));
 
       const combined = Array.from(map.values()).sort((a, b) => {
-        const timeA = new Date(a.kit_fecha_entrega || a.asistencia_fecha || 0).getTime();
-        const timeB = new Date(b.kit_fecha_entrega || b.asistencia_fecha || 0).getTime();
+        const timeA = new Date(a.kit_fecha_entrega || a.asistencia_fecha || a.desayuno_fecha || a.cena_fecha || a.kit_fecha_despacho_lote || 0).getTime();
+        const timeB = new Date(b.kit_fecha_entrega || b.asistencia_fecha || b.desayuno_fecha || b.cena_fecha || b.kit_fecha_despacho_lote || 0).getTime();
         return timeB - timeA;
       });
 
@@ -166,6 +251,7 @@ export default function ValidadorDashboard() {
   useEffect(() => {
     fetchStats();
     fetchVisorRecords();
+    fetchLideres();
   }, []);
 
   // Iniciar Cámara con autodetección de sensor trasero y manejo resiliente
@@ -173,7 +259,6 @@ export default function ValidadorDashboard() {
     setCameraError(null);
     setIsStartingCamera(true);
 
-    // Verificar contexto seguro (HTTPS o localhost) requerido por WebRTC
     if (typeof window !== 'undefined' && window.isSecureContext === false) {
       setCameraError('La cámara en teléfonos celulares requiere conexión segura HTTPS. Si estás probando en tu celular, ábrelo en el dominio de producción (Render con HTTPS) o usa la búsqueda manual por DNI abajo.');
       setIsStartingCamera(false);
@@ -181,7 +266,6 @@ export default function ValidadorDashboard() {
     }
 
     try {
-      // Si ya hay una instancia previa escaneando, detenerla primero
       if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
         try {
           await html5QrCodeRef.current.stop();
@@ -192,7 +276,6 @@ export default function ValidadorDashboard() {
         html5QrCodeRef.current = new Html5Qrcode('qr-reader-container');
       }
 
-      // Obtener lista de cámaras si aún no la tenemos
       let cams = camerasList;
       if (!cams || cams.length === 0) {
         try {
@@ -205,12 +288,10 @@ export default function ValidadorDashboard() {
         }
       }
 
-      // Determinar configuración de cámara
       let cameraConfig;
       if (overrideCameraId) {
         cameraConfig = overrideCameraId;
       } else if (cams && cams.length > 0) {
-        // Buscar cámara trasera por etiqueta
         const backIdx = cams.findIndex(c => /back|rear|trasera|environment|externa/i.test(c.label));
         const chosenIdx = backIdx !== -1 ? backIdx : cams.length - 1;
         setActiveCameraIndex(chosenIdx);
@@ -219,7 +300,6 @@ export default function ValidadorDashboard() {
         cameraConfig = { facingMode: 'environment' };
       }
 
-      // Pequeño retardo para asegurar que el DOM layout esté listo
       await new Promise(r => setTimeout(r, 60));
 
       await html5QrCodeRef.current.start(
@@ -235,13 +315,12 @@ export default function ValidadorDashboard() {
         (decodedText) => {
           handleQrDecoded(decodedText);
         },
-        () => {} // Ignorar errores de frames continuos
+        () => {}
       );
 
       setIsScanning(true);
     } catch (err) {
       console.warn('Fallo primer intento con ID de cámara, intentando facingMode:', err);
-      // Intento fallback con facingMode: environment
       try {
         if (!html5QrCodeRef.current) {
           html5QrCodeRef.current = new Html5Qrcode('qr-reader-container');
@@ -283,7 +362,6 @@ export default function ValidadorDashboard() {
     }
   };
 
-  // Alternar entre cámaras si el dispositivo tiene más de una
   const switchCamera = async () => {
     if (!camerasList || camerasList.length <= 1) return;
     const nextIdx = (activeCameraIndex + 1) % camerasList.length;
@@ -294,7 +372,6 @@ export default function ValidadorDashboard() {
 
   useEffect(() => {
     return () => {
-      // Limpiar cámara al desmontar
       if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
         html5QrCodeRef.current.stop().catch(() => {});
       }
@@ -304,17 +381,12 @@ export default function ValidadorDashboard() {
   // Procesar texto leído por el QR
   const handleQrDecoded = (decodedText) => {
     let cleanDniOrCode = decodedText.trim();
-    
-    // Si viene como JSON institucional
     try {
       const parsed = JSON.parse(decodedText);
       if (parsed.dni) cleanDniOrCode = String(parsed.dni).trim();
       else if (parsed.codigo) cleanDniOrCode = String(parsed.codigo).trim();
-    } catch (e) {
-      // Viene como texto plano (ej: DNI o VOL-2026-...)
-    }
+    } catch (e) {}
 
-    // Detener la cámara temporalmente para mostrar el resultado
     stopCamera();
     searchVolunteer(cleanDniOrCode);
   };
@@ -365,7 +437,13 @@ export default function ValidadorDashboard() {
       setScannedVoluntario(record);
 
       // Sonido de alerta si ya se procesó según el modo activo
-      if ((activeTab === 'kits' && record.kit_entregado) || (activeTab === 'asistencia' && record.asistencia_dia_d)) {
+      const yaProcesado = 
+        (activeTab === 'kits' && record.kit_entregado) ||
+        (activeTab === 'asistencia' && record.asistencia_dia_d) ||
+        (activeTab === 'desayuno' && record.desayuno_entregado) ||
+        (activeTab === 'cena' && record.cena_entregada);
+
+      if (yaProcesado) {
         playSound('warning');
       } else {
         playSound('success');
@@ -383,69 +461,11 @@ export default function ValidadorDashboard() {
     }
   };
 
-  // Registrar Entrega de Kits & Polos
-  const handleConfirmKitDelivery = async () => {
-    if (!scannedVoluntario) return;
-    setSavingAction(true);
-    setActionError(null);
+  // ========================================================
+  // ACCIONES INDIVIDUALES (1 A 1)
+  // ========================================================
 
-    try {
-      const items = [];
-      if (entregaKitCompleto) items.push('Kit Oficial');
-      if (entregaPolo) items.push(`Polo (Talla ${scannedVoluntario.talla || 'Estándar'})`);
-      const itemsStr = items.join(' + ') || 'Entrega estándar';
-
-      const updateData = {
-        kit_entregado: true,
-        kit_polo_entregado: entregaPolo,
-        kit_items_entregados: itemsStr,
-        kit_fecha_entrega: new Date().toISOString(),
-        kit_entregado_por: user?.nombre || 'Validador Oficial',
-        kit_observaciones: kitNotas.trim() || null
-      };
-
-      const tableName = scannedVoluntario.fase === '3' || scannedVoluntario.estado === 'SELECCIONADO' 
-        ? 'voluntarios' 
-        : 'voluntarios_general';
-
-      const { error } = await supabase
-        .from(tableName)
-        .update(updateData)
-        .eq('id', scannedVoluntario.id);
-
-      if (error) throw error;
-
-      playSound('success');
-      setActionSuccessMsg(`¡Kit entregado exitosamente a ${scannedVoluntario.nombres_apellidos}!`);
-      setJustConfirmed('KIT');
-
-      // Actualizar estado local
-      const updated = { ...scannedVoluntario, ...updateData };
-      setScannedVoluntario(updated);
-
-      // Agregar al historial de la sesión
-      setSessionHistory(prev => [
-        {
-          id: Date.now(),
-          nombre: scannedVoluntario.nombres_apellidos,
-          dni: scannedVoluntario.dni,
-          tipo: 'KIT',
-          detalle: itemsStr,
-          hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        },
-        ...prev.slice(0, 9)
-      ]);
-
-      setStats(prev => ({ ...prev, kitsHoy: prev.kitsHoy + 1 }));
-    } catch (err) {
-      console.error('Error entregando kit:', err);
-      setActionError('No se pudo registrar la entrega del kit.');
-    } finally {
-      setSavingAction(false);
-    }
-  };
-
-  // Registrar Control de Asistencia (Día D)
+  // 1. Registrar Control de Asistencia (Día D)
   const handleConfirmAttendance = async () => {
     if (!scannedVoluntario) return;
     setSavingAction(true);
@@ -474,11 +494,9 @@ export default function ValidadorDashboard() {
       setActionSuccessMsg(`¡Asistencia registrada para ${scannedVoluntario.nombres_apellidos}!`);
       setJustConfirmed('ASISTENCIA');
 
-      // Actualizar estado local
       const updated = { ...scannedVoluntario, ...updateData };
       setScannedVoluntario(updated);
 
-      // Agregar al historial
       setSessionHistory(prev => [
         {
           id: Date.now(),
@@ -500,8 +518,177 @@ export default function ValidadorDashboard() {
     }
   };
 
+  // 2. Registrar Entrega de Kits & Polos
+  const handleConfirmKitDelivery = async () => {
+    if (!scannedVoluntario) return;
+    setSavingAction(true);
+    setActionError(null);
+
+    try {
+      const items = [];
+      if (entregaKitCompleto) items.push('Kit Oficial');
+      if (entregaPolo) items.push(`Polo (Talla ${scannedVoluntario.talla || 'Estándar'})`);
+      const itemsStr = items.join(' + ') || 'Entrega estándar';
+
+      const updateData = {
+        kit_entregado: true,
+        kit_polo_entregado: entregaPolo,
+        kit_items_entregados: itemsStr,
+        kit_fecha_entrega: new Date().toISOString(),
+        kit_entregado_por: user?.nombre || 'Validador Oficial',
+        kit_observaciones: kitNotas.trim() || null,
+        kit_estado: 'ENTREGADO_FINAL'
+      };
+
+      const tableName = scannedVoluntario.fase === '3' || scannedVoluntario.estado === 'SELECCIONADO' 
+        ? 'voluntarios' 
+        : 'voluntarios_general';
+
+      const { error } = await supabase
+        .from(tableName)
+        .update(updateData)
+        .eq('id', scannedVoluntario.id);
+
+      if (error) throw error;
+
+      playSound('success');
+      setActionSuccessMsg(`¡Kit entregado exitosamente a ${scannedVoluntario.nombres_apellidos}!`);
+      setJustConfirmed('KIT');
+
+      const updated = { ...scannedVoluntario, ...updateData };
+      setScannedVoluntario(updated);
+
+      setSessionHistory(prev => [
+        {
+          id: Date.now(),
+          nombre: scannedVoluntario.nombres_apellidos,
+          dni: scannedVoluntario.dni,
+          tipo: 'KIT',
+          detalle: itemsStr,
+          hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        },
+        ...prev.slice(0, 9)
+      ]);
+
+      setStats(prev => ({ ...prev, kitsHoy: prev.kitsHoy + 1 }));
+    } catch (err) {
+      console.error('Error entregando kit:', err);
+      setActionError('No se pudo registrar la entrega del kit.');
+    } finally {
+      setSavingAction(false);
+    }
+  };
+
+  // 3. Registrar Entrega de Desayuno (24h Flexible / 1 por voluntario)
+  const handleConfirmDesayuno = async () => {
+    if (!scannedVoluntario) return;
+    setSavingAction(true);
+    setActionError(null);
+
+    try {
+      const updateData = {
+        desayuno_entregado: true,
+        desayuno_estado: 'ENTREGADO_FINAL',
+        desayuno_fecha: new Date().toISOString(),
+        desayuno_entregado_por: user?.nombre || 'Validador Oficial',
+        desayuno_punto: puntoAlimentos
+      };
+
+      const tableName = scannedVoluntario.fase === '3' || scannedVoluntario.estado === 'SELECCIONADO' 
+        ? 'voluntarios' 
+        : 'voluntarios_general';
+
+      const { error } = await supabase
+        .from(tableName)
+        .update(updateData)
+        .eq('id', scannedVoluntario.id);
+
+      if (error) throw error;
+
+      playSound('success');
+      setActionSuccessMsg(`¡Ración de desayuno registrada para ${scannedVoluntario.nombres_apellidos}!`);
+      setJustConfirmed('DESAYUNO');
+
+      const updated = { ...scannedVoluntario, ...updateData };
+      setScannedVoluntario(updated);
+
+      setSessionHistory(prev => [
+        {
+          id: Date.now(),
+          nombre: scannedVoluntario.nombres_apellidos,
+          dni: scannedVoluntario.dni,
+          tipo: 'DESAYUNO',
+          detalle: puntoAlimentos,
+          hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        },
+        ...prev.slice(0, 9)
+      ]);
+
+      setStats(prev => ({ ...prev, desayunoHoy: (prev.desayunoHoy || 0) + 1 }));
+    } catch (err) {
+      console.error('Error entregando desayuno:', err);
+      setActionError('No se pudo registrar la entrega del desayuno.');
+    } finally {
+      setSavingAction(false);
+    }
+  };
+
+  // 4. Registrar Entrega de Cena (24h Flexible / 1 por voluntario)
+  const handleConfirmCena = async () => {
+    if (!scannedVoluntario) return;
+    setSavingAction(true);
+    setActionError(null);
+
+    try {
+      const updateData = {
+        cena_entregada: true,
+        cena_estado: 'ENTREGADO_FINAL',
+        cena_fecha: new Date().toISOString(),
+        cena_entregada_por: user?.nombre || 'Validador Oficial',
+        cena_punto: puntoAlimentos
+      };
+
+      const tableName = scannedVoluntario.fase === '3' || scannedVoluntario.estado === 'SELECCIONADO' 
+        ? 'voluntarios' 
+        : 'voluntarios_general';
+
+      const { error } = await supabase
+        .from(tableName)
+        .update(updateData)
+        .eq('id', scannedVoluntario.id);
+
+      if (error) throw error;
+
+      playSound('success');
+      setActionSuccessMsg(`¡Ración de cena registrada para ${scannedVoluntario.nombres_apellidos}!`);
+      setJustConfirmed('CENA');
+
+      const updated = { ...scannedVoluntario, ...updateData };
+      setScannedVoluntario(updated);
+
+      setSessionHistory(prev => [
+        {
+          id: Date.now(),
+          nombre: scannedVoluntario.nombres_apellidos,
+          dni: scannedVoluntario.dni,
+          tipo: 'CENA',
+          detalle: puntoAlimentos,
+          hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        },
+        ...prev.slice(0, 9)
+      ]);
+
+      setStats(prev => ({ ...prev, cenaHoy: (prev.cenaHoy || 0) + 1 }));
+    } catch (err) {
+      console.error('Error entregando cena:', err);
+      setActionError('No se pudo registrar la entrega de la cena.');
+    } finally {
+      setSavingAction(false);
+    }
+  };
+
   // ========================================================
-  // REVERSIÓN / ANULACIÓN DE PRUEBAS (EXCLUSIVO ADMINISTRADOR)
+  // REVERSIÓN / ANULACIÓN DE REGISTROS (EXCLUSIVO ADMINISTRADOR)
   // ========================================================
   const handleResetKit = async (voluntario) => {
     if (user?.rol !== 'admin') {
@@ -523,7 +710,11 @@ export default function ValidadorDashboard() {
         kit_items_entregados: null,
         kit_fecha_entrega: null,
         kit_entregado_por: null,
-        kit_observaciones: null
+        kit_observaciones: null,
+        kit_estado: 'PENDIENTE',
+        kit_custodio_nombre: null,
+        kit_custodio_dni: null,
+        kit_fecha_despacho_lote: null
       };
 
       const tableName = voluntario.fase === '3' || voluntario.estado === 'SELECCIONADO' 
@@ -539,7 +730,6 @@ export default function ValidadorDashboard() {
 
       playSound('success');
 
-      // Actualizar tarjeta si es el voluntario escaneado en el modal
       if (scannedVoluntario && scannedVoluntario.id === voluntario.id) {
         setJustConfirmed(null);
         setScannedVoluntario(prev => ({ ...prev, ...resetData }));
@@ -589,7 +779,6 @@ export default function ValidadorDashboard() {
 
       playSound('success');
 
-      // Actualizar tarjeta si es el voluntario escaneado en el modal
       if (scannedVoluntario && scannedVoluntario.id === voluntario.id) {
         setJustConfirmed(null);
         setScannedVoluntario(prev => ({ ...prev, ...resetData }));
@@ -605,7 +794,281 @@ export default function ValidadorDashboard() {
     }
   };
 
-  // Reset para siguiente escaneo
+  const handleResetDesayuno = async (voluntario) => {
+    if (user?.rol !== 'admin') {
+      alert('Acceso restringido: Solo los administradores pueden anular o revertir entregas de desayuno.');
+      return;
+    }
+
+    const voluntarioNombre = voluntario.nombres_apellidos || 'este voluntario';
+    if (!window.confirm(`¿Estás seguro de ANULAR el desayuno de ${voluntarioNombre}?\n\nEl registro volverá a figurar como PENDIENTE de entrega.`)) {
+      return;
+    }
+
+    setSavingAction(true);
+    setActionError(null);
+    try {
+      const resetData = {
+        desayuno_entregado: false,
+        desayuno_fecha: null,
+        desayuno_entregado_por: null,
+        desayuno_punto: null,
+        desayuno_estado: 'PENDIENTE',
+        desayuno_custodio_nombre: null
+      };
+
+      const tableName = voluntario.fase === '3' || voluntario.estado === 'SELECCIONADO' 
+        ? 'voluntarios' 
+        : 'voluntarios_general';
+
+      const { error } = await supabase.from(tableName).update(resetData).eq('id', voluntario.id);
+      if (error) throw error;
+
+      playSound('success');
+
+      if (scannedVoluntario && scannedVoluntario.id === voluntario.id) {
+        setJustConfirmed(null);
+        setScannedVoluntario(prev => ({ ...prev, ...resetData }));
+        setActionSuccessMsg(`Entrega de desayuno anulada para ${voluntarioNombre}.`);
+      }
+
+      await Promise.all([fetchStats(), fetchVisorRecords()]);
+    } catch (err) {
+      console.error('Error anulando desayuno:', err);
+      setActionError('No se pudo anular la entrega de desayuno.');
+    } finally {
+      setSavingAction(false);
+    }
+  };
+
+  const handleResetCena = async (voluntario) => {
+    if (user?.rol !== 'admin') {
+      alert('Acceso restringido: Solo los administradores pueden anular o revertir entregas de cena.');
+      return;
+    }
+
+    const voluntarioNombre = voluntario.nombres_apellidos || 'este voluntario';
+    if (!window.confirm(`¿Estás seguro de ANULAR la cena de ${voluntarioNombre}?\n\nEl registro volverá a figurar como PENDIENTE de entrega.`)) {
+      return;
+    }
+
+    setSavingAction(true);
+    setActionError(null);
+    try {
+      const resetData = {
+        cena_entregada: false,
+        cena_fecha: null,
+        cena_entregada_por: null,
+        cena_punto: null,
+        cena_estado: 'PENDIENTE',
+        cena_custodio_nombre: null
+      };
+
+      const tableName = voluntario.fase === '3' || voluntario.estado === 'SELECCIONADO' 
+        ? 'voluntarios' 
+        : 'voluntarios_general';
+
+      const { error } = await supabase.from(tableName).update(resetData).eq('id', voluntario.id);
+      if (error) throw error;
+
+      playSound('success');
+
+      if (scannedVoluntario && scannedVoluntario.id === voluntario.id) {
+        setJustConfirmed(null);
+        setScannedVoluntario(prev => ({ ...prev, ...resetData }));
+        setActionSuccessMsg(`Entrega de cena anulada para ${voluntarioNombre}.`);
+      }
+
+      await Promise.all([fetchStats(), fetchVisorRecords()]);
+    } catch (err) {
+      console.error('Error anulando cena:', err);
+      setActionError('No se pudo anular la entrega de cena.');
+    } finally {
+      setSavingAction(false);
+    }
+  };
+
+  // ========================================================
+  // DESPACHO EN BLOQUE A RESPONSABLES (MODO B)
+  // ========================================================
+  const handleSelectLeader = async (leaderName) => {
+    setSelectedLeader(leaderName);
+    setLoteReceipt(null);
+    if (!leaderName) {
+      setLoteVoluntarios([]);
+      return;
+    }
+
+    setLoadingLote(true);
+    setActionError(null);
+    try {
+      const firstWord = leaderName.split(' ')[0] || leaderName;
+      const [{ data: f2Data, error: f2Err }, { data: f1Data, error: f1Err }] = await Promise.all([
+        supabase.from('voluntarios')
+          .select('id, dni, codigo, nombres_apellidos, talla, servicio, responsable_nombre, lugar_asignado, kit_entregado, kit_estado, kit_custodio_nombre, kit_fecha_despacho_lote, desayuno_entregado, desayuno_estado, desayuno_custodio_nombre, cena_entregada, cena_estado, cena_custodio_nombre, fase, estado')
+          .ilike('responsable_nombre', `%${firstWord}%`),
+        supabase.from('voluntarios_general')
+          .select('id, dni, codigo, nombres_apellidos, talla, servicio, responsable_nombre, lugar_asignado, kit_entregado, kit_estado, kit_custodio_nombre, kit_fecha_despacho_lote, desayuno_entregado, desayuno_estado, desayuno_custodio_nombre, cena_entregada, cena_estado, cena_custodio_nombre, fase, estado')
+          .ilike('responsable_nombre', `%${firstWord}%`)
+      ]);
+
+      if (f2Err) console.warn('Lote F2 error:', f2Err);
+      if (f1Err) console.warn('Lote F1 error:', f1Err);
+
+      const map = new Map();
+      (f1Data || []).forEach(v => map.set(v.dni || v.id, v));
+      (f2Data || []).forEach(v => map.set(v.dni || v.id, v));
+
+      setLoteVoluntarios(Array.from(map.values()));
+    } catch (err) {
+      console.error('Error cargando voluntarios del responsable:', err);
+      setActionError('Error al consultar el lote de voluntarios del responsable seleccionado.');
+    } finally {
+      setLoadingLote(false);
+    }
+  };
+
+  // Desglose de tallas del lote seleccionado
+  const loteTallasBreakdown = loteVoluntarios.reduce((acc, v) => {
+    const t = (v.talla || 'Sin Talla').toUpperCase().trim();
+    acc[t] = (acc[t] || 0) + 1;
+    return acc;
+  }, {});
+
+  // Conteos de estado del lote seleccionado
+  const loteKitsPending = loteVoluntarios.filter(v => !v.kit_entregado && v.kit_estado !== 'EN_CUSTODIA_RESPONSABLE');
+  const loteKitsCustodia = loteVoluntarios.filter(v => v.kit_estado === 'EN_CUSTODIA_RESPONSABLE');
+  const loteKitsDelivered = loteVoluntarios.filter(v => v.kit_entregado);
+
+  const loteDesayunosPending = loteVoluntarios.filter(v => !v.desayuno_entregado && v.desayuno_estado !== 'EN_CUSTODIA_RESPONSABLE');
+  const loteDesayunosCustodia = loteVoluntarios.filter(v => v.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE');
+  const loteDesayunosDelivered = loteVoluntarios.filter(v => v.desayuno_entregado);
+
+  const loteCenasPending = loteVoluntarios.filter(v => !v.cena_entregada && v.cena_estado !== 'EN_CUSTODIA_RESPONSABLE');
+  const loteCenasCustodia = loteVoluntarios.filter(v => v.cena_estado === 'EN_CUSTODIA_RESPONSABLE');
+  const loteCenasDelivered = loteVoluntarios.filter(v => v.cena_entregada);
+
+  // Ejecutar el Despacho en Bloque
+  const handleConfirmDespachoLote = async () => {
+    if (!selectedLeader || loteVoluntarios.length === 0) return;
+    if (!despacharKitsCheck && !despacharDesayunoCheck && !despacharCenaCheck) {
+      alert('Debes seleccionar al menos un tipo de entrega (Kits, Desayuno o Cena).');
+      return;
+    }
+
+    const itemsToDispatchDesc = [];
+    if (despacharKitsCheck) itemsToDispatchDesc.push(`${loteKitsPending.length} Kits`);
+    if (despacharDesayunoCheck) itemsToDispatchDesc.push(`${loteDesayunosPending.length} Desayunos`);
+    if (despacharCenaCheck) itemsToDispatchDesc.push(`${loteCenasPending.length} Cenas`);
+
+    const confirmMsg = `¿Confirmar DESPACHO EN BLOQUE al Responsable:\n\n👤 ${selectedLeader}?\n\nArtículos a entregar:\n• ${itemsToDispatchDesc.join('\n• ')}\n\n⚠️ Nota: Los voluntarios quedarán marcados como "EN CUSTODIA DEL RESPONSABLE" con candado anti-fraude.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setConfirmingLote(true);
+    setActionError(null);
+
+    try {
+      const nowIso = new Date().toISOString();
+      const validadorNombre = user?.nombre || 'Almacén Central';
+
+      // 1. Despachar Kits pendientes
+      if (despacharKitsCheck && loteKitsPending.length > 0) {
+        const idsF2 = loteKitsPending.filter(v => v.fase === '3' || v.estado === 'SELECCIONADO').map(v => v.id);
+        const idsF1 = loteKitsPending.filter(v => !(v.fase === '3' || v.estado === 'SELECCIONADO')).map(v => v.id);
+
+        const kitPatch = {
+          kit_estado: 'EN_CUSTODIA_RESPONSABLE',
+          kit_custodio_nombre: selectedLeader,
+          kit_fecha_despacho_lote: nowIso,
+          kit_entregado_por: validadorNombre
+        };
+
+        if (idsF2.length > 0) {
+          await supabase.from('voluntarios').update(kitPatch).in('id', idsF2);
+        }
+        if (idsF1.length > 0) {
+          await supabase.from('voluntarios_general').update(kitPatch).in('id', idsF1);
+        }
+      }
+
+      // 2. Despachar Desayunos pendientes
+      if (despacharDesayunoCheck && loteDesayunosPending.length > 0) {
+        const idsF2 = loteDesayunosPending.filter(v => v.fase === '3' || v.estado === 'SELECCIONADO').map(v => v.id);
+        const idsF1 = loteDesayunosPending.filter(v => !(v.fase === '3' || v.estado === 'SELECCIONADO')).map(v => v.id);
+
+        const dPatch = {
+          desayuno_estado: 'EN_CUSTODIA_RESPONSABLE',
+          desayuno_custodio_nombre: selectedLeader,
+          desayuno_fecha: nowIso,
+          desayuno_entregado_por: validadorNombre,
+          desayuno_punto: puntoAlimentos
+        };
+
+        if (idsF2.length > 0) {
+          await supabase.from('voluntarios').update(dPatch).in('id', idsF2);
+        }
+        if (idsF1.length > 0) {
+          await supabase.from('voluntarios_general').update(dPatch).in('id', idsF1);
+        }
+      }
+
+      // 3. Despachar Cenas pendientes
+      if (despacharCenaCheck && loteCenasPending.length > 0) {
+        const idsF2 = loteCenasPending.filter(v => v.fase === '3' || v.estado === 'SELECCIONADO').map(v => v.id);
+        const idsF1 = loteCenasPending.filter(v => !(v.fase === '3' || v.estado === 'SELECCIONADO')).map(v => v.id);
+
+        const cPatch = {
+          cena_estado: 'EN_CUSTODIA_RESPONSABLE',
+          cena_custodio_nombre: selectedLeader,
+          cena_fecha: nowIso,
+          cena_entregada_por: validadorNombre,
+          cena_punto: puntoAlimentos
+        };
+
+        if (idsF2.length > 0) {
+          await supabase.from('voluntarios').update(cPatch).in('id', idsF2);
+        }
+        if (idsF1.length > 0) {
+          await supabase.from('voluntarios_general').update(cPatch).in('id', idsF1);
+        }
+      }
+
+      playSound('success');
+
+      // Generar Comprobante de Despacho Oficial
+      const receiptData = {
+        folio: `LOTE-${Date.now().toString().slice(-6)}`,
+        responsable: selectedLeader,
+        despachadoPor: validadorNombre,
+        fechaHora: new Date().toLocaleString(),
+        totalAsignados: loteVoluntarios.length,
+        kitsDespachados: despacharKitsCheck ? loteKitsPending.length : 0,
+        desayunosDespachados: despacharDesayunoCheck ? loteDesayunosPending.length : 0,
+        cenasDespachadas: despacharCenaCheck ? loteCenasPending.length : 0,
+        tallas: loteTallasBreakdown,
+        voluntarios: loteVoluntarios.map(v => ({
+          dni: v.dni,
+          nombre: v.nombres_apellidos,
+          talla: v.talla || 'Estándar',
+          codigo: v.codigo
+        }))
+      };
+
+      setLoteReceipt(receiptData);
+
+      // Recargar lista del líder para reflejar los nuevos estados
+      await handleSelectLeader(selectedLeader);
+      await fetchStats();
+      await fetchVisorRecords();
+    } catch (err) {
+      console.error('Error en despacho en bloque:', err);
+      setActionError('Ocurrió un error al procesar el despacho en bloque.');
+    } finally {
+      setConfirmingLote(false);
+    }
+  };
+
+  // Reset para siguiente escaneo individual
   const handleNextVolunteer = () => {
     setScannedVoluntario(null);
     setActionError(null);
@@ -637,16 +1100,20 @@ export default function ValidadorDashboard() {
 
   // Filtrado de registros en el Visor
   const filteredVisorRecords = visorRecords.filter(item => {
-    if (visorFilter === 'KITS' && !item.kit_entregado) return false;
+    if (visorFilter === 'KITS' && !item.kit_entregado && item.kit_estado !== 'EN_CUSTODIA_RESPONSABLE') return false;
     if (visorFilter === 'ASISTENCIA' && !item.asistencia_dia_d) return false;
+    if (visorFilter === 'DESAYUNO' && !item.desayuno_entregado && item.desayuno_estado !== 'EN_CUSTODIA_RESPONSABLE') return false;
+    if (visorFilter === 'CENA' && !item.cena_entregada && item.cena_estado !== 'EN_CUSTODIA_RESPONSABLE') return false;
+
     if (visorSearch.trim()) {
       const term = visorSearch.toLowerCase().trim();
       const matchName = item.nombres_apellidos?.toLowerCase().includes(term);
       const matchDni = item.dni?.includes(term);
       const matchCodigo = item.codigo?.toLowerCase().includes(term);
       const matchResp = item.responsable_nombre?.toLowerCase().includes(term);
+      const matchCust = (item.kit_custodio_nombre || '').toLowerCase().includes(term) || (item.desayuno_custodio_nombre || '').toLowerCase().includes(term);
       const matchVal = (item.kit_entregado_por || '').toLowerCase().includes(term) || (item.asistencia_registrada_por || '').toLowerCase().includes(term);
-      return matchName || matchDni || matchCodigo || matchResp || matchVal;
+      return matchName || matchDni || matchCodigo || matchResp || matchCust || matchVal;
     }
     return true;
   });
@@ -656,17 +1123,17 @@ export default function ValidadorDashboard() {
       
       {/* Header Estilo Franciscano / Diocesano */}
       <header className="bg-diocesis-redDark text-white shadow-md border-b-4 border-diocesis-mustard sticky top-0 z-30">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20 text-diocesis-mustard">
               <QrCode className="w-6 h-6" />
             </div>
             <div>
               <span className="text-[10px] uppercase font-bold tracking-widest text-diocesis-mustard block">
-                Módulo Oficial de Validación
+                Módulo Oficial de Validación y Logística
               </span>
               <h1 className="text-base sm:text-lg font-bold font-title leading-tight">
-                Validadores • Visita Papal 2026
+                Control de Campo • Visita Papal 2026
               </h1>
             </div>
           </div>
@@ -700,43 +1167,98 @@ export default function ValidadorDashboard() {
         </div>
       </header>
 
-      {/* Selector de Modo de Operación (Kits, Asistencia y Visor en Vivo) */}
+      {/* Selector de Modo de Operación (6 Módulos Oficiales) */}
       <div className="bg-white border-b border-stone-200 shadow-2xs">
-        <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-between flex-wrap gap-2">
+        <div className="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between flex-wrap gap-2">
           
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* 1. Asistencia */}
             <button
               type="button"
               onClick={() => {
                 setActiveTab('asistencia');
                 setScannedVoluntario(null);
               }}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
                 activeTab === 'asistencia'
                   ? 'bg-blue-100 text-blue-950 border border-blue-300 shadow-2xs'
                   : 'bg-stone-50 text-stone-600 hover:bg-stone-100 border border-stone-200'
               }`}
             >
               <ClipboardCheck className="w-4 h-4 text-blue-700" />
-              <span>1. Control de Asistencia</span>
+              <span>1. Asistencia</span>
             </button>
 
+            {/* 2. Kits */}
             <button
               type="button"
               onClick={() => {
                 setActiveTab('kits');
                 setScannedVoluntario(null);
               }}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
                 activeTab === 'kits'
                   ? 'bg-amber-100 text-amber-950 border border-amber-300 shadow-2xs'
                   : 'bg-stone-50 text-stone-600 hover:bg-stone-100 border border-stone-200'
               }`}
             >
               <PackageCheck className="w-4 h-4 text-amber-700" />
-              <span>2. Entrega de Kits & Polos</span>
+              <span>2. Kits & Polos</span>
             </button>
 
+            {/* 3. Desayuno */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('desayuno');
+                setScannedVoluntario(null);
+              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
+                activeTab === 'desayuno'
+                  ? 'bg-orange-100 text-orange-950 border border-orange-300 shadow-2xs'
+                  : 'bg-stone-50 text-stone-600 hover:bg-stone-100 border border-stone-200'
+              }`}
+            >
+              <Coffee className="w-4 h-4 text-orange-700" />
+              <span>3. Desayuno</span>
+            </button>
+
+            {/* 4. Cena */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('cena');
+                setScannedVoluntario(null);
+              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
+                activeTab === 'cena'
+                  ? 'bg-emerald-100 text-emerald-950 border border-emerald-300 shadow-2xs'
+                  : 'bg-stone-50 text-stone-600 hover:bg-stone-100 border border-stone-200'
+              }`}
+            >
+              <Utensils className="w-4 h-4 text-emerald-700" />
+              <span>4. Cena</span>
+            </button>
+
+            {/* 5. Despacho en Bloque */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('despacho_lote');
+                setScannedVoluntario(null);
+                stopCamera();
+              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
+                activeTab === 'despacho_lote'
+                  ? 'bg-indigo-100 text-indigo-950 border border-indigo-300 shadow-2xs'
+                  : 'bg-stone-50 text-stone-600 hover:bg-stone-100 border border-stone-200'
+              }`}
+            >
+              <Boxes className="w-4 h-4 text-indigo-700" />
+              <span>5. Despacho en Bloque</span>
+            </button>
+
+            {/* 6. Visor */}
             <button
               type="button"
               onClick={() => {
@@ -745,14 +1267,14 @@ export default function ValidadorDashboard() {
                 stopCamera();
                 fetchVisorRecords();
               }}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
                 activeTab === 'visor'
                   ? 'bg-purple-100 text-purple-950 border border-purple-300 shadow-2xs'
                   : 'bg-stone-50 text-stone-600 hover:bg-stone-100 border border-stone-200'
               }`}
             >
               <Eye className="w-4 h-4 text-purple-700" />
-              <span>3. Visor de Asistentes & Entregas</span>
+              <span>6. Visor en Vivo</span>
               {visorRecords.length > 0 && (
                 <span className="bg-purple-200 text-purple-950 px-1.5 py-0.2 rounded-full text-[10px] font-black">
                   {visorRecords.length}
@@ -761,8 +1283,8 @@ export default function ValidadorDashboard() {
             </button>
           </div>
 
-          {/* Métricas Rápidas Interactivas (Hacen clic directo al visor) */}
-          <div className="flex items-center gap-2 text-xs font-mono font-bold text-stone-600">
+          {/* Métricas Rápidas Interactivas */}
+          <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-stone-600 flex-wrap">
             <button
               type="button"
               onClick={() => {
@@ -771,11 +1293,12 @@ export default function ValidadorDashboard() {
                 stopCamera();
                 fetchVisorRecords();
               }}
-              className="flex items-center gap-1 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-xl border border-blue-200 text-blue-900 transition cursor-pointer"
-              title="Ver en el Visor la lista de quienes marcaron Asistencia"
+              className="flex items-center gap-1 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-xl border border-blue-200 text-blue-900 transition cursor-pointer"
+              title="Ver asistencias en el Visor"
             >
-              📋 Asistencias: <strong className="text-blue-950">{stats.asistenciaHoy}</strong>
+              📋 Asist: <strong className="text-blue-950">{stats.asistenciaHoy}</strong>
             </button>
+
             <button
               type="button"
               onClick={() => {
@@ -784,10 +1307,38 @@ export default function ValidadorDashboard() {
                 stopCamera();
                 fetchVisorRecords();
               }}
-              className="flex items-center gap-1 bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-xl border border-amber-200 text-amber-900 transition cursor-pointer"
-              title="Ver en el Visor la lista de quienes recibieron su Kit"
+              className="flex items-center gap-1 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-xl border border-amber-200 text-amber-900 transition cursor-pointer"
+              title="Ver kits en el Visor"
             >
               🎁 Kits: <strong className="text-amber-950">{stats.kitsHoy}</strong>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('visor');
+                setVisorFilter('DESAYUNO');
+                stopCamera();
+                fetchVisorRecords();
+              }}
+              className="flex items-center gap-1 bg-orange-50 hover:bg-orange-100 px-2.5 py-1 rounded-xl border border-orange-200 text-orange-900 transition cursor-pointer"
+              title="Ver desayunos en el Visor"
+            >
+              ☕ Desay: <strong className="text-orange-950">{stats.desayunoHoy}</strong>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('visor');
+                setVisorFilter('CENA');
+                stopCamera();
+                fetchVisorRecords();
+              }}
+              className="flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-xl border border-emerald-200 text-emerald-950 transition cursor-pointer"
+              title="Ver cenas en el Visor"
+            >
+              🍽️ Cenas: <strong className="text-emerald-950">{stats.cenaHoy}</strong>
             </button>
           </div>
 
@@ -795,11 +1346,398 @@ export default function ValidadorDashboard() {
       </div>
 
       {/* Contenido Principal */}
-      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 space-y-6">
+      <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
         
-        {activeTab === 'visor' ? (
+        {/* ======================================================== */}
+        {/* PESTAÑA 5: DESPACHO EN BLOQUE A RESPONSABLES            */}
+        {/* ======================================================== */}
+        {activeTab === 'despacho_lote' ? (
+          <div className="space-y-6 animate-in fade-in duration-150">
+            
+            {/* Header del Despacho en Bloque */}
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-stone-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-800 flex items-center justify-center border border-indigo-200 shadow-2xs">
+                  <Boxes className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold font-title text-stone-900 leading-tight">
+                    Despacho en Bloque a Responsables • Almacén Central
+                  </h2>
+                  <p className="text-xs text-stone-500">
+                    Entrega lotes completos de kits o raciones a los Líderes con trazabilidad y candado anti-fraude.
+                  </p>
+                </div>
+              </div>
+
+              <div className="px-3.5 py-2 bg-indigo-50 border border-indigo-200 text-indigo-900 rounded-2xl text-xs font-bold flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                <span>Control de Custodia Estricto</span>
+              </div>
+            </div>
+
+            {/* Selector de Responsable y Panel de Control */}
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-stone-200 shadow-sm space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                <div className="md:col-span-8 space-y-1.5">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-stone-700">
+                    Seleccionar Responsable / Líder de Cuadrilla:
+                  </label>
+                  <select
+                    value={selectedLeader}
+                    onChange={(e) => handleSelectLeader(e.target.value)}
+                    className="w-full py-3 px-3.5 bg-stone-50 border border-stone-300 rounded-2xl text-sm font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard cursor-pointer"
+                  >
+                    <option value="">-- Elige un responsable general ({lideresList.length} registrados) --</option>
+                    {lideresList.map((lid, idx) => (
+                      <option key={idx} value={lid.nombre}>
+                        👤 {lid.nombre} {lid.dni ? `(DNI: ${lid.dni})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="md:col-span-4 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectLeader(selectedLeader)}
+                    disabled={!selectedLeader || loadingLote}
+                    className="w-full py-3 px-4 bg-stone-900 hover:bg-black text-white text-xs font-bold rounded-2xl transition cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loadingLote ? 'animate-spin' : ''}`} />
+                    <span>Recargar Lote</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Mensajes de error */}
+              {actionError && (
+                <div className="p-3.5 bg-rose-50 border border-rose-300 rounded-2xl text-xs text-rose-900 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{actionError}</span>
+                </div>
+              )}
+
+              {/* Estado de Carga */}
+              {loadingLote && (
+                <div className="p-8 text-center space-y-2">
+                  <RefreshCw className="w-7 h-7 animate-spin text-indigo-600 mx-auto" />
+                  <p className="text-xs font-bold text-stone-600">Consultando asignaciones del responsable...</p>
+                </div>
+              )}
+
+              {/* Contenido cuando el líder está seleccionado */}
+              {!loadingLote && selectedLeader && (
+                <div className="space-y-6 pt-3 border-t border-stone-100">
+                  
+                  {/* Tarjetas de Resumen del Grupo */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                    <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200">
+                      <span className="text-[10px] uppercase font-bold text-stone-500 block">Total Voluntarios</span>
+                      <span className="text-2xl font-black font-mono text-stone-900">{loteVoluntarios.length}</span>
+                    </div>
+
+                    <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200">
+                      <span className="text-[10px] uppercase font-bold text-amber-700 block">Kits Pendientes</span>
+                      <span className="text-2xl font-black font-mono text-amber-950">{loteKitsPending.length}</span>
+                      <span className="text-[10px] text-amber-800 block">
+                        ({loteKitsCustodia.length} en custodia • {loteKitsDelivered.length} entregados)
+                      </span>
+                    </div>
+
+                    <div className="p-4 bg-orange-50 rounded-2xl border border-orange-200">
+                      <span className="text-[10px] uppercase font-bold text-orange-700 block">Desayunos Pend.</span>
+                      <span className="text-2xl font-black font-mono text-orange-950">{loteDesayunosPending.length}</span>
+                      <span className="text-[10px] text-orange-800 block">
+                        ({loteDesayunosCustodia.length} en custodia • {loteDesayunosDelivered.length} entregados)
+                      </span>
+                    </div>
+
+                    <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200">
+                      <span className="text-[10px] uppercase font-bold text-emerald-700 block">Cenas Pendientes</span>
+                      <span className="text-2xl font-black font-mono text-emerald-950">{loteCenasPending.length}</span>
+                      <span className="text-[10px] text-emerald-800 block">
+                        ({loteCenasCustodia.length} en custodia • {loteCenasDelivered.length} entregados)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Desglose de Tallas de Polos */}
+                  <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
+                        <Shirt className="w-4 h-4 text-amber-600" />
+                        Desglose de Prendas Textiles por Talla en este Lote:
+                      </span>
+                      <span className="text-xs text-stone-500 font-mono">
+                        Total prendas requeridas: <strong>{loteVoluntarios.length}</strong>
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {Object.entries(loteTallasBreakdown).map(([talla, count]) => (
+                        <div 
+                          key={talla}
+                          className="px-3.5 py-1.5 bg-white border border-stone-300 rounded-xl text-xs font-mono flex items-center gap-2 shadow-2xs"
+                        >
+                          <span className="font-bold text-stone-500">Talla {talla}:</span>
+                          <span className="text-sm font-black text-stone-900 bg-amber-100 px-2 py-0.5 rounded text-amber-950">
+                            {count}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Panel de Ejecución del Despacho */}
+                  <div className="p-5 bg-indigo-50/80 rounded-2xl border-2 border-indigo-200 space-y-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h4 className="text-sm font-bold text-indigo-950 flex items-center gap-2">
+                          <Truck className="w-4 h-4 text-indigo-700" />
+                          Seleccionar Artículos para Despacho Masivo:
+                        </h4>
+                        <p className="text-xs text-indigo-800 mt-0.5">
+                          Marca los artículos que vas a entregar físicamente en este momento a <strong>{selectedLeader}</strong>.
+                        </p>
+                      </div>
+                      <span className="px-2.5 py-1 bg-indigo-200/70 text-indigo-950 rounded-lg text-[10px] font-black uppercase">
+                        Candado Anti-Exceso Activo
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {/* Check Kits */}
+                      <label className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition ${
+                        despacharKitsCheck ? 'bg-white border-amber-400 shadow-xs' : 'bg-white/60 border-stone-200 opacity-80'
+                      }`}>
+                        <input
+                          type="checkbox"
+                          checked={despacharKitsCheck}
+                          onChange={(e) => setDespacharKitsCheck(e.target.checked)}
+                          disabled={loteKitsPending.length === 0}
+                          className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <div className="text-xs">
+                          <span className="font-bold text-stone-900 block">🎁 Kits & Polos</span>
+                          <span className="text-stone-500">
+                            {loteKitsPending.length > 0 
+                              ? `Despachar ${loteKitsPending.length} pendientes` 
+                              : '✅ Ya despachados'}
+                          </span>
+                        </div>
+                      </label>
+
+                      {/* Check Desayunos */}
+                      <label className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition ${
+                        despacharDesayunoCheck ? 'bg-white border-orange-400 shadow-xs' : 'bg-white/60 border-stone-200 opacity-80'
+                      }`}>
+                        <input
+                          type="checkbox"
+                          checked={despacharDesayunoCheck}
+                          onChange={(e) => setDespacharDesayunoCheck(e.target.checked)}
+                          disabled={loteDesayunosPending.length === 0}
+                          className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <div className="text-xs">
+                          <span className="font-bold text-stone-900 block">☕ Raciones Desayuno</span>
+                          <span className="text-stone-500">
+                            {loteDesayunosPending.length > 0 
+                              ? `Despachar ${loteDesayunosPending.length} pendientes` 
+                              : '✅ Ya despachados'}
+                          </span>
+                        </div>
+                      </label>
+
+                      {/* Check Cenas */}
+                      <label className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition ${
+                        despacharCenaCheck ? 'bg-white border-emerald-400 shadow-xs' : 'bg-white/60 border-stone-200 opacity-80'
+                      }`}>
+                        <input
+                          type="checkbox"
+                          checked={despacharCenaCheck}
+                          onChange={(e) => setDespacharCenaCheck(e.target.checked)}
+                          disabled={loteCenasPending.length === 0}
+                          className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <div className="text-xs">
+                          <span className="font-bold text-stone-900 block">🍽️ Raciones Cena</span>
+                          <span className="text-stone-500">
+                            {loteCenasPending.length > 0 
+                              ? `Despachar ${loteCenasPending.length} pendientes` 
+                              : '✅ Ya despachados'}
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={confirmingLote || (!despacharKitsCheck && !despacharDesayunoCheck && !despacharCenaCheck) || (
+                        (!despacharKitsCheck || loteKitsPending.length === 0) &&
+                        (!despacharDesayunoCheck || loteDesayunosPending.length === 0) &&
+                        (!despacharCenaCheck || loteCenasPending.length === 0)
+                      )}
+                      onClick={handleConfirmDespachoLote}
+                      className="w-full py-4 px-6 bg-indigo-700 hover:bg-indigo-800 active:bg-indigo-900 text-white rounded-2xl font-bold text-sm shadow-md transition flex items-center justify-center gap-2.5 disabled:opacity-50 cursor-pointer"
+                    >
+                      {confirmingLote ? (
+                        <>
+                          <RefreshCw className="w-5 h-5 animate-spin" />
+                          <span>Procesando entrega y actualizando custodia...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Boxes className="w-5 h-5 text-indigo-200" />
+                          <span>Confirmar Despacho en Bloque a {selectedLeader}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Comprobante de Despacho Digital si se completó */}
+                  {loteReceipt && (
+                    <div className="p-6 bg-white rounded-3xl border-2 border-emerald-400 shadow-xl space-y-4 animate-in zoom-in-95 duration-200">
+                      <div className="flex items-start justify-between border-b pb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
+                            <FileCheck className="w-7 h-7" />
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-mono uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-black">
+                              COMPROBANTE OFICIAL • {loteReceipt.folio}
+                            </span>
+                            <h3 className="text-lg font-bold font-title text-stone-900 leading-tight">
+                              Acta de Entrega y Cadena de Custodia
+                            </h3>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => window.print()}
+                          className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Printer className="w-4 h-4" />
+                          <span>Imprimir Acta</span>
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div className="p-3 bg-stone-50 rounded-xl space-y-1">
+                          <span className="text-stone-500 block">Responsable Receptor:</span>
+                          <span className="font-bold text-stone-900 text-sm block">👤 {loteReceipt.responsable}</span>
+                          <span className="text-[11px] text-stone-500">
+                            Entregado por: <strong>{loteReceipt.despachadoPor}</strong> • {loteReceipt.fechaHora}
+                          </span>
+                        </div>
+
+                        <div className="p-3 bg-stone-50 rounded-xl space-y-1">
+                          <span className="text-stone-500 block">Cantidades Despachadas en este Lote:</span>
+                          <div className="flex flex-wrap gap-2 text-xs font-bold pt-0.5">
+                            {loteReceipt.kitsDespachados > 0 && (
+                              <span className="bg-amber-100 text-amber-950 px-2 py-0.5 rounded border border-amber-300">
+                                🎁 {loteReceipt.kitsDespachados} Kits
+                              </span>
+                            )}
+                            {loteReceipt.desayunosDespachados > 0 && (
+                              <span className="bg-orange-100 text-orange-950 px-2 py-0.5 rounded border border-orange-300">
+                                ☕ {loteReceipt.desayunosDespachados} Desayunos
+                              </span>
+                            )}
+                            {loteReceipt.cenasDespachadas > 0 && (
+                              <span className="bg-emerald-100 text-emerald-950 px-2 py-0.5 rounded border border-emerald-300">
+                                🍽️ {loteReceipt.cenasDespachadas} Cenas
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Lista Nominativa de Voluntarios Incluidos */}
+                      <details className="text-xs bg-stone-50 rounded-xl p-3 border border-stone-200">
+                        <summary className="font-bold text-stone-800 cursor-pointer">
+                          Ver lista nominal de los {loteReceipt.voluntarios.length} voluntarios amarrados a este lote
+                        </summary>
+                        <div className="mt-3 max-h-56 overflow-y-auto space-y-1 divide-y divide-stone-200">
+                          {loteReceipt.voluntarios.map((vol, i) => (
+                            <div key={i} className="pt-1.5 flex items-center justify-between text-[11px]">
+                              <span><strong>{i + 1}.</strong> {vol.nombre}</span>
+                              <span className="font-mono text-stone-500">DNI: {vol.dni} • Talla: <strong>{vol.talla}</strong></span>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    </div>
+                  )}
+
+                  {/* Lista de Voluntarios del Grupo con Estado Actual */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-stone-600">
+                      Padrón del Grupo Asignado ({loteVoluntarios.length} voluntarios):
+                    </h4>
+                    <div className="max-h-72 overflow-y-auto space-y-1.5 pr-1">
+                      {loteVoluntarios.map((v, i) => (
+                        <div 
+                          key={v.id || i}
+                          className="p-2.5 bg-white rounded-xl border border-stone-200 flex items-center justify-between gap-3 text-xs shadow-2xs"
+                        >
+                          <div className="min-w-0">
+                            <span className="font-bold text-stone-900 block truncate">
+                              {i + 1}. {v.nombres_apellidos}
+                            </span>
+                            <span className="text-[11px] text-stone-500 font-mono">
+                              DNI: <strong>{v.dni}</strong> • Talla: <strong>{v.talla || 'L'}</strong>
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                            {/* Estado Kit */}
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              v.kit_entregado 
+                                ? 'bg-emerald-100 text-emerald-950 border border-emerald-300' 
+                                : v.kit_estado === 'EN_CUSTODIA_RESPONSABLE'
+                                ? 'bg-amber-100 text-amber-950 border border-amber-300'
+                                : 'bg-stone-100 text-stone-600'
+                            }`}>
+                              🎁 Kit: {v.kit_entregado ? 'Entregado' : v.kit_estado === 'EN_CUSTODIA_RESPONSABLE' ? 'En Custodia' : 'Pendiente'}
+                            </span>
+
+                            {/* Estado Desayuno */}
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              v.desayuno_entregado 
+                                ? 'bg-orange-100 text-orange-950 border border-orange-300' 
+                                : v.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE'
+                                ? 'bg-amber-100 text-amber-950 border border-amber-300'
+                                : 'bg-stone-100 text-stone-600'
+                            }`}>
+                              ☕ Des: {v.desayuno_entregado ? 'Entregado' : v.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE' ? 'En Custodia' : 'Pendiente'}
+                            </span>
+
+                            {/* Estado Cena */}
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              v.cena_entregada 
+                                ? 'bg-emerald-100 text-emerald-950 border border-emerald-300' 
+                                : v.cena_estado === 'EN_CUSTODIA_RESPONSABLE'
+                                ? 'bg-amber-100 text-amber-950 border border-amber-300'
+                                : 'bg-stone-100 text-stone-600'
+                            }`}>
+                              🍽️ Cen: {v.cena_entregada ? 'Entregada' : v.cena_estado === 'EN_CUSTODIA_RESPONSABLE' ? 'En Custodia' : 'Pendiente'}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                </div>
+              )}
+
+            </div>
+
+          </div>
+        ) : activeTab === 'visor' ? (
           /* ======================================================== */
-          /* PESTAÑA 3: VISOR EN VIVO DE ENTREGAS Y ASISTENCIAS      */
+          /* PESTAÑA 6: VISOR EN VIVO DE ENTREGAS Y ASISTENCIAS      */
           /* ======================================================== */
           <div className="space-y-5 animate-in fade-in duration-150">
             
@@ -812,10 +1750,10 @@ export default function ValidadorDashboard() {
                   </div>
                   <div>
                     <h2 className="text-lg sm:text-xl font-bold font-title text-stone-900 leading-tight">
-                      Padrón en Vivo • Entregas y Asistencias
+                      Padrón en Vivo • Entregas, Alimentos y Asistencia
                     </h2>
                     <p className="text-xs text-stone-500">
-                      Visualiza en tiempo real a los voluntarios que han llegado y recibido implementos.
+                      Visualiza en tiempo real los kits, desayunos, cenas y asistencias registradas.
                     </p>
                   </div>
                 </div>
@@ -860,7 +1798,7 @@ export default function ValidadorDashboard() {
                     type="text"
                     value={visorSearch}
                     onChange={(e) => setVisorSearch(e.target.value)}
-                    placeholder="Buscar por nombre, DNI, código o validador..."
+                    placeholder="Buscar por nombre, DNI, código, responsable o validador..."
                     className="w-full pl-9 pr-8 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs font-medium text-stone-900 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
                   />
                   {visorSearch && (
@@ -878,7 +1816,7 @@ export default function ValidadorDashboard() {
                   <button
                     type="button"
                     onClick={() => setVisorFilter('ALL')}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
                       visorFilter === 'ALL'
                         ? 'bg-stone-900 text-white shadow-xs'
                         : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
@@ -890,7 +1828,7 @@ export default function ValidadorDashboard() {
                   <button
                     type="button"
                     onClick={() => setVisorFilter('ASISTENCIA')}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
                       visorFilter === 'ASISTENCIA'
                         ? 'bg-blue-600 text-white shadow-xs'
                         : 'bg-blue-50 text-blue-900 hover:bg-blue-100 border border-blue-200'
@@ -902,13 +1840,37 @@ export default function ValidadorDashboard() {
                   <button
                     type="button"
                     onClick={() => setVisorFilter('KITS')}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
                       visorFilter === 'KITS'
                         ? 'bg-amber-600 text-white shadow-xs'
                         : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200'
                     }`}
                   >
-                    🎁 Kits ({visorRecords.filter(r => r.kit_entregado).length})
+                    🎁 Kits ({visorRecords.filter(r => r.kit_entregado || r.kit_estado === 'EN_CUSTODIA_RESPONSABLE').length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setVisorFilter('DESAYUNO')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                      visorFilter === 'DESAYUNO'
+                        ? 'bg-orange-600 text-white shadow-xs'
+                        : 'bg-orange-50 text-orange-900 hover:bg-orange-100 border border-orange-200'
+                    }`}
+                  >
+                    ☕ Desayunos ({visorRecords.filter(r => r.desayuno_entregado || r.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE').length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setVisorFilter('CENA')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                      visorFilter === 'CENA'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100 border border-emerald-200'
+                    }`}
+                  >
+                    🍽️ Cenas ({visorRecords.filter(r => r.cena_entregada || r.cena_estado === 'EN_CUSTODIA_RESPONSABLE').length})
                   </button>
                 </div>
               </div>
@@ -920,7 +1882,7 @@ export default function ValidadorDashboard() {
                 </span>
                 {user?.rol === 'admin' && (
                   <span className="text-[11px] text-rose-700 font-semibold">
-                    💡 Como Administrador puedes anular registros erróneos o pruebas usando el botón "Anular".
+                    💡 Como Administrador puedes anular registros erróneos usando el botón "Anular".
                   </span>
                 )}
               </div>
@@ -944,18 +1906,9 @@ export default function ValidadorDashboard() {
                 </h3>
                 <p className="text-xs text-stone-400 max-w-sm mx-auto">
                   {visorRecords.length === 0
-                    ? 'Regresa a la pestaña de "Entrega de Kits" o "Control de Asistencia" para escanear el primer código QR.'
+                    ? 'Regresa a las pestañas de escaneo o despacho en bloque para registrar la primera entrega.'
                     : 'Prueba cambiando el término de búsqueda o seleccionando "Todos".'}
                 </p>
-                {visorRecords.length === 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('kits')}
-                    className="px-4 py-2 bg-diocesis-redDark hover:bg-diocesis-red text-white text-xs font-bold rounded-xl transition cursor-pointer"
-                  >
-                    Ir a Escanear Kits
-                  </button>
-                )}
               </div>
             ) : (
               <div className="space-y-3">
@@ -1015,22 +1968,22 @@ export default function ValidadorDashboard() {
                       </div>
                     </div>
 
-                    {/* Fila Secundaria: Estados de Asistencia y Kit + Botones de Anulación */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2 border-t border-stone-100 text-xs">
+                    {/* Fila Cuádruple: Asistencia, Kit, Desayuno, Cena */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-2 border-t border-stone-100 text-xs">
                       
-                      {/* Estado Asistencia */}
-                      <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
+                      {/* 1. Asistencia */}
+                      <div className={`p-2.5 rounded-xl border flex flex-col justify-between gap-1.5 ${
                         item.asistencia_dia_d 
                           ? 'bg-blue-50/70 border-blue-200 text-blue-950'
                           : 'bg-stone-50 border-stone-200 text-stone-400'
                       }`}>
-                        <div className="min-w-0">
+                        <div>
                           <span className="font-bold block truncate">
-                            {item.asistencia_dia_d ? '📋 Asistencia Confirmada' : '⚪ Asistencia No Marcada'}
+                            {item.asistencia_dia_d ? '📋 Asistencia OK' : '⚪ Asist. No Marcada'}
                           </span>
                           {item.asistencia_dia_d && (
                             <span className="text-[10px] text-stone-600 block truncate">
-                              {item.asistencia_punto || 'Punto Oficial'} • {item.asistencia_fecha ? new Date(item.asistencia_fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''} por <strong>{item.asistencia_registrada_por || 'Validador'}</strong>
+                              {item.asistencia_punto || 'Punto Oficial'} • {item.asistencia_fecha ? new Date(item.asistencia_fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                             </span>
                           )}
                         </div>
@@ -1040,42 +1993,133 @@ export default function ValidadorDashboard() {
                             type="button"
                             disabled={savingAction}
                             onClick={() => handleResetAttendance(item)}
-                            className="px-2.5 py-1 text-[11px] font-bold bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 rounded-lg flex items-center gap-1 shrink-0 transition cursor-pointer shadow-2xs disabled:opacity-50"
-                            title="Anular asistencia y volver a estado no marcado (Exclusivo Administrador)"
+                            className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50"
                           >
-                            <RotateCcw className="w-3 h-3" />
-                            <span>Anular Asistencia</span>
+                            <RotateCcw className="w-2.5 h-2.5" />
+                            <span>Anular</span>
                           </button>
                         )}
                       </div>
 
-                      {/* Estado Kit */}
-                      <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
+                      {/* 2. Kit & Polo */}
+                      <div className={`p-2.5 rounded-xl border flex flex-col justify-between gap-1.5 ${
                         item.kit_entregado 
                           ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                          : item.kit_estado === 'EN_CUSTODIA_RESPONSABLE'
+                          ? 'bg-amber-50/80 border-amber-300 text-amber-950'
                           : 'bg-stone-50 border-stone-200 text-stone-400'
                       }`}>
-                        <div className="min-w-0">
+                        <div>
                           <span className="font-bold block truncate">
-                            {item.kit_entregado ? '🎁 Kit Entregado' : '⚪ Kit Pendiente'}
+                            {item.kit_entregado 
+                              ? '🎁 Kit Entregado' 
+                              : item.kit_estado === 'EN_CUSTODIA_RESPONSABLE'
+                              ? '📦 En Custodia Líder'
+                              : '⚪ Kit Pendiente'}
                           </span>
                           {item.kit_entregado && (
                             <span className="text-[10px] text-stone-600 block truncate">
-                              {item.kit_items_entregados || 'Kit Oficial'} • {item.kit_fecha_entrega ? new Date(item.kit_fecha_entrega).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''} por <strong>{item.kit_entregado_por || 'Validador'}</strong>
+                              {item.kit_items_entregados || 'Kit Oficial'} • {item.kit_fecha_entrega ? new Date(item.kit_fecha_entrega).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                            </span>
+                          )}
+                          {!item.kit_entregado && item.kit_estado === 'EN_CUSTODIA_RESPONSABLE' && (
+                            <span className="text-[10px] text-amber-800 block truncate">
+                              Custodio: <strong>{item.kit_custodio_nombre}</strong>
                             </span>
                           )}
                         </div>
 
-                        {user?.rol === 'admin' && item.kit_entregado && (
+                        {user?.rol === 'admin' && (item.kit_entregado || item.kit_estado === 'EN_CUSTODIA_RESPONSABLE') && (
                           <button
                             type="button"
                             disabled={savingAction}
                             onClick={() => handleResetKit(item)}
-                            className="px-2.5 py-1 text-[11px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded-lg flex items-center gap-1 shrink-0 transition cursor-pointer shadow-2xs disabled:opacity-50"
-                            title="Anular entrega y volver a estado pendiente (Exclusivo Administrador)"
+                            className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50"
                           >
-                            <RotateCcw className="w-3 h-3" />
-                            <span>Anular Kit</span>
+                            <RotateCcw className="w-2.5 h-2.5" />
+                            <span>Anular</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* 3. Desayuno */}
+                      <div className={`p-2.5 rounded-xl border flex flex-col justify-between gap-1.5 ${
+                        item.desayuno_entregado 
+                          ? 'bg-orange-50/80 border-orange-200 text-orange-950'
+                          : item.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE'
+                          ? 'bg-amber-50/80 border-amber-300 text-amber-950'
+                          : 'bg-stone-50 border-stone-200 text-stone-400'
+                      }`}>
+                        <div>
+                          <span className="font-bold block truncate">
+                            {item.desayuno_entregado 
+                              ? '☕ Desayuno Entregado' 
+                              : item.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE'
+                              ? '📦 Desayuno en Líder'
+                              : '⚪ Desayuno Pendiente'}
+                          </span>
+                          {item.desayuno_entregado && (
+                            <span className="text-[10px] text-stone-600 block truncate">
+                              {item.desayuno_fecha ? new Date(item.desayuno_fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''} por {item.desayuno_entregado_por || 'Validador'}
+                            </span>
+                          )}
+                          {!item.desayuno_entregado && item.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE' && (
+                            <span className="text-[10px] text-amber-800 block truncate">
+                              Custodio: <strong>{item.desayuno_custodio_nombre}</strong>
+                            </span>
+                          )}
+                        </div>
+
+                        {user?.rol === 'admin' && (item.desayuno_entregado || item.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE') && (
+                          <button
+                            type="button"
+                            disabled={savingAction}
+                            onClick={() => handleResetDesayuno(item)}
+                            className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50"
+                          >
+                            <RotateCcw className="w-2.5 h-2.5" />
+                            <span>Anular</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* 4. Cena */}
+                      <div className={`p-2.5 rounded-xl border flex flex-col justify-between gap-1.5 ${
+                        item.cena_entregada 
+                          ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
+                          : item.cena_estado === 'EN_CUSTODIA_RESPONSABLE'
+                          ? 'bg-amber-50/80 border-amber-300 text-amber-950'
+                          : 'bg-stone-50 border-stone-200 text-stone-400'
+                      }`}>
+                        <div>
+                          <span className="font-bold block truncate">
+                            {item.cena_entregada 
+                              ? '🍽️ Cena Entregada' 
+                              : item.cena_estado === 'EN_CUSTODIA_RESPONSABLE'
+                              ? '📦 Cena en Líder'
+                              : '⚪ Cena Pendiente'}
+                          </span>
+                          {item.cena_entregada && (
+                            <span className="text-[10px] text-stone-600 block truncate">
+                              {item.cena_fecha ? new Date(item.cena_fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''} por {item.cena_entregada_por || 'Validador'}
+                            </span>
+                          )}
+                          {!item.cena_entregada && item.cena_estado === 'EN_CUSTODIA_RESPONSABLE' && (
+                            <span className="text-[10px] text-amber-800 block truncate">
+                              Custodio: <strong>{item.cena_custodio_nombre}</strong>
+                            </span>
+                          )}
+                        </div>
+
+                        {user?.rol === 'admin' && (item.cena_entregada || item.cena_estado === 'EN_CUSTODIA_RESPONSABLE') && (
+                          <button
+                            type="button"
+                            disabled={savingAction}
+                            onClick={() => handleResetCena(item)}
+                            className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50"
+                          >
+                            <RotateCcw className="w-2.5 h-2.5" />
+                            <span>Anular</span>
                           </button>
                         )}
                       </div>
@@ -1089,6 +2133,9 @@ export default function ValidadorDashboard() {
 
           </div>
         ) : (
+        /* ======================================================== */
+        /* MODO ESCÁNER INDIVIDUAL (ASISTENCIA, KITS, DESAYUNO, CENA)*/
+        /* ======================================================== */
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
           {/* COLUMNA IZQUIERDA: Escáner y Búsqueda (5 cols) */}
@@ -1103,7 +2150,7 @@ export default function ValidadorDashboard() {
                     Escáner con Cámara
                   </h3>
                   <p className="text-[11px] text-stone-500">
-                    Apunta al código QR del voluntario
+                    Apunta al código QR de la credencial
                   </p>
                 </div>
 
@@ -1113,7 +2160,7 @@ export default function ValidadorDashboard() {
                       type="button"
                       onClick={switchCamera}
                       className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-stone-100 hover:bg-stone-200 text-stone-700 transition flex items-center gap-1 cursor-pointer"
-                      title="Cambiar entre lentes de la cámara"
+                      title="Cambiar lente de la cámara"
                     >
                       <SwitchCamera className="w-3.5 h-3.5" />
                       <span className="hidden sm:inline">Girar</span>
@@ -1146,7 +2193,6 @@ export default function ValidadorDashboard() {
 
               {/* Contenedor del Lector de Cámara */}
               <div className="relative rounded-2xl overflow-hidden bg-stone-950 min-h-[260px] flex items-center justify-center border-2 border-stone-800 shadow-inner">
-                {/* Contenedor Html5Qrcode: SIEMPRE visible en el layout del DOM */}
                 <div 
                   id="qr-reader-container" 
                   className="w-full h-full"
@@ -1159,7 +2205,7 @@ export default function ValidadorDashboard() {
                     </div>
                     <div>
                       <p className="text-sm font-bold text-white">Escáner de Código QR</p>
-                      <p className="text-xs text-stone-400">Activa la cámara para apuntar al fotocheck</p>
+                      <p className="text-xs text-stone-400">Activa la cámara para apuntar a la credencial</p>
                     </div>
                     <button
                       type="button"
@@ -1190,7 +2236,7 @@ export default function ValidadorDashboard() {
                 </div>
               )}
 
-              {/* Búsqueda Manual de Contingencia */}
+              {/* Búsqueda Manual por DNI */}
               <div className="pt-3 border-t border-stone-100 space-y-2">
                 <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
                   ¿No lee la cámara? Búsqueda manual por DNI o Código:
@@ -1239,7 +2285,7 @@ export default function ValidadorDashboard() {
                     >
                       <div className="truncate pr-2">
                         <span className="font-bold text-stone-900 block truncate">{item.nombre}</span>
-                        <span className="text-[10px] text-stone-500 font-mono">DNI: {item.dni} • {item.detalle}</span>
+                        <span className="text-[10px] text-stone-500 font-mono">DNI: {item.dni} • {item.tipo}: {item.detalle}</span>
                       </div>
                       <span className="text-[10px] font-mono text-stone-400 shrink-0">{item.hora}</span>
                     </div>
@@ -1250,10 +2296,10 @@ export default function ValidadorDashboard() {
 
           </div>
 
-          {/* COLUMNA DERECHA: Panel de Estado y Guía de Operaciones (7 cols) */}
+          {/* COLUMNA DERECHA: Panel de Estado y Modo Activo (7 cols) */}
           <div className="lg:col-span-7 space-y-4">
             
-            {/* Mensaje de error de búsqueda cuando no hay voluntario cargado */}
+            {/* Mensaje de error de búsqueda */}
             {actionError && !scannedVoluntario && (
               <div className="p-4 bg-rose-50 border-2 border-rose-300 rounded-3xl text-rose-900 flex items-start gap-3 shadow-xs animate-in fade-in">
                 <XCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
@@ -1270,11 +2316,19 @@ export default function ValidadorDashboard() {
               </div>
             )}
 
-            {/* Tarjeta de Espera / Estado de la Estación de Validación */}
+            {/* Tarjeta de Espera / Estado de la Estación */}
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm text-center space-y-5">
               <div className="relative inline-block">
-                <div className="w-20 h-20 rounded-3xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border-2 border-amber-200 shadow-inner">
-                  <QrCode className="w-10 h-10" />
+                <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mx-auto border-2 shadow-inner ${
+                  activeTab === 'asistencia' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                  activeTab === 'kits' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                  activeTab === 'desayuno' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                  'bg-emerald-50 text-emerald-700 border-emerald-200'
+                }`}>
+                  {activeTab === 'asistencia' && <ClipboardCheck className="w-10 h-10" />}
+                  {activeTab === 'kits' && <PackageCheck className="w-10 h-10" />}
+                  {activeTab === 'desayuno' && <Coffee className="w-10 h-10" />}
+                  {activeTab === 'cena' && <Utensils className="w-10 h-10" />}
                 </div>
                 <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center animate-pulse">
                   <span className="w-2 h-2 rounded-full bg-white"></span>
@@ -1283,74 +2337,83 @@ export default function ValidadorDashboard() {
 
               <div className="max-w-md mx-auto space-y-1.5">
                 <h3 className="text-lg sm:text-xl font-bold font-title text-stone-900">
-                  Estación de Validación Lista
+                  {activeTab === 'asistencia' && 'Módulo de Asistencia Activo'}
+                  {activeTab === 'kits' && 'Módulo de Kits & Polos Activo'}
+                  {activeTab === 'desayuno' && 'Módulo de Desayunos Activo'}
+                  {activeTab === 'cena' && 'Módulo de Cenas Activo'}
                 </h3>
                 <p className="text-xs sm:text-sm text-stone-500">
                   {isScanning 
-                    ? 'Apunta la cámara al código QR de la credencial. La ficha del voluntario se abrirá automáticamente en una ventana emergente sin que tengas que deslizar la pantalla.'
+                    ? 'Apunta la cámara al código QR de la credencial. La ficha del voluntario se abrirá automáticamente en pantalla completa.'
                     : 'Enciende la cámara a la izquierda o digita el DNI del voluntario para abrir su ficha instantánea.'}
                 </p>
               </div>
 
-              {/* Botón de acceso rápido para reabrir ficha si existe */}
-              {scannedVoluntario && (
-                <div className="pt-2">
-                  <button
-                    onClick={() => {}}
-                    className="px-5 py-2.5 bg-diocesis-redDark hover:bg-diocesis-red text-white rounded-2xl text-xs font-bold shadow-md transition flex items-center justify-center gap-2 mx-auto cursor-pointer"
+              {/* Selector de Punto de Alimentación si estamos en alimentos */}
+              {(activeTab === 'desayuno' || activeTab === 'cena') && (
+                <div className="max-w-xs mx-auto text-left pt-2">
+                  <label className="block text-[11px] font-bold text-stone-600 mb-1">
+                    Punto de Distribución / Comedor:
+                  </label>
+                  <select
+                    value={puntoAlimentos}
+                    onChange={(e) => setPuntoAlimentos(e.target.value)}
+                    className="w-full py-2 px-3 bg-stone-50 border border-stone-300 rounded-xl text-xs font-semibold text-stone-800 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
                   >
-                    <User className="w-4 h-4 text-diocesis-mustard" />
-                    <span>Ficha Abierta: {scannedVoluntario.nombres_apellidos}</span>
-                  </button>
+                    <option value="Comedor Principal / Almacén">🍽️ Comedor Principal / Almacén</option>
+                    <option value="Comedor Sector Santuario">⛪ Comedor Sector Santuario</option>
+                    <option value="Comedor USAT">🎓 Comedor USAT</option>
+                    <option value="Punto Móvil Cuadrillas">🚚 Punto Móvil Cuadrillas</option>
+                  </select>
                 </div>
               )}
             </div>
 
-            {/* Protocolo y Buenas Prácticas para agilizar filas */}
+            {/* Guía Rápida de Operación */}
             <div className="bg-stone-50/80 rounded-3xl p-5 border border-stone-200/80 space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-stone-600 flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-diocesis-mustard" />
-                Flujo Rápido de Atención en Cola
+                Seguridad y Reglas de Entrega en Campo
               </h4>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div className="p-3 bg-white rounded-2xl border border-stone-200 space-y-1">
                   <span className="font-bold text-stone-800 flex items-center gap-1.5">
                     <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 font-mono text-[10px] font-black flex items-center justify-center">1</span>
-                    Ventana Inmediata (Modal)
+                    Desayuno y Cena Sin Horario Fijo
                   </span>
                   <p className="text-stone-500 text-[11px]">
-                    Al escanear, el resultado salta al frente en pantalla completa. No necesitas deslizar hacia abajo en tu teléfono.
+                    El horario de comedor es continuo y flexible según disponga la comisión diocesana. Cada voluntario tiene exactamente 1 ración permitida.
                   </p>
                 </div>
 
                 <div className="p-3 bg-white rounded-2xl border border-stone-200 space-y-1">
                   <span className="font-bold text-stone-800 flex items-center gap-1.5">
                     <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 font-mono text-[10px] font-black flex items-center justify-center">2</span>
-                    Entrega de Polo por Talla
+                    Candado Anti-Duplicado
                   </span>
                   <p className="text-stone-500 text-[11px]">
-                    La talla oficial registrada aparece destacada en color ámbar para entregar la prenda textil exacta del inventario.
+                    Si un voluntario ya recibió su kit, desayuno o cena, la pantalla se tiñe de rojo indicando la hora exacta y el validador que lo entregó.
                   </p>
                 </div>
 
                 <div className="p-3 bg-white rounded-2xl border border-stone-200 space-y-1">
                   <span className="font-bold text-stone-800 flex items-center gap-1.5">
                     <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 font-mono text-[10px] font-black flex items-center justify-center">3</span>
-                    Detección de Duplicados
+                    Cadena de Custodia
                   </span>
                   <p className="text-stone-500 text-[11px]">
-                    Si un voluntario ya recibió su kit, la pantalla se teñirá de rojo con la fecha exacta y nombre del validador previo.
+                    Si el kit o alimento fue despachado en bloque a su Líder, la pantalla muestra una alerta amarilla indicando el nombre del responsable custodio.
                   </p>
                 </div>
 
                 <div className="p-3 bg-white rounded-2xl border border-stone-200 space-y-1">
                   <span className="font-bold text-stone-800 flex items-center gap-1.5">
                     <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 font-mono text-[10px] font-black flex items-center justify-center">4</span>
-                    Siguiente en 1 Toque
+                    Atención en 1 Toque
                   </span>
                   <p className="text-stone-500 text-[11px]">
-                    Al pulsar "Siguiente Voluntario", la ventana se cierra y la cámara vuelve a escanear de forma automática.
+                    Al pulsar "Siguiente Voluntario", la ventana se cierra y el sensor de cámara se reactiva de inmediato sin perder tiempo.
                   </p>
                 </div>
               </div>
@@ -1364,8 +2427,7 @@ export default function ValidadorDashboard() {
       </main>
 
       {/* ======================================================== */}
-      {/* MODAL POPUP FLOTANTE: RESULTADO INMEDIATO DEL ESCANEO   */}
-      {/* (Evita hacer scroll en móvil y acelera la atención)     */}
+      {/* MODAL POPUP FLOTANTE: FICHA INMEDIATA DEL VOLUNTARIO    */}
       {/* ======================================================== */}
       {scannedVoluntario && (
         <div 
@@ -1398,10 +2460,15 @@ export default function ValidadorDashboard() {
 
                 <div className="space-y-1">
                   <span className="text-[11px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-800 px-3 py-0.5 rounded-full inline-block">
-                    ✅ {justConfirmed === 'KIT' ? 'ENTREGA REGISTRADA' : 'ASISTENCIA REGISTRADA'}
+                    ✅ {justConfirmed === 'KIT' ? 'KIT ENTREGADO' : 
+                        justConfirmed === 'ASISTENCIA' ? 'ASISTENCIA REGISTRADA' : 
+                        justConfirmed === 'DESAYUNO' ? 'DESAYUNO ENTREGADO' : 'CENA ENTREGADA'}
                   </span>
                   <h3 className="text-xl sm:text-2xl font-black font-title text-stone-900 leading-tight">
-                    {justConfirmed === 'KIT' ? '¡Kit Entregado con Éxito!' : '¡Asistencia Registrada!'}
+                    {justConfirmed === 'KIT' && '¡Kit Entregado con Éxito!'}
+                    {justConfirmed === 'ASISTENCIA' && '¡Asistencia Registrada!'}
+                    {justConfirmed === 'DESAYUNO' && '¡Ración de Desayuno Registrada!'}
+                    {justConfirmed === 'CENA' && '¡Ración de Cena Registrada!'}
                   </h3>
                   <p className="text-xs text-stone-500">
                     El registro se guardó correctamente en la base de datos oficial.
@@ -1440,11 +2507,21 @@ export default function ValidadorDashboard() {
                           📍 {scannedVoluntario.asistencia_punto}
                         </span>
                       )}
+                      {justConfirmed === 'DESAYUNO' && (
+                        <span className="text-[10px] font-bold bg-orange-100 text-orange-900 px-2 py-0.5 rounded border border-orange-200">
+                          ☕ Desayuno • {scannedVoluntario.desayuno_punto}
+                        </span>
+                      )}
+                      {justConfirmed === 'CENA' && (
+                        <span className="text-[10px] font-bold bg-emerald-100 text-emerald-950 px-2 py-0.5 rounded border border-emerald-200">
+                          🍽️ Cena • {scannedVoluntario.cena_punto}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                {/* Botón Principal: Escanear Siguiente Voluntario */}
+                {/* Botón Principal: Siguiente Voluntario */}
                 <div className="space-y-3 pt-2">
                   <button
                     type="button"
@@ -1462,22 +2539,6 @@ export default function ValidadorDashboard() {
                   >
                     Cerrar ventana y volver a la cámara
                   </button>
-
-                  {/* Opción de anulación para Administrador */}
-                  {user?.rol === 'admin' && (
-                    <div className="pt-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (justConfirmed === 'KIT') handleResetKit(scannedVoluntario);
-                          else handleResetAttendance(scannedVoluntario);
-                        }}
-                        className="text-xs text-rose-600 hover:text-rose-800 underline cursor-pointer"
-                      >
-                        ¿Fue un error? Anular esta {justConfirmed === 'KIT' ? 'entrega de kit' : 'asistencia'}
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
             ) : (
@@ -1510,10 +2571,9 @@ export default function ValidadorDashboard() {
                   </p>
                 </div>
               )
-            ) : (
+            ) : activeTab === 'kits' ? (
               // MODO KITS
               scannedVoluntario.kit_entregado ? (
-                // 🔴 ALERTA: KIT YA ENTREGADO
                 <div className="bg-rose-600 text-white p-4 pr-12 text-center space-y-1">
                   <span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-0.5 rounded-full inline-block">
                     ⚠️ ALERTA DE DUPLICADO
@@ -1534,8 +2594,22 @@ export default function ValidadorDashboard() {
                     </p>
                   )}
                 </div>
+              ) : scannedVoluntario.kit_estado === 'EN_CUSTODIA_RESPONSABLE' ? (
+                <div className="bg-amber-600 text-white p-4 pr-12 text-center space-y-1">
+                  <span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-0.5 rounded-full inline-block">
+                    📦 DESPACHADO EN BLOQUE AL LÍDER
+                  </span>
+                  <h3 className="text-base sm:text-lg font-black font-title">
+                    KIT EN CUSTODIA DE SU RESPONSABLE
+                  </h3>
+                  <p className="text-xs text-amber-100">
+                    El kit fue entregado en bloque a <strong>{scannedVoluntario.kit_custodio_nombre}</strong> el {scannedVoluntario.kit_fecha_despacho_lote ? new Date(scannedVoluntario.kit_fecha_despacho_lote).toLocaleString() : 'fecha registrada'}.
+                  </p>
+                  <p className="text-[11px] text-amber-200">
+                    Debe recibirlo de su líder en cuadrilla. Si se lo entregas aquí en almacén, confirma abajo.
+                  </p>
+                </div>
               ) : (
-                // 🟢 HABILITADO PARA RECOJO DE KIT
                 <div className="bg-emerald-600 text-white p-4 pr-12 text-center space-y-0.5">
                   <span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-0.5 rounded-full inline-block">
                     ✅ HABILITADO
@@ -1544,7 +2618,85 @@ export default function ValidadorDashboard() {
                     VOLUNTARIO APROBADO PARA ENTREGA DE KIT
                   </h3>
                   <p className="text-xs text-emerald-100">
-                    Verifica su identidad y selecciona los ítems entregados.
+                    Verifica su identidad y entrega la prenda textil de su talla.
+                  </p>
+                </div>
+              )
+            ) : activeTab === 'desayuno' ? (
+              // MODO DESAYUNO
+              scannedVoluntario.desayuno_entregado ? (
+                <div className="bg-rose-600 text-white p-4 pr-12 text-center space-y-1">
+                  <span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-0.5 rounded-full inline-block">
+                    ⚠️ ALERTA DE DUPLICADO
+                  </span>
+                  <h3 className="text-base sm:text-lg font-black font-title">
+                    ¡ESTE VOLUNTARIO YA RECIBIÓ SU DESAYUNO!
+                  </h3>
+                  <p className="text-xs text-rose-100">
+                    Ración entregada el {scannedVoluntario.desayuno_fecha ? new Date(scannedVoluntario.desayuno_fecha).toLocaleTimeString() : 'hora registrada'} por <strong>{scannedVoluntario.desayuno_entregado_por || 'Validador previo'}</strong>.
+                  </p>
+                </div>
+              ) : scannedVoluntario.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE' ? (
+                <div className="bg-amber-600 text-white p-4 pr-12 text-center space-y-1">
+                  <span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-0.5 rounded-full inline-block">
+                    📦 DESPACHADO EN BLOQUE AL LÍDER
+                  </span>
+                  <h3 className="text-base sm:text-lg font-black font-title">
+                    DESAYUNO EN CUSTODIA DE SU RESPONSABLE
+                  </h3>
+                  <p className="text-xs text-amber-100">
+                    La ración fue entregada a <strong>{scannedVoluntario.desayuno_custodio_nombre}</strong> para distribución en cuadrilla.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-orange-600 text-white p-4 pr-12 text-center space-y-0.5">
+                  <span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-0.5 rounded-full inline-block">
+                    ☕ HABILITADO
+                  </span>
+                  <h3 className="text-base sm:text-lg font-black font-title">
+                    VOLUNTARIO HABILITADO PARA DESAYUNO
+                  </h3>
+                  <p className="text-xs text-orange-100">
+                    Confirma la entrega de la ración matutina oficial.
+                  </p>
+                </div>
+              )
+            ) : (
+              // MODO CENA
+              scannedVoluntario.cena_entregada ? (
+                <div className="bg-rose-600 text-white p-4 pr-12 text-center space-y-1">
+                  <span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-0.5 rounded-full inline-block">
+                    ⚠️ ALERTA DE DUPLICADO
+                  </span>
+                  <h3 className="text-base sm:text-lg font-black font-title">
+                    ¡ESTE VOLUNTARIO YA RECIBIÓ SU CENA!
+                  </h3>
+                  <p className="text-xs text-rose-100">
+                    Ración entregada el {scannedVoluntario.cena_fecha ? new Date(scannedVoluntario.cena_fecha).toLocaleTimeString() : 'hora registrada'} por <strong>{scannedVoluntario.cena_entregada_por || 'Validador previo'}</strong>.
+                  </p>
+                </div>
+              ) : scannedVoluntario.cena_estado === 'EN_CUSTODIA_RESPONSABLE' ? (
+                <div className="bg-amber-600 text-white p-4 pr-12 text-center space-y-1">
+                  <span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-0.5 rounded-full inline-block">
+                    📦 DESPACHADO EN BLOQUE AL LÍDER
+                  </span>
+                  <h3 className="text-base sm:text-lg font-black font-title">
+                    CENA EN CUSTODIA DE SU RESPONSABLE
+                  </h3>
+                  <p className="text-xs text-amber-100">
+                    La ración fue entregada a <strong>{scannedVoluntario.cena_custodio_nombre}</strong> para distribución en cuadrilla.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-emerald-600 text-white p-4 pr-12 text-center space-y-0.5">
+                  <span className="text-[11px] font-black uppercase tracking-widest bg-black/20 px-3 py-0.5 rounded-full inline-block">
+                    🍽️ HABILITADO
+                  </span>
+                  <h3 className="text-base sm:text-lg font-black font-title">
+                    VOLUNTARIO HABILITADO PARA CENA
+                  </h3>
+                  <p className="text-xs text-emerald-100">
+                    Confirma la entrega de la ración vespertina oficial.
                   </p>
                 </div>
               )
@@ -1572,36 +2724,55 @@ export default function ValidadorDashboard() {
             )}
 
             {/* Opciones de Anulación / Reversión Exclusivas para Administrador */}
-            {user?.rol === 'admin' && (scannedVoluntario.kit_entregado || scannedVoluntario.asistencia_dia_d) && (
+            {user?.rol === 'admin' && (scannedVoluntario.kit_entregado || scannedVoluntario.asistencia_dia_d || scannedVoluntario.desayuno_entregado || scannedVoluntario.cena_entregada) && (
               <div className="m-4 mb-0 p-3.5 bg-rose-50 border-2 border-rose-300 rounded-2xl space-y-2 animate-in fade-in">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-rose-900 flex items-center gap-1.5">
                   <ShieldCheck className="w-4 h-4 text-rose-600" />
                   Opciones de Administrador (Pruebas / Reversión):
                 </span>
-                <p className="text-[11px] text-rose-700 leading-tight">
-                  Puedes anular este registro para volver a probar el escaneo o corregir una entrega errónea.
-                </p>
                 <div className="flex flex-wrap gap-2 pt-1">
-                  {scannedVoluntario.kit_entregado && (
-                    <button
-                      type="button"
-                      disabled={savingAction}
-                      onClick={() => handleResetKit(scannedVoluntario)}
-                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      <span>Anular Entrega de Kit</span>
-                    </button>
-                  )}
                   {scannedVoluntario.asistencia_dia_d && (
                     <button
                       type="button"
                       disabled={savingAction}
                       onClick={() => handleResetAttendance(scannedVoluntario)}
-                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
                     >
-                      <RotateCcw className="w-3.5 h-3.5" />
+                      <RotateCcw className="w-3 h-3" />
                       <span>Anular Asistencia</span>
+                    </button>
+                  )}
+                  {scannedVoluntario.kit_entregado && (
+                    <button
+                      type="button"
+                      disabled={savingAction}
+                      onClick={() => handleResetKit(scannedVoluntario)}
+                      className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Anular Kit</span>
+                    </button>
+                  )}
+                  {scannedVoluntario.desayuno_entregado && (
+                    <button
+                      type="button"
+                      disabled={savingAction}
+                      onClick={() => handleResetDesayuno(scannedVoluntario)}
+                      className="px-2.5 py-1 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Anular Desayuno</span>
+                    </button>
+                  )}
+                  {scannedVoluntario.cena_entregada && (
+                    <button
+                      type="button"
+                      disabled={savingAction}
+                      onClick={() => handleResetCena(scannedVoluntario)}
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Anular Cena</span>
                     </button>
                   )}
                 </div>
@@ -1611,7 +2782,6 @@ export default function ValidadorDashboard() {
             {/* Tarjeta de Datos del Voluntario */}
             <div className="p-5 sm:p-6 space-y-4">
               <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
-                {/* Foto / Avatar */}
                 {scannedVoluntario.fotografia_url ? (
                   <img
                     src={formatFotoUrl(scannedVoluntario.fotografia_url)}
@@ -1720,7 +2890,6 @@ export default function ValidadorDashboard() {
               {/* FORMULARIO DE ACCIÓN: MODO KITS */}
               {activeTab === 'kits' && (
                 <div className="space-y-3 pt-2 border-t border-stone-200">
-                  {/* Checkboxes de Selección de Entrega */}
                   <div className="space-y-2">
                     <span className="text-xs font-bold text-stone-700 block">
                       Selecciona los artículos a entregar:
@@ -1755,10 +2924,9 @@ export default function ValidadorDashboard() {
                     </label>
                   </div>
 
-                  {/* Botón de Confirmación */}
                   <button
                     type="button"
-                    disabled={savingAction || (!entregaKitCompleto && !entregaPolo)}
+                    disabled={savingAction || (!entregaKitCompleto && !entregaPolo) || scannedVoluntario.kit_entregado}
                     onClick={handleConfirmKitDelivery}
                     className="w-full py-3 px-4 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white rounded-2xl font-bold text-sm shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                   >
@@ -1770,15 +2938,82 @@ export default function ValidadorDashboard() {
                     ) : (
                       <>
                         <Check className="w-5 h-5 text-emerald-200" />
-                        <span>Confirmar Entrega de Kit</span>
+                        <span>
+                          {scannedVoluntario.kit_entregado 
+                            ? 'Kit Ya Entregado' 
+                            : scannedVoluntario.kit_estado === 'EN_CUSTODIA_RESPONSABLE'
+                            ? 'Confirmar Entrega Individual Final'
+                            : 'Confirmar Entrega de Kit'}
+                        </span>
                       </>
                     )}
                   </button>
                 </div>
               )}
+
+              {/* FORMULARIO DE ACCIÓN: MODO DESAYUNO */}
+              {activeTab === 'desayuno' && (
+                <div className="space-y-3 pt-2 border-t border-stone-200">
+                  <button
+                    type="button"
+                    disabled={savingAction || scannedVoluntario.desayuno_entregado}
+                    onClick={handleConfirmDesayuno}
+                    className="w-full py-3 px-4 bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white rounded-2xl font-bold text-sm shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                  >
+                    {savingAction ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                        <span>Registrando desayuno...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Coffee className="w-5 h-5 text-orange-200" />
+                        <span>
+                          {scannedVoluntario.desayuno_entregado 
+                            ? 'Desayuno Ya Entregado' 
+                            : scannedVoluntario.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE'
+                            ? 'Confirmar Entrega Individual de Desayuno'
+                            : 'Confirmar Entrega de Desayuno'}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* FORMULARIO DE ACCIÓN: MODO CENA */}
+              {activeTab === 'cena' && (
+                <div className="space-y-3 pt-2 border-t border-stone-200">
+                  <button
+                    type="button"
+                    disabled={savingAction || scannedVoluntario.cena_entregada}
+                    onClick={handleConfirmCena}
+                    className="w-full py-3 px-4 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white rounded-2xl font-bold text-sm shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                  >
+                    {savingAction ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                        <span>Registrando cena...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Utensils className="w-5 h-5 text-emerald-200" />
+                        <span>
+                          {scannedVoluntario.cena_entregada 
+                            ? 'Cena Ya Entregada' 
+                            : scannedVoluntario.cena_estado === 'EN_CUSTODIA_RESPONSABLE'
+                            ? 'Confirmar Entrega Individual de Cena'
+                            : 'Confirmar Entrega de Cena'}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
             </div>
 
-            {/* Footer del Modal con botón destacado para siguiente voluntario */}
+            {/* Footer del Modal */}
             <div className="bg-stone-50 border-t border-stone-200 p-4 flex flex-col-reverse sm:flex-row items-center justify-between gap-2.5">
               <button
                 type="button"
@@ -1806,10 +3041,9 @@ export default function ValidadorDashboard() {
 
       {/* Footer */}
       <footer className="py-3 text-center text-xs text-stone-400 bg-white border-t border-stone-200">
-        Diócesis de Chiclayo • Módulo de Validación de Campo 2026
+        Diócesis de Chiclayo • Módulo de Validación de Campo y Logística 2026
       </footer>
 
     </div>
   );
 }
-
