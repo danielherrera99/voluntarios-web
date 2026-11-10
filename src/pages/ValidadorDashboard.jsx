@@ -170,7 +170,10 @@ export default function ValidadorDashboard() {
   const [visorRecords, setVisorRecords] = useState([]);
   const [loadingVisor, setLoadingVisor] = useState(false);
   const [visorSearch, setVisorSearch] = useState('');
-  const [visorFilter, setVisorFilter] = useState('ALL'); // 'ALL' | 'ASISTENCIA' | 'KITS' | 'DESAYUNO' | 'CENA'
+  const [visorFilter, setVisorFilter] = useState('ALL'); // 'ALL' | 'PENDING_ASISTENCIA' | 'ASISTENCIA' | 'KITS' | 'DESAYUNO' | 'CENA'
+  const [selectedVisorLeader, setSelectedVisorLeader] = useState('');
+  const [markingAttendanceId, setMarkingAttendanceId] = useState(null);
+  const [justMarkedIds, setJustMarkedIds] = useState(new Set());
 
   // ========================================================
   // ESTADOS DEL MÓDULO DE DESPACHO EN BLOQUE A RESPONSABLES
@@ -293,9 +296,10 @@ export default function ValidadorDashboard() {
   };
 
   // Cargar registros completos del Visor en Tiempo Real
-  const fetchVisorRecords = async () => {
+  const fetchVisorRecords = async (leaderOverride) => {
     setLoadingVisor(true);
     try {
+      const targetLeader = typeof leaderOverride === 'string' ? leaderOverride : selectedVisorLeader;
       const scopeOr = getUserScopeOrCondition();
       const selectCols = 'id, dni, codigo, nombres_apellidos, talla, servicio, responsable_nombre, lugar_asignado, fotografia_url, kit_entregado, kit_polo_entregado, kit_items_entregados, kit_fecha_entrega, kit_entregado_por, kit_estado, kit_custodio_nombre, kit_fecha_despacho_lote, asistencia_dia_d, asistencia_fecha, asistencia_registrada_por, asistencia_punto, desayuno_entregado, desayuno_fecha, desayuno_entregado_por, desayuno_punto, desayuno_estado, desayuno_custodio_nombre, cena_entregada, cena_fecha, cena_entregada_por, cena_punto, cena_estado, cena_custodio_nombre, fase, estado';
 
@@ -306,6 +310,11 @@ export default function ValidadorDashboard() {
         // Para Responsables, Líderes o Guías: mostrar los voluntarios de su jurisdicción
         qF2 = qF2.or(scopeOr);
         qF1 = qF1.or(scopeOr);
+      } else if (targetLeader) {
+        // Para Admin/Validador seleccionando un responsable específico: cargar todo su padrón
+        const firstWord = targetLeader.split(' ')[0] || targetLeader;
+        qF2 = qF2.ilike('responsable_nombre', `%${firstWord}%`);
+        qF1 = qF1.ilike('responsable_nombre', `%${firstWord}%`);
       } else {
         // Para Administradores y Validadores de Almacén: vista global
         const globalFilter = 'kit_entregado.eq.true,asistencia_dia_d.eq.true,desayuno_entregado.eq.true,cena_entregada.eq.true,kit_estado.eq.EN_CUSTODIA_RESPONSABLE,desayuno_estado.eq.EN_CUSTODIA_RESPONSABLE,cena_estado.eq.EN_CUSTODIA_RESPONSABLE';
@@ -322,8 +331,8 @@ export default function ValidadorDashboard() {
 
       // Combinar y deduplicar por DNI o ID (Fase 2 tiene precedencia)
       const map = new Map();
-      (vF1 || []).forEach(item => map.set(item.dni || item.id, item));
-      (vF2 || []).forEach(item => map.set(item.dni || item.id, item));
+      (vF1 || []).forEach(item => map.set(item.dni || item.id, { ...item, _origenTabla: 'voluntarios_general' }));
+      (vF2 || []).forEach(item => map.set(item.dni || item.id, { ...item, _origenTabla: 'voluntarios' }));
 
       const combined = Array.from(map.values()).sort((a, b) => {
         const timeA = new Date(a.kit_fecha_entrega || a.asistencia_fecha || a.desayuno_fecha || a.cena_fecha || a.kit_fecha_despacho_lote || 0).getTime();
@@ -929,7 +938,6 @@ export default function ValidadorDashboard() {
         const { error } = await supabase.from(tableName).update(resetData).eq('id', voluntario.id);
         if (error) throw error;
       }
-      if (error) throw error;
 
       playSound('success');
 
@@ -981,7 +989,6 @@ export default function ValidadorDashboard() {
         const { error } = await supabase.from(tableName).update(resetData).eq('id', voluntario.id);
         if (error) throw error;
       }
-      if (error) throw error;
 
       playSound('success');
 
@@ -997,6 +1004,119 @@ export default function ValidadorDashboard() {
       setActionError('No se pudo anular la entrega de cena.');
     } finally {
       setSavingAction(false);
+    }
+  };
+
+  // ========================================================
+  // MARCACIÓN RÁPIDA DE ASISTENCIA A 1 CLIC (DESDE EL PADRÓN/VISOR)
+  // ========================================================
+  const handleQuickMarkAttendance = async (voluntario) => {
+    const key = voluntario.dni || voluntario.id;
+    if (!key) return;
+
+    setMarkingAttendanceId(key);
+    const nowIso = new Date().toISOString();
+    const punto = puntoAsistencia || 'Punto Principal / Lista en Campo';
+    const validadorNombre = user?.nombre || 'Responsable Oficial';
+
+    const updateData = {
+      asistencia_dia_d: true,
+      asistencia_fecha: nowIso,
+      asistencia_registrada_por: validadorNombre,
+      asistencia_punto: punto
+    };
+
+    // Actualización optimista instantánea en UI (cero lag)
+    setVisorRecords(prev => prev.map(item => {
+      const match = (voluntario.dni && item.dni === voluntario.dni) || (item.id === voluntario.id);
+      return match ? { ...item, ...updateData } : item;
+    }));
+
+    setStats(prev => ({ ...prev, asistenciaHoy: (prev.asistenciaHoy || 0) + 1 }));
+    setJustMarkedIds(prev => new Set([...prev, key]));
+    playSound('success');
+
+    try {
+      if (voluntario.dni) {
+        await Promise.all([
+          supabase.from('voluntarios').update(updateData).eq('dni', voluntario.dni),
+          supabase.from('voluntarios_general').update(updateData).eq('dni', voluntario.dni)
+        ]);
+      } else {
+        const tbl = voluntario._origenTabla || (voluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
+        const { error } = await supabase.from(tbl).update(updateData).eq('id', voluntario.id);
+        if (error) throw error;
+      }
+    } catch (err) {
+      console.error('Error marcando asistencia rápida:', err);
+      alert('Ocurrió un error al guardar la asistencia en el servidor. Intenta nuevamente.');
+      // Revertir optimismo
+      setVisorRecords(prev => prev.map(item => {
+        const match = (voluntario.dni && item.dni === voluntario.dni) || (item.id === voluntario.id);
+        return match ? { ...item, asistencia_dia_d: false, asistencia_fecha: null, asistencia_registrada_por: null, asistencia_punto: null } : item;
+      }));
+      setStats(prev => ({ ...prev, asistenciaHoy: Math.max(0, (prev.asistenciaHoy || 1) - 1) }));
+    } finally {
+      setMarkingAttendanceId(null);
+    }
+  };
+
+  const handleQuickUndoAttendance = async (voluntario) => {
+    const key = voluntario.dni || voluntario.id;
+    if (!key) return;
+
+    const voluntarioNombre = voluntario.nombres_apellidos || 'este voluntario';
+    const isJustMarked = justMarkedIds.has(key);
+
+    if (user?.rol !== 'admin' && !isJustMarked) {
+      alert('Solo los administradores o quien acaba de marcar el registro pueden anular la asistencia.');
+      return;
+    }
+
+    if (!isJustMarked && user?.rol === 'admin') {
+      if (!window.confirm(`¿Estás seguro de anular la asistencia de ${voluntarioNombre}?`)) {
+        return;
+      }
+    }
+
+    setMarkingAttendanceId(key);
+    const resetData = {
+      asistencia_dia_d: false,
+      asistencia_fecha: null,
+      asistencia_registrada_por: null,
+      asistencia_punto: null
+    };
+
+    // Actualización optimista
+    setVisorRecords(prev => prev.map(item => {
+      const match = (voluntario.dni && item.dni === voluntario.dni) || (item.id === voluntario.id);
+      return match ? { ...item, ...resetData } : item;
+    }));
+
+    setStats(prev => ({ ...prev, asistenciaHoy: Math.max(0, (prev.asistenciaHoy || 1) - 1) }));
+    setJustMarkedIds(prev => {
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+
+    try {
+      if (voluntario.dni) {
+        await Promise.all([
+          supabase.from('voluntarios').update(resetData).eq('dni', voluntario.dni),
+          supabase.from('voluntarios_general').update(resetData).eq('dni', voluntario.dni)
+        ]);
+      } else {
+        const tbl = voluntario._origenTabla || (voluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
+        const { error } = await supabase.from(tbl).update(resetData).eq('id', voluntario.id);
+        if (error) throw error;
+      }
+    } catch (err) {
+      console.error('Error anulando asistencia rápida:', err);
+      alert('No se pudo anular la asistencia en el servidor.');
+      await fetchVisorRecords();
+    } finally {
+      setMarkingAttendanceId(null);
     }
   };
 
@@ -1233,6 +1353,7 @@ export default function ValidadorDashboard() {
 
   // Filtrado de registros en el Visor
   const filteredVisorRecords = visorRecords.filter(item => {
+    if (visorFilter === 'PENDING_ASISTENCIA' && item.asistencia_dia_d) return false;
     if (visorFilter === 'KITS' && !item.kit_entregado && item.kit_estado !== 'EN_CUSTODIA_RESPONSABLE') return false;
     if (visorFilter === 'ASISTENCIA' && !item.asistencia_dia_d) return false;
     if (visorFilter === 'DESAYUNO' && !item.desayuno_entregado && item.desayuno_estado !== 'EN_CUSTODIA_RESPONSABLE') return false;
@@ -1919,9 +2040,9 @@ export default function ValidadorDashboard() {
                     <span>Modo Administrador (Anulación habilitada)</span>
                   </span>
                 ) : (
-                  <span className="px-3 py-1.5 bg-stone-100 border border-stone-200 text-stone-700 rounded-xl text-xs font-bold flex items-center gap-1.5">
-                    <Eye className="w-4 h-4 text-stone-500" />
-                    <span>Validador (Solo lectura)</span>
+                  <span className="px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                    <ClipboardCheck className="w-4 h-4 text-blue-600" />
+                    <span>Asistencia Rápida a 1 Clic</span>
                   </span>
                 )}
 
@@ -1965,7 +2086,7 @@ export default function ValidadorDashboard() {
                 </div>
 
                 {/* Filtros Tipo Pills */}
-                <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+                <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 flex-wrap">
                   <button
                     type="button"
                     onClick={() => setVisorFilter('ALL')}
@@ -1976,6 +2097,18 @@ export default function ValidadorDashboard() {
                     }`}
                   >
                     Todos ({visorRecords.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setVisorFilter('PENDING_ASISTENCIA')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                      visorFilter === 'PENDING_ASISTENCIA'
+                        ? 'bg-rose-700 text-white shadow-xs'
+                        : 'bg-rose-50 text-rose-900 hover:bg-rose-100 border border-rose-200'
+                    }`}
+                  >
+                    ⏳ Sin Asistencia ({visorRecords.filter(r => !r.asistencia_dia_d).length})
                   </button>
 
                   <button
@@ -2025,6 +2158,47 @@ export default function ValidadorDashboard() {
                   >
                     🍽️ Cenas ({visorRecords.filter(r => r.cena_entregada || r.cena_estado === 'EN_CUSTODIA_RESPONSABLE').length})
                   </button>
+
+                  {/* Selector de Punto de Asistencia para el botón rápido */}
+                  <div className="flex items-center gap-1 text-xs ml-auto">
+                    <span className="text-[10px] font-bold text-stone-500 hidden sm:inline">Punto al marcar:</span>
+                    <select
+                      value={puntoAsistencia}
+                      onChange={(e) => setPuntoAsistencia(e.target.value)}
+                      className="py-1 px-2 bg-stone-50 border border-stone-300 rounded-xl text-xs font-semibold text-stone-800 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard"
+                    >
+                      <option value="Punto Principal">📍 Puerta Principal</option>
+                      <option value="Lista en Campo / Cuadrilla">📱 Lista en Campo</option>
+                      <option value="Capacitación General">🎓 Capacitación USAT</option>
+                      <option value="Sede Santuario">⛪ Sede Santuario</option>
+                      <option value="Sede Zaña">📍 Sede Zaña</option>
+                      <option value="Sede Santa Cruz">📍 Sede Santa Cruz</option>
+                      <option value="Punto de Resguardo">🛡️ Resguardo</option>
+                    </select>
+                  </div>
+
+                  {/* Filtro por Responsable para Administrador / Validador General */}
+                  {(!user || user.rol === 'admin' || user.rol === 'validador') && (
+                    <div className="flex items-center gap-1 text-xs">
+                      <select
+                        value={selectedVisorLeader}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSelectedVisorLeader(val);
+                          fetchVisorRecords(val);
+                        }}
+                        className="py-1 px-2 bg-stone-50 border border-stone-300 rounded-xl text-xs font-semibold text-stone-800 focus:outline-none focus:ring-2 focus:ring-diocesis-mustard max-w-[200px] truncate"
+                        title="Filtrar padrón completo por Responsable"
+                      >
+                        <option value="">👤 Todos los Sectores (Con Actividad)</option>
+                        {lideresList.map(l => (
+                          <option key={l.dni || l.nombre} value={l.nombre}>
+                            👤 {l.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2125,15 +2299,20 @@ export default function ValidadorDashboard() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-2 border-t border-stone-100 text-xs">
                       
                       {/* 1. Asistencia */}
-                      <div className={`p-2.5 rounded-xl border flex flex-col justify-between gap-1.5 ${
+                      <div className={`p-2.5 rounded-xl border flex flex-col justify-between gap-1.5 transition-colors ${
                         item.asistencia_dia_d 
                           ? 'bg-blue-50/70 border-blue-200 text-blue-950'
-                          : 'bg-stone-50 border-stone-200 text-stone-400'
+                          : 'bg-stone-50 border-stone-200 text-stone-700'
                       }`}>
                         <div>
-                          <span className="font-bold block truncate">
-                            {item.asistencia_dia_d ? '📋 Asistencia OK' : '⚪ Asist. No Marcada'}
-                          </span>
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-bold block truncate">
+                              {item.asistencia_dia_d ? '📋 Asistencia OK' : '⚪ Asist. No Marcada'}
+                            </span>
+                            {markingAttendanceId === (item.dni || item.id) && (
+                              <RefreshCw className="w-3 h-3 animate-spin text-blue-600 shrink-0" />
+                            )}
+                          </div>
                           {item.asistencia_dia_d && (
                             <span className="text-[10px] text-stone-600 block truncate">
                               {item.asistencia_punto || 'Punto Oficial'} • {item.asistencia_fecha ? new Date(item.asistencia_fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
@@ -2141,16 +2320,30 @@ export default function ValidadorDashboard() {
                           )}
                         </div>
 
-                        {user?.rol === 'admin' && item.asistencia_dia_d && (
+                        {!item.asistencia_dia_d ? (
                           <button
                             type="button"
-                            disabled={savingAction}
-                            onClick={() => handleResetAttendance(item)}
-                            className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50"
+                            disabled={markingAttendanceId === (item.dni || item.id)}
+                            onClick={() => handleQuickMarkAttendance(item)}
+                            className="w-full mt-1 py-1.5 px-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+                            title="Haz clic para marcar asistencia inmediatamente"
                           >
-                            <RotateCcw className="w-2.5 h-2.5" />
-                            <span>Anular</span>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Marcar Asistencia</span>
                           </button>
+                        ) : (
+                          (user?.rol === 'admin' || justMarkedIds.has(item.dni || item.id)) && (
+                            <button
+                              type="button"
+                              disabled={savingAction || markingAttendanceId === (item.dni || item.id)}
+                              onClick={() => handleQuickUndoAttendance(item)}
+                              className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50 mt-1"
+                              title={user?.rol === 'admin' ? 'Anular asistencia' : 'Deshacer asistencia marcada recién'}
+                            >
+                              <RotateCcw className="w-2.5 h-2.5" />
+                              <span>{user?.rol === 'admin' ? 'Anular' : 'Deshacer'}</span>
+                            </button>
+                          )
                         )}
                       </div>
 
