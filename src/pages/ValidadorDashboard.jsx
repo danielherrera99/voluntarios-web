@@ -308,8 +308,9 @@ export default function ValidadorDashboard() {
         qF1 = qF1.or(scopeOr);
       } else {
         // Para Administradores y Validadores de Almacén: vista global
-        qF2 = qF2.or('kit_entregado.eq.true,asistencia_dia_d.eq.true,desayuno_entregado.eq.true,cena_entregada.eq.true,kit_estado.eq.EN_CUSTODIA_RESPONSABLE');
-        qF1 = qF1.or('kit_entregado.eq.true,asistencia_dia_d.eq.true,desayuno_entregado.eq.true,cena_entregada.eq.true,kit_estado.eq.EN_CUSTODIA_RESPONSABLE');
+        const globalFilter = 'kit_entregado.eq.true,asistencia_dia_d.eq.true,desayuno_entregado.eq.true,cena_entregada.eq.true,kit_estado.eq.EN_CUSTODIA_RESPONSABLE,desayuno_estado.eq.EN_CUSTODIA_RESPONSABLE,cena_estado.eq.EN_CUSTODIA_RESPONSABLE';
+        qF2 = qF2.or(globalFilter);
+        qF1 = qF1.or(globalFilter);
       }
 
       const [{ data: vF2, error: e2 }, { data: vF1, error: e1 }] = await Promise.all([
@@ -510,7 +511,7 @@ export default function ValidadorDashboard() {
       const { data: f2Data, error: f2Err } = await q.maybeSingle();
       if (f2Err) console.warn('Busqueda F2:', f2Err);
 
-      let record = f2Data;
+      let record = f2Data ? { ...f2Data, _origenTabla: 'voluntarios' } : null;
 
       // 2. Si no está en Fase 2, buscar en Fase 1
       if (!record) {
@@ -522,7 +523,7 @@ export default function ValidadorDashboard() {
         }
         const { data: f1Data, error: f1Err } = await q1.maybeSingle();
         if (f1Err) console.warn('Busqueda F1:', f1Err);
-        record = f1Data;
+        if (f1Data) record = { ...f1Data, _origenTabla: 'voluntarios_general' };
       }
 
       if (!record) {
@@ -576,16 +577,16 @@ export default function ValidadorDashboard() {
         asistencia_punto: puntoAsistencia
       };
 
-      const tableName = scannedVoluntario.fase === '3' || scannedVoluntario.estado === 'SELECCIONADO' 
-        ? 'voluntarios' 
-        : 'voluntarios_general';
-
-      const { error } = await supabase
-        .from(tableName)
-        .update(updateData)
-        .eq('id', scannedVoluntario.id);
-
-      if (error) throw error;
+      if (scannedVoluntario.dni) {
+        await Promise.all([
+          supabase.from('voluntarios').update(updateData).eq('dni', scannedVoluntario.dni),
+          supabase.from('voluntarios_general').update(updateData).eq('dni', scannedVoluntario.dni)
+        ]);
+      } else {
+        const tableName = scannedVoluntario._origenTabla || (scannedVoluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
+        const { error } = await supabase.from(tableName).update(updateData).eq('id', scannedVoluntario.id);
+        if (error) throw error;
+      }
 
       playSound('success');
       setActionSuccessMsg(`¡Asistencia registrada para ${scannedVoluntario.nombres_apellidos}!`);
@@ -637,16 +638,16 @@ export default function ValidadorDashboard() {
         kit_estado: 'ENTREGADO_FINAL'
       };
 
-      const tableName = scannedVoluntario.fase === '3' || scannedVoluntario.estado === 'SELECCIONADO' 
-        ? 'voluntarios' 
-        : 'voluntarios_general';
-
-      const { error } = await supabase
-        .from(tableName)
-        .update(updateData)
-        .eq('id', scannedVoluntario.id);
-
-      if (error) throw error;
+      if (scannedVoluntario.dni) {
+        await Promise.all([
+          supabase.from('voluntarios').update(updateData).eq('dni', scannedVoluntario.dni),
+          supabase.from('voluntarios_general').update(updateData).eq('dni', scannedVoluntario.dni)
+        ]);
+      } else {
+        const tableName = scannedVoluntario._origenTabla || (scannedVoluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
+        const { error } = await supabase.from(tableName).update(updateData).eq('id', scannedVoluntario.id);
+        if (error) throw error;
+      }
 
       playSound('success');
       setActionSuccessMsg(`¡Kit entregado exitosamente a ${scannedVoluntario.nombres_apellidos}!`);
@@ -691,16 +692,16 @@ export default function ValidadorDashboard() {
         desayuno_punto: puntoAlimentos
       };
 
-      const tableName = scannedVoluntario.fase === '3' || scannedVoluntario.estado === 'SELECCIONADO' 
-        ? 'voluntarios' 
-        : 'voluntarios_general';
-
-      const { error } = await supabase
-        .from(tableName)
-        .update(updateData)
-        .eq('id', scannedVoluntario.id);
-
-      if (error) throw error;
+      if (scannedVoluntario.dni) {
+        await Promise.all([
+          supabase.from('voluntarios').update(updateData).eq('dni', scannedVoluntario.dni),
+          supabase.from('voluntarios_general').update(updateData).eq('dni', scannedVoluntario.dni)
+        ]);
+      } else {
+        const tableName = scannedVoluntario._origenTabla || (scannedVoluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
+        const { error } = await supabase.from(tableName).update(updateData).eq('id', scannedVoluntario.id);
+        if (error) throw error;
+      }
 
       playSound('success');
       setActionSuccessMsg(`¡Ración de desayuno registrada para ${scannedVoluntario.nombres_apellidos}!`);
@@ -745,16 +746,16 @@ export default function ValidadorDashboard() {
         cena_punto: puntoAlimentos
       };
 
-      const tableName = scannedVoluntario.fase === '3' || scannedVoluntario.estado === 'SELECCIONADO' 
-        ? 'voluntarios' 
-        : 'voluntarios_general';
-
-      const { error } = await supabase
-        .from(tableName)
-        .update(updateData)
-        .eq('id', scannedVoluntario.id);
-
-      if (error) throw error;
+      if (scannedVoluntario.dni) {
+        await Promise.all([
+          supabase.from('voluntarios').update(updateData).eq('dni', scannedVoluntario.dni),
+          supabase.from('voluntarios_general').update(updateData).eq('dni', scannedVoluntario.dni)
+        ]);
+      } else {
+        const tableName = scannedVoluntario._origenTabla || (scannedVoluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
+        const { error } = await supabase.from(tableName).update(updateData).eq('id', scannedVoluntario.id);
+        if (error) throw error;
+      }
 
       playSound('success');
       setActionSuccessMsg(`¡Ración de cena registrada para ${scannedVoluntario.nombres_apellidos}!`);
@@ -814,14 +815,16 @@ export default function ValidadorDashboard() {
         kit_fecha_despacho_lote: null
       };
 
-      const tableName = voluntario.fase === '3' || voluntario.estado === 'SELECCIONADO' 
-        ? 'voluntarios' 
-        : 'voluntarios_general';
-
-      const { error } = await supabase
-        .from(tableName)
-        .update(resetData)
-        .eq('id', voluntario.id);
+      if (voluntario.dni) {
+        await Promise.all([
+          supabase.from('voluntarios').update(resetData).eq('dni', voluntario.dni),
+          supabase.from('voluntarios_general').update(resetData).eq('dni', voluntario.dni)
+        ]);
+      } else {
+        const tableName = voluntario._origenTabla || (voluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
+        const { error } = await supabase.from(tableName).update(resetData).eq('id', voluntario.id);
+        if (error) throw error;
+      }
 
       if (error) throw error;
 
@@ -863,14 +866,16 @@ export default function ValidadorDashboard() {
         asistencia_punto: null
       };
 
-      const tableName = voluntario.fase === '3' || voluntario.estado === 'SELECCIONADO' 
-        ? 'voluntarios' 
-        : 'voluntarios_general';
-
-      const { error } = await supabase
-        .from(tableName)
-        .update(resetData)
-        .eq('id', voluntario.id);
+      if (voluntario.dni) {
+        await Promise.all([
+          supabase.from('voluntarios').update(resetData).eq('dni', voluntario.dni),
+          supabase.from('voluntarios_general').update(resetData).eq('dni', voluntario.dni)
+        ]);
+      } else {
+        const tableName = voluntario._origenTabla || (voluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
+        const { error } = await supabase.from(tableName).update(resetData).eq('id', voluntario.id);
+        if (error) throw error;
+      }
 
       if (error) throw error;
 
@@ -914,11 +919,16 @@ export default function ValidadorDashboard() {
         desayuno_custodio_nombre: null
       };
 
-      const tableName = voluntario.fase === '3' || voluntario.estado === 'SELECCIONADO' 
-        ? 'voluntarios' 
-        : 'voluntarios_general';
-
-      const { error } = await supabase.from(tableName).update(resetData).eq('id', voluntario.id);
+      if (voluntario.dni) {
+        await Promise.all([
+          supabase.from('voluntarios').update(resetData).eq('dni', voluntario.dni),
+          supabase.from('voluntarios_general').update(resetData).eq('dni', voluntario.dni)
+        ]);
+      } else {
+        const tableName = voluntario._origenTabla || (voluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
+        const { error } = await supabase.from(tableName).update(resetData).eq('id', voluntario.id);
+        if (error) throw error;
+      }
       if (error) throw error;
 
       playSound('success');
@@ -961,11 +971,16 @@ export default function ValidadorDashboard() {
         cena_custodio_nombre: null
       };
 
-      const tableName = voluntario.fase === '3' || voluntario.estado === 'SELECCIONADO' 
-        ? 'voluntarios' 
-        : 'voluntarios_general';
-
-      const { error } = await supabase.from(tableName).update(resetData).eq('id', voluntario.id);
+      if (voluntario.dni) {
+        await Promise.all([
+          supabase.from('voluntarios').update(resetData).eq('dni', voluntario.dni),
+          supabase.from('voluntarios_general').update(resetData).eq('dni', voluntario.dni)
+        ]);
+      } else {
+        const tableName = voluntario._origenTabla || (voluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
+        const { error } = await supabase.from(tableName).update(resetData).eq('id', voluntario.id);
+        if (error) throw error;
+      }
       if (error) throw error;
 
       playSound('success');
@@ -1013,8 +1028,8 @@ export default function ValidadorDashboard() {
       if (f1Err) console.warn('Lote F1 error:', f1Err);
 
       const map = new Map();
-      (f1Data || []).forEach(v => map.set(v.dni || v.id, v));
-      (f2Data || []).forEach(v => map.set(v.dni || v.id, v));
+      (f1Data || []).forEach(v => map.set(v.dni || v.id, { ...v, _origenTabla: 'voluntarios_general' }));
+      (f2Data || []).forEach(v => map.set(v.dni || v.id, { ...v, _origenTabla: 'voluntarios' }));
 
       setLoteVoluntarios(Array.from(map.values()));
     } catch (err) {
@@ -1070,8 +1085,9 @@ export default function ValidadorDashboard() {
 
       // 1. Despachar Kits pendientes
       if (despacharKitsCheck && loteKitsPending.length > 0) {
-        const idsF2 = loteKitsPending.filter(v => v.fase === '3' || v.estado === 'SELECCIONADO').map(v => v.id);
-        const idsF1 = loteKitsPending.filter(v => !(v.fase === '3' || v.estado === 'SELECCIONADO')).map(v => v.id);
+        const dnis = loteKitsPending.map(v => v.dni).filter(Boolean);
+        const idsSinDniF2 = loteKitsPending.filter(v => !v.dni && v._origenTabla === 'voluntarios').map(v => v.id);
+        const idsSinDniF1 = loteKitsPending.filter(v => !v.dni && v._origenTabla === 'voluntarios_general').map(v => v.id);
 
         const kitPatch = {
           kit_estado: 'EN_CUSTODIA_RESPONSABLE',
@@ -1080,18 +1096,25 @@ export default function ValidadorDashboard() {
           kit_entregado_por: validadorNombre
         };
 
-        if (idsF2.length > 0) {
-          await supabase.from('voluntarios').update(kitPatch).in('id', idsF2);
+        const updatePromises = [];
+        if (dnis.length > 0) {
+          updatePromises.push(supabase.from('voluntarios').update(kitPatch).in('dni', dnis));
+          updatePromises.push(supabase.from('voluntarios_general').update(kitPatch).in('dni', dnis));
         }
-        if (idsF1.length > 0) {
-          await supabase.from('voluntarios_general').update(kitPatch).in('id', idsF1);
+        if (idsSinDniF2.length > 0) {
+          updatePromises.push(supabase.from('voluntarios').update(kitPatch).in('id', idsSinDniF2));
         }
+        if (idsSinDniF1.length > 0) {
+          updatePromises.push(supabase.from('voluntarios_general').update(kitPatch).in('id', idsSinDniF1));
+        }
+        await Promise.all(updatePromises);
       }
 
       // 2. Despachar Desayunos pendientes
       if (despacharDesayunoCheck && loteDesayunosPending.length > 0) {
-        const idsF2 = loteDesayunosPending.filter(v => v.fase === '3' || v.estado === 'SELECCIONADO').map(v => v.id);
-        const idsF1 = loteDesayunosPending.filter(v => !(v.fase === '3' || v.estado === 'SELECCIONADO')).map(v => v.id);
+        const dnis = loteDesayunosPending.map(v => v.dni).filter(Boolean);
+        const idsSinDniF2 = loteDesayunosPending.filter(v => !v.dni && v._origenTabla === 'voluntarios').map(v => v.id);
+        const idsSinDniF1 = loteDesayunosPending.filter(v => !v.dni && v._origenTabla === 'voluntarios_general').map(v => v.id);
 
         const dPatch = {
           desayuno_estado: 'EN_CUSTODIA_RESPONSABLE',
@@ -1101,18 +1124,25 @@ export default function ValidadorDashboard() {
           desayuno_punto: puntoAlimentos
         };
 
-        if (idsF2.length > 0) {
-          await supabase.from('voluntarios').update(dPatch).in('id', idsF2);
+        const updatePromises = [];
+        if (dnis.length > 0) {
+          updatePromises.push(supabase.from('voluntarios').update(dPatch).in('dni', dnis));
+          updatePromises.push(supabase.from('voluntarios_general').update(dPatch).in('dni', dnis));
         }
-        if (idsF1.length > 0) {
-          await supabase.from('voluntarios_general').update(dPatch).in('id', idsF1);
+        if (idsSinDniF2.length > 0) {
+          updatePromises.push(supabase.from('voluntarios').update(dPatch).in('id', idsSinDniF2));
         }
+        if (idsSinDniF1.length > 0) {
+          updatePromises.push(supabase.from('voluntarios_general').update(dPatch).in('id', idsSinDniF1));
+        }
+        await Promise.all(updatePromises);
       }
 
       // 3. Despachar Cenas pendientes
       if (despacharCenaCheck && loteCenasPending.length > 0) {
-        const idsF2 = loteCenasPending.filter(v => v.fase === '3' || v.estado === 'SELECCIONADO').map(v => v.id);
-        const idsF1 = loteCenasPending.filter(v => !(v.fase === '3' || v.estado === 'SELECCIONADO')).map(v => v.id);
+        const dnis = loteCenasPending.map(v => v.dni).filter(Boolean);
+        const idsSinDniF2 = loteCenasPending.filter(v => !v.dni && v._origenTabla === 'voluntarios').map(v => v.id);
+        const idsSinDniF1 = loteCenasPending.filter(v => !v.dni && v._origenTabla === 'voluntarios_general').map(v => v.id);
 
         const cPatch = {
           cena_estado: 'EN_CUSTODIA_RESPONSABLE',
@@ -1122,12 +1152,18 @@ export default function ValidadorDashboard() {
           cena_punto: puntoAlimentos
         };
 
-        if (idsF2.length > 0) {
-          await supabase.from('voluntarios').update(cPatch).in('id', idsF2);
+        const updatePromises = [];
+        if (dnis.length > 0) {
+          updatePromises.push(supabase.from('voluntarios').update(cPatch).in('dni', dnis));
+          updatePromises.push(supabase.from('voluntarios_general').update(cPatch).in('dni', dnis));
         }
-        if (idsF1.length > 0) {
-          await supabase.from('voluntarios_general').update(cPatch).in('id', idsF1);
+        if (idsSinDniF2.length > 0) {
+          updatePromises.push(supabase.from('voluntarios').update(cPatch).in('id', idsSinDniF2));
         }
+        if (idsSinDniF1.length > 0) {
+          updatePromises.push(supabase.from('voluntarios_general').update(cPatch).in('id', idsSinDniF1));
+        }
+        await Promise.all(updatePromises);
       }
 
       playSound('success');
