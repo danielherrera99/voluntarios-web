@@ -91,6 +91,29 @@ const CANONICAL_LIDERES = [
   { nombre: 'WILDER ANIBAL LÓPEZ ALARCÓN', dni: '47814182' }
 ];
 
+// Mapeo canónico exacto para localizar sin margen de error los voluntarios de cada Responsable
+const RESPONSABLE_ALIASES = {
+  '75879740': ['SANTOS MÁXIMO FIESTAS PATAZCA', 'SANTOS MAXIMO FIESTAS PATAZCA', 'MAX'],
+  '47844514': ['JHONATAN FRANCISCO FIESTAS PATAZCA', 'JHONATAN'],
+  '75262428': ['MARÍA ISABEL BAUDAT SANCHEZ', 'MARIA ISABEL BAUDAT SANCHEZ', 'MARIA BAUDAT'],
+  '75194090': ['PRISCILLA NIÑO MALDONADO', 'PRISCILA'],
+  '72307847': ['SANDY LIMO ORÉ', 'SANDY LIMO ORE', 'SANDY TATIANA LIMO ORÉ', 'SANDY'],
+  '73381541': ['PAMELA DEL MILAGRO QUICIO MONJE', 'PAMELA'],
+  '71436152': ['LUIS MIGUEL CHUMAN MONTERO', 'CHUMAN'],
+  '46054145': ['ANYELO HERNAN CHISCUL ESQUIVES', 'CHISCUL ESQUIVES ANYELO HERNAN', 'ANYELO'],
+  '72648617': ['CRISTINA NOMBERA BAZÁN', 'CRISTINA NOMBERA BAZAN', 'CRISTINA'],
+  '74447092': ['FATIMA ELIZABETH GONZALES FIESTAS', 'FATIMA'],
+  '76069148': ['ELENA XIOMARA SOPLOPUCO LOCONI', 'XIOMARA'],
+  '47584113': ['MARIA SOLEDAD LONGA GRANDA', 'MARIA LONGA'],
+  '75245598': ['KATHERYN MELISA MARTINEZ', 'KATHERYN MELISA MARTINEZ BARBADILLO', 'MELISSA'],
+  '73050638': ['SEBASTIÁN LEÓN SALOMÉ', 'SEBASTIAN LEON SALOME', 'SEBASTIAN'],
+  '16654195': ['PEDRO ALEJANDRO LEÓN BONILLA', 'SR. PEDRO', 'PEDRO'],
+  '77212304': ['RICARDO ACOSTA DEL AGUILA', 'RICARDO'],
+  '47814182': ['WILDER ANIBAL LÓPEZ ALARCÓN', 'WILDER ANIBAL LOPEZ ALARCON', 'WILDER'],
+  '72693556': ['ANNGHY GABRIELA SALAZAR GONZALES', 'ANNGHY', 'ANGIE'],
+  '46066172': ['WALTER GARCIA', 'WALTER']
+};
+
 export default function ValidadorDashboard() {
   const { user, logout } = useAuth();
 
@@ -164,6 +187,52 @@ export default function ValidadorDashboard() {
 
   const html5QrCodeRef = useRef(null);
 
+  // Determinar condición de filtro por rol y jurisdicción
+  const getUserScopeOrCondition = () => {
+    if (!user || user.rol === 'admin' || user.rol === 'validador') {
+      return null; // Administrador o Validador de Almacén Central: acceso global
+    }
+    if (user.rol === 'responsable') {
+      const aliases = (user.dni && RESPONSABLE_ALIASES[user.dni])
+        ? RESPONSABLE_ALIASES[user.dni]
+        : [user.responsable_nombre || user.nombre];
+      return aliases.flatMap(a => [
+        `responsable_nombre.ilike.%${a}%`,
+        `lugar_asignado.ilike.%${a}%`
+      ]).join(',');
+    }
+    if (user.rol === 'lider') {
+      const lNom = user.lider_nombre || user.nombre;
+      return `lider_nombre.ilike.%${lNom}%`;
+    }
+    if (user.rol === 'guia') {
+      if (user.cuadrilla_codigo) {
+        return `cuadrilla_codigo.eq.${user.cuadrilla_codigo},guia_nombre.eq.${user.nombre}`;
+      }
+    }
+    return null;
+  };
+
+  const isMyVolunteer = (rec) => {
+    if (!rec || !user || user.rol === 'admin' || user.rol === 'validador') return true;
+    if (user.rol === 'responsable') {
+      const aliases = (user.dni && RESPONSABLE_ALIASES[user.dni])
+        ? RESPONSABLE_ALIASES[user.dni]
+        : [user.responsable_nombre || user.nombre];
+      const recResp = (rec.responsable_nombre || rec.lugar_asignado || '').toUpperCase();
+      return aliases.some(a => recResp.includes(a.toUpperCase()));
+    }
+    if (user.rol === 'lider') {
+      const lNom = (user.lider_nombre || user.nombre || '').toUpperCase();
+      const recLid = (rec.lider_nombre || '').toUpperCase();
+      return recLid.includes(lNom);
+    }
+    if (user.rol === 'guia') {
+      return rec.cuadrilla_codigo === user.cuadrilla_codigo || rec.guia_nombre === user.nombre;
+    }
+    return true;
+  };
+
   // Cargar lista dinámica de líderes de estructura_mandos
   const fetchLideres = async () => {
     try {
@@ -191,15 +260,27 @@ export default function ValidadorDashboard() {
     }
   };
 
-  // Cargar métricas iniciales del validador
+  // Cargar métricas iniciales del validador / responsable
   const fetchStats = async () => {
     try {
+      const scopeOr = getUserScopeOrCondition();
+
+      let qK = supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('kit_entregado', true);
+      let qA = supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('asistencia_dia_d', true);
+      let qD = supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('desayuno_entregado', true);
+      let qC = supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('cena_entregada', true);
+
+      if (scopeOr) {
+        qK = qK.or(scopeOr);
+        qA = qA.or(scopeOr);
+        qD = qD.or(scopeOr);
+        qC = qC.or(scopeOr);
+      }
+
       const [{ count: kCount }, { count: aCount }, { count: dCount }, { count: cCount }] = await Promise.all([
-        supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('kit_entregado', true),
-        supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('asistencia_dia_d', true),
-        supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('desayuno_entregado', true),
-        supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('cena_entregada', true)
+        qK, qA, qD, qC
       ]);
+
       setStats({
         kitsHoy: kCount || 0,
         asistenciaHoy: aCount || 0,
@@ -215,15 +296,24 @@ export default function ValidadorDashboard() {
   const fetchVisorRecords = async () => {
     setLoadingVisor(true);
     try {
+      const scopeOr = getUserScopeOrCondition();
       const selectCols = 'id, dni, codigo, nombres_apellidos, talla, servicio, responsable_nombre, lugar_asignado, fotografia_url, kit_entregado, kit_polo_entregado, kit_items_entregados, kit_fecha_entrega, kit_entregado_por, kit_estado, kit_custodio_nombre, kit_fecha_despacho_lote, asistencia_dia_d, asistencia_fecha, asistencia_registrada_por, asistencia_punto, desayuno_entregado, desayuno_fecha, desayuno_entregado_por, desayuno_punto, desayuno_estado, desayuno_custodio_nombre, cena_entregada, cena_fecha, cena_entregada_por, cena_punto, cena_estado, cena_custodio_nombre, fase, estado';
 
+      let qF2 = supabase.from('voluntarios').select(selectCols);
+      let qF1 = supabase.from('voluntarios_general').select(selectCols);
+
+      if (scopeOr) {
+        // Para Responsables, Líderes o Guías: mostrar los voluntarios de su jurisdicción
+        qF2 = qF2.or(scopeOr);
+        qF1 = qF1.or(scopeOr);
+      } else {
+        // Para Administradores y Validadores de Almacén: vista global
+        qF2 = qF2.or('kit_entregado.eq.true,asistencia_dia_d.eq.true,desayuno_entregado.eq.true,cena_entregada.eq.true,kit_estado.eq.EN_CUSTODIA_RESPONSABLE');
+        qF1 = qF1.or('kit_entregado.eq.true,asistencia_dia_d.eq.true,desayuno_entregado.eq.true,cena_entregada.eq.true,kit_estado.eq.EN_CUSTODIA_RESPONSABLE');
+      }
+
       const [{ data: vF2, error: e2 }, { data: vF1, error: e1 }] = await Promise.all([
-        supabase.from('voluntarios')
-          .select(selectCols)
-          .or('kit_entregado.eq.true,asistencia_dia_d.eq.true,desayuno_entregado.eq.true,cena_entregada.eq.true,kit_estado.eq.EN_CUSTODIA_RESPONSABLE'),
-        supabase.from('voluntarios_general')
-          .select(selectCols)
-          .or('kit_entregado.eq.true,asistencia_dia_d.eq.true,desayuno_entregado.eq.true,cena_entregada.eq.true,kit_estado.eq.EN_CUSTODIA_RESPONSABLE')
+        qF2, qF1
       ]);
 
       if (e2) console.warn('Error fetching F2 visor:', e2);
@@ -254,19 +344,12 @@ export default function ValidadorDashboard() {
     fetchLideres();
   }, []);
 
-  // Preseleccionar automáticamente al Responsable logueado si ingresa a este módulo
+  // Evitar que roles de campo (Responsable, Líder, Guía) ingresen a Despacho en Bloque (exclusivo almacén)
   useEffect(() => {
-    if (user?.rol === 'responsable' && !selectedLeader && lideresList.length > 0) {
-      const myName = (user.responsable_nombre || user.nombre || '').toUpperCase().trim();
-      const match = lideresList.find(l => {
-        const lNom = l.nombre.toUpperCase().trim();
-        return myName.includes(lNom) || lNom.includes(myName) || (user.dni && l.dni === user.dni);
-      });
-      if (match) {
-        handleSelectLeader(match.nombre);
-      }
+    if ((user?.rol === 'responsable' || user?.rol === 'lider' || user?.rol === 'guia') && activeTab === 'despacho_lote') {
+      setActiveTab('asistencia');
     }
-  }, [lideresList, user]);
+  }, [user, activeTab]);
 
   // Iniciar Cámara con autodetección de sensor trasero y manejo resiliente
   const startCamera = async (overrideCameraId = null) => {
@@ -1258,25 +1341,27 @@ export default function ValidadorDashboard() {
               <span>4. Cena</span>
             </button>
 
-            {/* 5. Despacho en Bloque */}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('despacho_lote');
-                setScannedVoluntario(null);
-                stopCamera();
-              }}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
-                activeTab === 'despacho_lote'
-                  ? 'bg-indigo-100 text-indigo-950 border border-indigo-300 shadow-2xs'
-                  : 'bg-stone-50 text-stone-600 hover:bg-stone-100 border border-stone-200'
-              }`}
-            >
-              <Boxes className="w-4 h-4 text-indigo-700" />
-              <span>5. Despacho en Bloque</span>
-            </button>
+            {/* 5. Despacho en Bloque (Exclusivo Administrador y Validador de Almacén) */}
+            {(user?.rol === 'admin' || user?.rol === 'validador') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('despacho_lote');
+                  setScannedVoluntario(null);
+                  stopCamera();
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
+                  activeTab === 'despacho_lote'
+                    ? 'bg-indigo-100 text-indigo-950 border border-indigo-300 shadow-2xs'
+                    : 'bg-stone-50 text-stone-600 hover:bg-stone-100 border border-stone-200'
+                }`}
+              >
+                <Boxes className="w-4 h-4 text-indigo-700" />
+                <span>5. Despacho en Bloque</span>
+              </button>
+            )}
 
-            {/* 6. Visor */}
+            {/* Visor en Vivo / Visor de Sector */}
             <button
               type="button"
               onClick={() => {
@@ -1292,7 +1377,13 @@ export default function ValidadorDashboard() {
               }`}
             >
               <Eye className="w-4 h-4 text-purple-700" />
-              <span>6. Visor en Vivo</span>
+              <span>
+                {user?.rol === 'responsable' 
+                  ? '5. Visor de Mi Sector' 
+                  : (user?.rol === 'lider' || user?.rol === 'guia')
+                  ? '5. Visor de Mi Grupo'
+                  : '6. Visor en Vivo'}
+              </span>
               {visorRecords.length > 0 && (
                 <span className="bg-purple-200 text-purple-950 px-1.5 py-0.2 rounded-full text-[10px] font-black">
                   {visorRecords.length}
@@ -1768,10 +1859,18 @@ export default function ValidadorDashboard() {
                   </div>
                   <div>
                     <h2 className="text-lg sm:text-xl font-bold font-title text-stone-900 leading-tight">
-                      Padrón en Vivo • Entregas, Alimentos y Asistencia
+                      {user?.rol === 'responsable' 
+                        ? `Padrón en Vivo • Sector: ${user?.responsable_nombre || user?.nombre || 'Mi Sector'}` 
+                        : (user?.rol === 'lider' || user?.rol === 'guia')
+                        ? `Padrón en Vivo • ${user?.nombre}`
+                        : 'Padrón en Vivo • Entregas, Alimentos y Asistencia'}
                     </h2>
                     <p className="text-xs text-stone-500">
-                      Visualiza en tiempo real los kits, desayunos, cenas y asistencias registradas.
+                      {user?.rol === 'responsable'
+                        ? 'Visualiza en tiempo real los kits, alimentos y asistencias de los voluntarios asignados a tu sector.'
+                        : (user?.rol === 'lider' || user?.rol === 'guia')
+                        ? 'Visualiza en tiempo real las entregas de tu grupo asignado.'
+                        : 'Visualiza en tiempo real los kits, desayunos, cenas y asistencias registradas.'}
                     </p>
                   </div>
                 </div>
@@ -2718,6 +2817,20 @@ export default function ValidadorDashboard() {
                   </p>
                 </div>
               )
+            )}
+
+            {/* Aviso si el voluntario pertenece a otro sector */}
+            {user?.rol === 'responsable' && !isMyVolunteer(scannedVoluntario) && (
+              <div className="m-4 mb-0 p-3.5 bg-amber-50 border-2 border-amber-400 rounded-2xl flex items-start gap-2.5 shadow-2xs">
+                <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-950">
+                  <span className="font-bold block text-amber-900">⚠️ Voluntario de Otro Sector</span>
+                  <span>
+                    Este voluntario está registrado bajo la coordinación de: <strong>{scannedVoluntario.responsable_nombre || 'Otro Responsable'}</strong>.
+                    Tú estás a cargo del sector de <strong>{user?.nombre || user?.responsable_nombre}</strong>.
+                  </span>
+                </div>
+              </div>
             )}
 
             {/* Mensajes de error o éxito específicos dentro del modal */}
