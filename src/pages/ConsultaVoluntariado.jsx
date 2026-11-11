@@ -36,38 +36,6 @@ const CARTA_RECOMENDACION_URL = "https://drive.google.com/file/d/1S4yGZY9iC65vW2
 // Formato Oficial de la Declaración Jurada (Google Drive)
 const DECLARACION_JURADA_URL = "https://drive.google.com/file/d/1Bww_t3MYZJnSu7CIZ0fe6VJbjyNPCE2d/view?usp=sharing";
 
-// Canales oficiales de soporte directo por WhatsApp
-const SOPORTE_CONTACTOS = [
-  {
-    id: 1,
-    titulo: 'Línea de Atención 1',
-    telefono: '+51 936 550 460',
-    waNumber: '51936550460',
-    descripcion: 'Consultas generales y orientación',
-  },
-  {
-    id: 2,
-    titulo: 'Línea de Atención 2',
-    telefono: '+51 945 854 083',
-    waNumber: '51945854083',
-    descripcion: 'Consultas generales y orientación',
-  },
-  {
-    id: 3,
-    titulo: 'Línea de Atención 3',
-    telefono: '+51 981 349 410',
-    waNumber: '51981349410',
-    descripcion: 'Consultas generales y orientación',
-  },
-  {
-    id: 4,
-    titulo: 'Línea de Atención 4',
-    telefono: '+51 947 429 053',
-    waNumber: '51947429053',
-    descripcion: 'Consultas generales y orientación',
-  },
-];
-
 const formatearSedeEspecial = (sede) => {
   if (!sede) return 'Sede Diocesana';
   const s = String(sede).toUpperCase().trim();
@@ -125,7 +93,6 @@ export default function ConsultaVoluntariado() {
   const [dniInput, setDniInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
-  const [showSupportModal, setShowSupportModal] = useState(false);
   const [popupConfig, setPopupConfig] = useState(null);
   const [showPopupModal, setShowPopupModal] = useState(false);
   const [zoomPopupImage, setZoomPopupImage] = useState(false);
@@ -400,12 +367,11 @@ export default function ConsultaVoluntariado() {
 
   // Bloquear scroll de fondo y permitir cerrar con tecla Escape cuando algún modal está abierto
   useEffect(() => {
-    if (result || showSupportModal) {
+    if (result) {
       document.body.style.overflow = 'hidden';
       const handleKeyDown = (e) => {
-        if (e.key === 'Escape') {
-          if (showSupportModal) setShowSupportModal(false);
-          else if (result) handleCloseModal();
+        if (e.key === 'Escape' && result) {
+          handleCloseModal();
         }
       };
       window.addEventListener('keydown', handleKeyDown);
@@ -416,7 +382,7 @@ export default function ConsultaVoluntariado() {
     } else {
       document.body.style.overflow = 'auto';
     }
-  }, [result, showSupportModal]);
+  }, [result]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -507,16 +473,6 @@ export default function ConsultaVoluntariado() {
                 Visita del Santo Padre a nuestra Diócesis
               </p>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setShowSupportModal(true)}
-              className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs md:text-sm font-bold px-5 py-3 rounded-xl transition shadow-md hover:shadow-lg border border-emerald-400/30 shrink-0 cursor-pointer"
-              title="Ver canales de atención diocesanos por WhatsApp"
-            >
-              <i className="fa-brands fa-whatsapp text-lg"></i>
-              <span>Soporte Directo</span>
-            </button>
           </div>
 
         </div>
@@ -730,95 +686,6 @@ export default function ConsultaVoluntariado() {
                 <i className="fa-solid fa-circle-info text-amber-400"></i>
                 <span>Haz clic afuera de la imagen o en la ✕ para regresar</span>
               </p>
-            </div>
-          </div>
-        )}
-
-        {/* MODAL DE SOPORTE DIRECTO (5 CANALES DE ATENCIÓN) */}
-        {showSupportModal && (
-          <div 
-            className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-fade-in no-print"
-            onClick={(e) => {
-              if (e.target === e.currentTarget) setShowSupportModal(false);
-            }}
-          >
-            <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl overflow-hidden my-auto border border-stone-200 animate-in fade-in zoom-in-95 duration-200">
-              {/* Botón flotante para cerrar (X) */}
-              <button
-                type="button"
-                onClick={() => setShowSupportModal(false)}
-                className="absolute top-4 right-4 z-30 w-9 h-9 rounded-full bg-black/30 hover:bg-black/50 text-white flex items-center justify-center transition backdrop-blur-xs cursor-pointer shadow-md"
-                title="Cerrar ventana (Esc)"
-              >
-                <i className="fa-solid fa-xmark text-lg"></i>
-              </button>
-
-              {/* Cabecera del Modal */}
-              <div className="bg-gradient-to-r from-diocesis-redDark via-diocesis-red to-stone-900 p-6 text-white text-center">
-                <div className="inline-flex items-center justify-center w-14 h-14 bg-emerald-500 text-white rounded-2xl text-2xl shadow-lg mb-3">
-                  <i className="fa-brands fa-whatsapp"></i>
-                </div>
-                <h3 className="text-xl md:text-2xl font-title font-bold">Canales de Soporte Directo</h3>
-                <p className="text-stone-200 text-xs md:text-sm mt-1 font-medium">
-                  Equipo de Voluntariado Diocesano • Visita del Santo Padre 2026
-                </p>
-              </div>
-
-              {/* Contenido / Lista de contactos */}
-              <div className="p-5 md:p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-                <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-4 text-emerald-950 text-xs md:text-sm leading-relaxed flex items-start gap-3">
-                  <i className="fa-solid fa-circle-info text-emerald-600 text-base mt-0.5 shrink-0"></i>
-                  <div>
-                    <span className="font-bold block">¿Tienes alguna duda con tu proceso o expediente?</span>
-                    Comunícate con cualquiera de nuestras 5 líneas oficiales habilitadas para brindarte asistencia rápida por WhatsApp:
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  {SOPORTE_CONTACTOS.map((contacto) => (
-                    <a
-                      key={contacto.id}
-                      href={`https://wa.me/${contacto.waNumber}?text=${encodeURIComponent('Hola, me comunico desde el portal de voluntarios de la Diócesis de Chiclayo para realizar una consulta.')}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="group flex items-center justify-between p-3.5 sm:p-4 rounded-2xl border border-stone-200 bg-white hover:border-emerald-500 hover:bg-emerald-50/40 transition-all duration-200 shadow-2xs hover:shadow-md"
-                    >
-                      <div className="flex items-center gap-3.5">
-                        <div className="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-lg shrink-0 transition-transform group-hover:scale-105 group-hover:bg-emerald-600 group-hover:text-white">
-                          <i className="fa-brands fa-whatsapp"></i>
-                        </div>
-                        <div className="text-left">
-                          <span className="font-title font-bold text-stone-900 text-sm md:text-base block">
-                            {contacto.titulo}
-                          </span>
-                          <span className="text-xs text-stone-700 font-semibold block font-mono">
-                            {contacto.telefono}
-                          </span>
-                          <span className="text-[11px] text-stone-500 font-medium block">
-                            {contacto.descripcion}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 group-hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shrink-0 shadow-xs">
-                        <span>Escribir</span>
-                        <i className="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              </div>
-
-              {/* Pie del modal */}
-              <div className="p-4 bg-stone-50 border-t border-stone-200 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowSupportModal(false)}
-                  className="w-full sm:w-auto px-5 py-2.5 bg-stone-200 hover:bg-stone-300 text-stone-800 font-bold rounded-xl text-sm transition cursor-pointer"
-                >
-                  Cerrar
-                </button>
-              </div>
             </div>
           </div>
         )}
@@ -1132,47 +999,6 @@ export default function ConsultaVoluntariado() {
                     </div>
                   )}
 
-                  <div className="text-center bg-stone-50 p-4 rounded-2xl border border-stone-200">
-                    <p className="text-xs text-stone-600 font-medium">
-                      {result.esVerificar 
-                        ? '¿Tienes alguna consulta sobre la subsanación de tus documentos observados?' 
-                        : '¿Tienes alguna consulta sobre tu evaluación?'}
-                    </p>
-
-                    {result.esVerificar ? (
-                      <div className="mt-2.5 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
-                        <a
-                          href={`https://wa.me/51981349410?text=Hola,%20figuro%20en%20la%20Etapa%202%20(Documentación%20Observada)%20con%20DNI%20${result.dni}%20y%20quisiera%20consultar%20sobre%20mi%20subsanación`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs sm:text-sm font-bold transition shadow-2xs hover:shadow"
-                        >
-                          <i className="fa-brands fa-whatsapp text-emerald-600 text-base"></i>
-                          <span>Soporte Diocesano (+51 981 349 410)</span>
-                        </a>
-                        <a
-                          href={`https://wa.me/51947429053?text=Hola,%20figuro%20en%20la%20Etapa%202%20(Documentación%20Observada)%20con%20DNI%20${result.dni}%20y%20quisiera%20consultar%20sobre%20mi%20subsanación`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs sm:text-sm font-bold transition shadow-2xs hover:shadow"
-                        >
-                          <i className="fa-brands fa-whatsapp text-emerald-600 text-base"></i>
-                          <span>Soporte Diocesano (+51 947 429 053)</span>
-                        </a>
-                      </div>
-                    ) : (
-                      <a
-                        href={`https://wa.me/51945854083?text=Hola,%20figuro%20en%20la%20Etapa%202%20con%20DNI%20${result.dni}%20y%20quisiera%20consultar%20sobre%20mi%20revisión`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 text-emerald-700 font-bold text-sm hover:underline mt-1"
-                      >
-                        <i className="fa-brands fa-whatsapp text-base"></i>
-                        <span>Escribir al Soporte Diocesano (+51 945 854 083)</span>
-                      </a>
-                    )}
-                  </div>
-
                   <div className="pt-3 border-t border-stone-200 flex justify-end no-print">
                     <button
                       type="button"
@@ -1292,21 +1118,6 @@ export default function ConsultaVoluntariado() {
                         </a>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="text-center bg-stone-50 p-4 rounded-2xl border border-stone-200">
-                    <p className="text-xs text-stone-600 font-medium">
-                      ¿Tienes dudas sobre el proceso o tus documentos? Escríbenos directamente por WhatsApp:
-                    </p>
-                    <a
-                      href={`https://wa.me/51945854083?text=Hola,%20figuro%20en%20el%20Padrón%20Fase%201%20con%20DNI%20${result.dni}%20y%20quisiera%20consultar%20sobre%20mi%20evaluación`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 text-emerald-700 font-bold text-sm hover:underline mt-2"
-                    >
-                      <i className="fa-brands fa-whatsapp text-base"></i>
-                      <span>Consultar con el Equipo Diocesano (+51 945 854 083)</span>
-                    </a>
                   </div>
 
                   <div className="pt-2 border-t border-stone-200 flex justify-end no-print">
@@ -1440,7 +1251,7 @@ export default function ConsultaVoluntariado() {
                 <i className="fa-solid fa-chevron-down group-open:rotate-180 transition-transform text-diocesis-mustard"></i>
               </summary>
               <p className="mt-2 text-stone-600 font-medium leading-relaxed pl-6">
-                En primer lugar, revisa tu carpeta de <em>Spam</em> o <em>Promociones</em>. Si estás inscrito/a en el Padrón General inicial (Fase 1) pero no recibiste el correo con el enlace, puedes hacer clic directamente en el botón <strong>"Subir Documentación en Google Forms"</strong> que aparece en tu resultado de consulta. Recuerda que es requisito indispensable ser mayor de edad; si cumples con ello y tienes alguna dificultad técnica, contáctanos a través del botón de <button type="button" onClick={() => setShowSupportModal(true)} className="inline font-bold text-emerald-700 underline hover:text-emerald-800 cursor-pointer">Soporte Directo por WhatsApp</button>.
+                En primer lugar, revisa tu carpeta de <em>Spam</em> o <em>Promociones</em>. Si estás inscrito/a en el Padrón General inicial (Fase 1) pero no recibiste el correo con el enlace, puedes hacer clic directamente en el botón <strong>"Subir Documentación en Google Forms"</strong> que aparece en tu resultado de consulta. Recuerda que es requisito indispensable ser mayor de edad y coordinar con tu Responsable General asignado.
               </p>
             </details>
 

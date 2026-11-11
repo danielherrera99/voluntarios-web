@@ -8,7 +8,6 @@ import './FloatingChat.css';
 const GOOGLE_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfO_z7lnEDjQR37y7V7uh9gEsFs5ZNlznvM6_GyeKiAljmlmA/viewform";
 const PORTAL_URL = "https://amigosdeleoncix.onrender.com/";
 const MTPE_CUL_URL = "https://www.empleosperu.gob.pe/CertificadoUnicoLaboral/";
-const WHATSAPP_SOPORTE_URL = "https://wa.me/51945854083?text=Hola,%20tengo%20una%20consulta%20sobre%20mis%20documentos%20de%20la%20Fase%202";
 
 const CARTA_RECOMENDACION_URL = "https://drive.google.com/file/d/1S4yGZY9iC65vW2m9q4u5VGMtcS9wh_kn/view?usp=sharing";
 
@@ -20,7 +19,7 @@ const QUICK_FAQ_ANSWERS = {
   },
   carta_compromiso: {
     question: "📥 ¿Dónde descargo la Carta de Compromiso?",
-    answer: `La **Carta de Recomendación / Compromiso** oficial es obligatoria para validar tu postulación.\n\n👉 Debes descargarla, imprimirla, llenarla, firmarla a mano y subirla en formato PDF o imagen legible.\n\n📥 [Descargar Formato Oficial en Google Drive](${CARTA_RECOMENDACION_URL})\n\n💬 Si tienes alguna duda, escríbenos a WhatsApp: [Contactar Soporte por WhatsApp](${WHATSAPP_SOPORTE_URL})`
+    answer: `La **Carta de Recomendación / Compromiso** oficial es obligatoria para validar tu postulación.\n\n👉 Debes descargarla, imprimirla, llenarla, firmarla a mano y subirla en formato PDF o imagen legible.\n\n📥 [Descargar Formato Oficial en Google Drive](${CARTA_RECOMENDACION_URL})`
   },
   certiadulto_cul: {
     question: "🆔 ¿Cómo tramito el CertiAdulto (CUL)?",
@@ -33,10 +32,6 @@ const QUICK_FAQ_ANSWERS = {
   estados_explicacion: {
     question: "🔍 ¿Qué significa mi estado?",
     answer: `Al consultar tu DNI en el portal (${PORTAL_URL}), puedes tener uno de estos estados:\n\n* 🟢 **SELECCIONADO:** Tus documentos fueron aprobados con éxito y pasaste a la siguiente etapa.\n* 🟡 **EN REVISIÓN / OBSERVADO:** El equipo detectó algún detalle en tus documentos (ejemplo: foto borrosa, falta firma o falta el CUL). Revisa la observación y vuelve a subirlos.\n* 🟠 **SIN ENVIAR FASE 2:** Estás en el Padrón General inicial, pero aún no envías tus 3 documentos en Google Forms.\n* 🔴 **NO SELECCIONADO:** No cumple con los criterios de admisión diocesanos.`
-  },
-  soporte_humano: {
-    question: "📞 Hablar con un asesor",
-    answer: `Si tienes un caso especial, dudas con tu DNI o inconvenientes para cargar tus archivos, nuestro equipo diocesano está listo para ayudarte:\n\n💬 [Escribir por WhatsApp a Soporte Diocesano](${WHATSAPP_SOPORTE_URL})`
   }
 };
 
@@ -157,8 +152,6 @@ INFORMACIÓN OFICIAL Y VERIFICADA QUE DEBES USAR:
    - "EN REVISIÓN / OBSERVADO": El equipo detectó alguna observación en sus archivos (DNI borroso, falta firma en la carta o falta el CUL). Debe corregirlo y volver a subir sus documentos al formulario de Google Forms.
    - "SIN ENVIAR FASE 2": Está registrado en el Padrón General inicial, pero todavía no ha enviado los 3 documentos en Google Forms.
    - "NO SELECCIONADO": No admitido según los requisitos de admisión diocesanos.
-4. SOPORTE HUMANO POR WHATSAPP:
-   - Si tienen problemas específicos o casos particulares, indícales amablemente que pueden escribir al WhatsApp de Soporte: ${WHATSAPP_SOPORTE_URL}
 
 REGLAS DE RESPUESTA:
 - Sé conciso, muy amable, respetuoso y fraterno.
@@ -198,7 +191,7 @@ REGLAS DE RESPUESTA:
         ...prev,
         {
           role: 'bot',
-          content: `No pude procesar tu mensaje en este instante. Por favor intenta con los botones de opciones rápidas o comunícate directo con nosotros: [Contactar Soporte por WhatsApp](${WHATSAPP_SOPORTE_URL})`,
+          content: 'No pude procesar tu mensaje en este instante. Por favor intenta usando los botones de preguntas rápidas aquí arriba.',
           time: 'Ahora'
         }
       ]);
@@ -306,22 +299,10 @@ REGLAS DE RESPUESTA:
                 >
                   🔍 Explicar mi estado
                 </button>
-                <button
-                  type="button"
-                  className="quick-chip-button"
-                  onClick={() => handleQuickQuestion('soporte_humano')}
-                >
-                  💬 Soporte por WhatsApp
-                </button>
               </div>
             </div>
 
             <div ref={messagesEndRef} />
-          </div>
-
-          {/* Enlace inferior de soporte */}
-          <div className="chat-support-footer-link">
-            ¿Inconvenientes? <a href={WHATSAPP_SOPORTE_URL} target="_blank" rel="noreferrer">Escríbenos a WhatsApp directo</a>
           </div>
 
           {/* Barra de Entrada de Texto */}
