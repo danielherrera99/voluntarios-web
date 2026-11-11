@@ -835,15 +835,44 @@ export default function ConsultaVoluntariado() {
                           </div>
                         </div>
                       ) : (
-                        <div className="bg-white/95 rounded-2xl p-4 md:p-5 border-2 border-amber-300 shadow-sm space-y-4">
-                          <div className="flex items-start justify-between flex-wrap gap-3">
+                        <div className="bg-white/95 rounded-2xl p-4 md:p-5 border-2 border-amber-300 shadow-sm space-y-3.5">
+                          {/* 1. GUÍA DE CUADRILLA Y 2. LÍDER DE SECTOR */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="p-3.5 rounded-xl bg-teal-50/80 border border-teal-200 space-y-0.5">
+                              <div className="flex items-center justify-between gap-1.5">
+                                <span className="text-[11px] text-teal-900 uppercase font-extrabold tracking-wide block">
+                                  🚩 Guía de Cuadrilla
+                                </span>
+                                {result.cuadrillaCodigo && (
+                                  <span className="text-[10px] font-mono font-bold bg-teal-200/80 text-teal-950 px-1.5 py-0.2 rounded">
+                                    {result.cuadrillaCodigo}
+                                  </span>
+                                )}
+                              </div>
+                              <span className={`text-sm md:text-base font-bold block ${result.guiaNombre ? 'text-stone-900' : 'text-stone-500 italic'}`}>
+                                {result.guiaNombre || 'Pendiente de asignación'}
+                              </span>
+                            </div>
+
+                            <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 space-y-0.5">
+                              <span className="text-[11px] text-amber-900 uppercase font-extrabold tracking-wide block">
+                                ⭐ Líder de Sector
+                              </span>
+                              <span className={`text-sm md:text-base font-bold block ${result.liderNombre ? 'text-stone-900' : 'text-stone-500 italic'}`}>
+                                {result.liderNombre || 'Pendiente de asignación'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* 3. RESPONSABLE GENERAL ASIGNADO */}
+                          <div className="pt-3 border-t border-amber-200/70 flex items-start justify-between flex-wrap gap-3">
                             <div className="flex items-start gap-3.5">
-                              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center text-2xl shrink-0 shadow-sm">
+                              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center text-xl shrink-0 shadow-sm">
                                 🎖️
                               </div>
                               <div className="space-y-0.5">
                                 <span className="text-xs text-amber-800 uppercase font-bold tracking-wider">Responsable General Asignado</span>
-                                <h5 className="text-lg md:text-xl font-title font-bold text-stone-900">
+                                <h5 className="text-base md:text-lg font-title font-bold text-stone-900">
                                   {result.responsableAsignado || (result.lugarAsignado || '').replace(/^Equipo\s+/i, '') || 'Por asignar'}
                                 </h5>
                                 <div className="flex items-center gap-2 flex-wrap">
@@ -855,37 +884,9 @@ export default function ConsultaVoluntariado() {
                             </div>
                           </div>
 
-                          {/* LÍDER DE SECTOR Y GUÍA DE CUADRILLA */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-amber-200/70">
-                            <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 space-y-0.5">
-                              <span className="text-[11px] text-amber-900 uppercase font-extrabold tracking-wide block">
-                                ⭐ Líder de Sector
-                              </span>
-                              <span className={`text-sm font-bold block ${result.liderNombre ? 'text-stone-900' : 'text-stone-500 italic'}`}>
-                                {result.liderNombre || 'Pendiente de asignación'}
-                              </span>
-                            </div>
-
-                            <div className="p-3 rounded-xl bg-teal-50/70 border border-teal-200 space-y-0.5">
-                              <div className="flex items-center justify-between gap-1.5">
-                                <span className="text-[11px] text-teal-900 uppercase font-extrabold tracking-wide block">
-                                  🚩 Guía de Cuadrilla
-                                </span>
-                                {result.cuadrillaCodigo && (
-                                  <span className="text-[10px] font-mono font-bold bg-teal-200/80 text-teal-950 px-1.5 py-0.2 rounded">
-                                    {result.cuadrillaCodigo}
-                                  </span>
-                                )}
-                              </div>
-                              <span className={`text-sm font-bold block ${result.guiaNombre ? 'text-stone-900' : 'text-stone-500 italic'}`}>
-                                {result.guiaNombre || 'Pendiente de asignación'}
-                              </span>
-                            </div>
-                          </div>
-
                           {/* NOTA INFORMATIVA SIN EXPONER TELÉFONOS PERSONALES */}
                           <div className="bg-amber-50/80 rounded-lg p-3 border border-amber-100 text-xs text-stone-700 leading-relaxed">
-                            <strong>Próximo paso:</strong> Tu Responsable General, junto con tu líder y guía de cuadrilla, se encargará de coordinar tu cuadrilla, punto exacto de encuentro y entrega de credenciales.
+                            <strong>Próximo paso:</strong> Tu guía, líder de sector y Responsable General se encargarán de coordinar tu cuadrilla, punto exacto de encuentro y entrega de credenciales.
                           </div>
                         </div>
                       )}
@@ -1000,28 +1001,26 @@ export default function ConsultaVoluntariado() {
                     </div>
                     <div>
                       <span className="text-xs text-amber-900 uppercase font-bold block">Equipo / Cadena de Mandos</span>
-                      <span className="text-stone-800 font-bold text-sm block mt-1">
-                        {result.responsableAsignado 
-                          ? `Equipo ${result.responsableAsignado}` 
-                          : (result.lugarAsignado ? formatearSedeEspecial(result.lugarAsignado) : (result.comision || 'En proceso'))}
-                      </span>
-                      {(result.liderNombre || result.guiaNombre) && (
-                        <div className="mt-1.5 text-xs text-stone-700 space-y-0.5">
-                          {result.liderNombre && (
-                            <span className="block">⭐ Líder: <strong>{result.liderNombre}</strong></span>
-                          )}
-                          {result.guiaNombre && (
-                            <span className="block">
-                              🚩 Guía: <strong>{result.guiaNombre}</strong>
-                              {result.cuadrillaCodigo && (
-                                <span className="ml-1.5 font-mono text-[10px] bg-teal-100 text-teal-900 px-1.5 py-0.2 rounded">
-                                  {result.cuadrillaCodigo}
-                                </span>
-                              )}
-                            </span>
-                          )}
-                        </div>
-                      )}
+                      <div className="mt-1.5 text-xs text-stone-700 space-y-1">
+                        {result.guiaNombre && (
+                          <span className="block">
+                            🚩 Guía: <strong>{result.guiaNombre}</strong>
+                            {result.cuadrillaCodigo && (
+                              <span className="ml-1.5 font-mono text-[10px] bg-teal-100 text-teal-900 px-1.5 py-0.2 rounded">
+                                {result.cuadrillaCodigo}
+                              </span>
+                            )}
+                          </span>
+                        )}
+                        {result.liderNombre && (
+                          <span className="block">⭐ Líder: <strong>{result.liderNombre}</strong></span>
+                        )}
+                        <span className="text-stone-800 font-bold text-sm block">
+                          {result.responsableAsignado 
+                            ? `🎖️ Responsable: ${result.responsableAsignado}` 
+                            : (result.lugarAsignado ? formatearSedeEspecial(result.lugarAsignado) : (result.comision || 'En proceso'))}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -1134,14 +1133,6 @@ export default function ConsultaVoluntariado() {
                       <div className="md:col-span-2 pt-2 border-t border-sky-200/80 space-y-1.5">
                         <span className="text-xs text-sky-900 uppercase font-bold block">Equipo / Cadena de Mandos</span>
                         <div className="flex flex-col gap-1 text-xs text-stone-800">
-                          {result.responsableAsignado && (
-                            <span className="font-bold text-sm text-stone-900">
-                              🎖️ Equipo {result.responsableAsignado}
-                            </span>
-                          )}
-                          {result.liderNombre && (
-                            <span>⭐ Líder de Sector: <strong>{result.liderNombre}</strong></span>
-                          )}
                           {result.guiaNombre && (
                             <span>
                               🚩 Guía de Cuadrilla: <strong>{result.guiaNombre}</strong>
@@ -1150,6 +1141,14 @@ export default function ConsultaVoluntariado() {
                                   {result.cuadrillaCodigo}
                                 </span>
                               )}
+                            </span>
+                          )}
+                          {result.liderNombre && (
+                            <span>⭐ Líder de Sector: <strong>{result.liderNombre}</strong></span>
+                          )}
+                          {result.responsableAsignado && (
+                            <span className="font-bold text-sm text-stone-900">
+                              🎖️ Responsable: {result.responsableAsignado}
                             </span>
                           )}
                         </div>
