@@ -1,4 +1,4 @@
-const CACHE_NAME = 'voluntarios-cix-v2';
+const CACHE_NAME = 'voluntarios-cix-v3';
 const STATIC_ASSETS = [
   './',
   './index.html',

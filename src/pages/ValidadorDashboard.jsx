@@ -35,9 +35,26 @@ import {
   Truck,
   Printer,
   FileCheck,
-  CheckCheck
+  CheckCheck,
+  Wifi,
+  WifiOff,
+  CloudUpload,
+  Download
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import {
+  isNetworkError,
+  applyPatchToSupabase,
+  getOfflineRosterBundle,
+  saveOfflineRoster,
+  patchOfflineRosterRecord,
+  findOfflineVolunteer,
+  saveOfflineMandos,
+  getOfflineMandos,
+  getOfflineQueue,
+  enqueueOfflineOp,
+  flushOfflineQueue
+} from '../utils/offlineStore';
 
 // Sonidos sintéticos del navegador (Web Audio API)
 const playSound = (type = 'success') => {
@@ -195,8 +212,21 @@ export default function ValidadorDashboard() {
 
   const html5QrCodeRef = useRef(null);
   const claimedDonorKeysRef = useRef(new Set());
+  const syncingQueueRef = useRef(false);
   const isFieldRole = user?.rol === 'responsable' || user?.rol === 'lider' || user?.rol === 'guia';
   const isSectorScope = isFieldRole || Boolean(selectedVisorLeader);
+
+  // ========================================================
+  // MODO OFFLINE (CACHÉ DEL PADRÓN + COLA DE SINCRONIZACIÓN)
+  // ========================================================
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [pendingQueueCount, setPendingQueueCount] = useState(() => getOfflineQueue().length);
+  const [isSyncingQueue, setIsSyncingQueue] = useState(false);
+  const [offlineRosterMeta, setOfflineRosterMeta] = useState({ count: 0, updatedAt: null });
+  const [downloadingOfflineRoster, setDownloadingOfflineRoster] = useState(false);
+  const [syncBannerMsg, setSyncBannerMsg] = useState(null);
+
+  const ROSTER_SELECT_COLS = 'id, dni, codigo, nombres_apellidos, talla, servicio, responsable_nombre, lider_nombre, guia_nombre, cuadrilla_codigo, lugar_asignado, fotografia_url, kit_entregado, kit_polo_entregado, kit_items_entregados, kit_fecha_entrega, kit_entregado_por, kit_estado, kit_custodio_nombre, kit_fecha_despacho_lote, asistencia_dia_d, asistencia_fecha, asistencia_registrada_por, asistencia_punto, desayuno_entregado, desayuno_fecha, desayuno_entregado_por, desayuno_punto, desayuno_estado, desayuno_custodio_nombre, cena_entregada, cena_fecha, cena_entregada_por, cena_punto, cena_estado, cena_custodio_nombre, fase, estado';
 
   const normalizeMandoText = (s) => (s || '')
     .toString()
@@ -298,86 +328,115 @@ export default function ValidadorDashboard() {
     return true;
   };
 
+  const indexMandosRows = (data) => {
+    if (!Array.isArray(data) || data.length === 0) return [];
+    mandosRowsRef.current = data;
+    const byDni = {};
+    const byName = {};
+
+    // Paso 1: Registrar Guías
+    data.forEach(r => {
+      const info = {
+        role: 'GUIA',
+        badge: '🚩 GUÍA',
+        classes: 'bg-teal-100 text-teal-950 border-teal-300',
+        superior: r.lider_nombre || r.responsable_nombre || null,
+        responsable: r.responsable_nombre || null
+      };
+      if (r.guia_dni) byDni[String(r.guia_dni).trim()] = info;
+      const n = normalizeMandoText(r.guia_nombre);
+      if (n) byName[n] = info;
+    });
+
+    // Paso 2: Registrar Líderes (prevalece sobre Guía si ejerce ambos cargos)
+    data.forEach(r => {
+      const info = {
+        role: 'LIDER',
+        badge: '⭐ LÍDER',
+        classes: 'bg-amber-100 text-amber-950 border-amber-400',
+        superior: r.responsable_nombre || null,
+        responsable: r.responsable_nombre || null
+      };
+      if (r.lider_dni) byDni[String(r.lider_dni).trim()] = info;
+      const n = normalizeMandoText(r.lider_nombre);
+      if (n) byName[n] = info;
+    });
+
+    // Paso 3: Registrar Responsables Generales (máxima jerarquía)
+    const uniqueResp = new Map();
+    CANONICAL_LIDERES.forEach(l => uniqueResp.set(normalizeMandoText(l.nombre), l));
+    data.forEach(r => {
+      if (r.responsable_nombre) {
+        const info = {
+          role: 'RESPONSABLE',
+          badge: '👑 RESPONSABLE',
+          classes: 'bg-purple-100 text-purple-900 border-purple-300',
+          superior: null,
+          responsable: r.responsable_nombre
+        };
+        if (r.responsable_dni) byDni[String(r.responsable_dni).trim()] = info;
+        const n = normalizeMandoText(r.responsable_nombre);
+        if (n) {
+          byName[n] = info;
+          if (!uniqueResp.has(n)) {
+            uniqueResp.set(n, {
+              nombre: r.responsable_nombre.trim(),
+              dni: r.responsable_dni || ''
+            });
+          }
+        }
+      }
+    });
+
+    setMandosIndex({ byDni, byName });
+    setLideresList(Array.from(uniqueResp.values()).sort((a, b) => a.nombre.localeCompare(b.nombre)));
+    return data;
+  };
+
   // Cargar jerarquía oficial completa (Responsables, Líderes y Guías) desde estructura_mandos
   const fetchMandosAndLideres = async () => {
     try {
-      const { data, error } = await supabase
-        .from('estructura_mandos')
-        .select('responsable_nombre, responsable_dni, lider_nombre, lider_dni, guia_nombre, guia_dni')
-        .limit(5000);
+      if (typeof navigator === 'undefined' || navigator.onLine !== false) {
+        const { data, error } = await supabase
+          .from('estructura_mandos')
+          .select('responsable_nombre, responsable_dni, lider_nombre, lider_dni, guia_nombre, guia_dni')
+          .limit(5000);
 
-      if (!error && data && data.length > 0) {
-        mandosRowsRef.current = data;
-        const byDni = {};
-        const byName = {};
-
-        // Paso 1: Registrar Guías
-        data.forEach(r => {
-          const info = {
-            role: 'GUIA',
-            badge: '🚩 GUÍA',
-            classes: 'bg-teal-100 text-teal-950 border-teal-300',
-            superior: r.lider_nombre || r.responsable_nombre || null,
-            responsable: r.responsable_nombre || null
-          };
-          if (r.guia_dni) byDni[String(r.guia_dni).trim()] = info;
-          const n = normalizeMandoText(r.guia_nombre);
-          if (n) byName[n] = info;
-        });
-
-        // Paso 2: Registrar Líderes (prevalece sobre Guía si ejerce ambos cargos)
-        data.forEach(r => {
-          const info = {
-            role: 'LIDER',
-            badge: '⭐ LÍDER',
-            classes: 'bg-amber-100 text-amber-950 border-amber-400',
-            superior: r.responsable_nombre || null,
-            responsable: r.responsable_nombre || null
-          };
-          if (r.lider_dni) byDni[String(r.lider_dni).trim()] = info;
-          const n = normalizeMandoText(r.lider_nombre);
-          if (n) byName[n] = info;
-        });
-
-        // Paso 3: Registrar Responsables Generales (máxima jerarquía)
-        const uniqueResp = new Map();
-        CANONICAL_LIDERES.forEach(l => uniqueResp.set(normalizeMandoText(l.nombre), l));
-        data.forEach(r => {
-          if (r.responsable_nombre) {
-            const info = {
-              role: 'RESPONSABLE',
-              badge: '👑 RESPONSABLE',
-              classes: 'bg-purple-100 text-purple-900 border-purple-300',
-              superior: null,
-              responsable: r.responsable_nombre
-            };
-            if (r.responsable_dni) byDni[String(r.responsable_dni).trim()] = info;
-            const n = normalizeMandoText(r.responsable_nombre);
-            if (n) {
-              byName[n] = info;
-              if (!uniqueResp.has(n)) {
-                uniqueResp.set(n, {
-                  nombre: r.responsable_nombre.trim(),
-                  dni: r.responsable_dni || ''
-                });
-              }
-            }
-          }
-        });
-
-        setMandosIndex({ byDni, byName });
-        setLideresList(Array.from(uniqueResp.values()).sort((a, b) => a.nombre.localeCompare(b.nombre)));
-        return data;
+        if (!error && data && data.length > 0) {
+          saveOfflineMandos(data).catch(() => {});
+          return indexMandosRows(data);
+        }
       }
     } catch (e) {
       console.warn('Error fetching mandos & leaders list:', e);
     }
+
+    const cachedMandos = await getOfflineMandos();
+    if (cachedMandos.length > 0) {
+      return indexMandosRows(cachedMandos);
+    }
     return [];
+  };
+
+  const applyStatsFromRecords = (records) => {
+    setStats({
+      kitsHoy: records.filter(r => r.kit_entregado).length,
+      asistenciaHoy: records.filter(r => r.asistencia_dia_d).length,
+      desayunoHoy: records.filter(r => r.desayuno_entregado).length,
+      cenaHoy: records.filter(r => r.cena_entregada).length
+    });
   };
 
   // Cargar métricas iniciales del validador / responsable
   const fetchStats = async (rowsOverride) => {
     try {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        const bundle = await getOfflineRosterBundle();
+        const scoped = bundle.records.filter(r => isMyVolunteer(r));
+        applyStatsFromRecords(scoped);
+        return;
+      }
+
       const scopeOr = getUserScopeOrCondition(rowsOverride);
 
       let qK = supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('kit_entregado', true);
@@ -392,9 +451,10 @@ export default function ValidadorDashboard() {
         qC = qC.or(scopeOr);
       }
 
-      const [{ count: kCount }, { count: aCount }, { count: dCount }, { count: cCount }] = await Promise.all([
+      const [{ count: kCount, error: eK }, { count: aCount }, { count: dCount }, { count: cCount }] = await Promise.all([
         qK, qA, qD, qC
       ]);
+      if (eK && isNetworkError(eK)) throw eK;
 
       setStats({
         kitsHoy: kCount || 0,
@@ -404,19 +464,53 @@ export default function ValidadorDashboard() {
       });
     } catch (e) {
       console.warn('Error fetching stats:', e);
+      if (isNetworkError(e)) {
+        const bundle = await getOfflineRosterBundle();
+        applyStatsFromRecords(bundle.records.filter(r => isMyVolunteer(r)));
+      }
     }
   };
 
-  // Cargar registros completos del Visor en Tiempo Real
+  const sortVisorRecords = (rows) =>
+    [...rows].sort((a, b) => {
+      const timeA = new Date(a.kit_fecha_entrega || a.asistencia_fecha || a.desayuno_fecha || a.cena_fecha || a.kit_fecha_despacho_lote || 0).getTime();
+      const timeB = new Date(b.kit_fecha_entrega || b.asistencia_fecha || b.desayuno_fecha || b.cena_fecha || b.kit_fecha_despacho_lote || 0).getTime();
+      return timeB - timeA;
+    });
+
+  // Cargar registros completos del Visor en Tiempo Real (con fallback automático offline)
   const fetchVisorRecords = async (leaderOverride, rowsOverride) => {
     setLoadingVisor(true);
-    try {
-      const targetLeader = typeof leaderOverride === 'string' ? leaderOverride : selectedVisorLeader;
-      const scopeOr = getUserScopeOrCondition(rowsOverride);
-      const selectCols = 'id, dni, codigo, nombres_apellidos, talla, servicio, responsable_nombre, lider_nombre, guia_nombre, cuadrilla_codigo, lugar_asignado, fotografia_url, kit_entregado, kit_polo_entregado, kit_items_entregados, kit_fecha_entrega, kit_entregado_por, kit_estado, kit_custodio_nombre, kit_fecha_despacho_lote, asistencia_dia_d, asistencia_fecha, asistencia_registrada_por, asistencia_punto, desayuno_entregado, desayuno_fecha, desayuno_entregado_por, desayuno_punto, desayuno_estado, desayuno_custodio_nombre, cena_entregada, cena_fecha, cena_entregada_por, cena_punto, cena_estado, cena_custodio_nombre, fase, estado';
+    const targetLeader = typeof leaderOverride === 'string' ? leaderOverride : selectedVisorLeader;
+    const scopeOr = getUserScopeOrCondition(rowsOverride);
 
-      let qF2 = supabase.from('voluntarios').select(selectCols).limit(3000);
-      let qF1 = supabase.from('voluntarios_general').select(selectCols).limit(3000);
+    const loadVisorFromOfflineCache = async () => {
+      const bundle = await getOfflineRosterBundle();
+      let filtered = bundle.records.filter(rec => isMyVolunteer(rec));
+      if (!scopeOr && targetLeader) {
+        const firstWord = normalizeMandoText(targetLeader.split(' ')[0] || targetLeader);
+        const sectorMandosDnis = getSectorMandosDnis([targetLeader, firstWord], rowsOverride);
+        filtered = filtered.filter(rec => {
+          const rNom = normalizeMandoText(rec.responsable_nombre || rec.lugar_asignado || '');
+          return rNom.includes(firstWord) || (rec.dni && sectorMandosDnis.includes(String(rec.dni).trim()));
+        });
+      }
+      const sorted = sortVisorRecords(filtered);
+      setVisorRecords(sorted);
+      setOfflineRosterMeta({ count: bundle.records.length, updatedAt: bundle.updatedAt });
+      if (scopeOr || !targetLeader) {
+        applyStatsFromRecords(sorted);
+      }
+    };
+
+    try {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        await loadVisorFromOfflineCache();
+        return;
+      }
+
+      let qF2 = supabase.from('voluntarios').select(ROSTER_SELECT_COLS).limit(3000);
+      let qF1 = supabase.from('voluntarios_general').select(ROSTER_SELECT_COLS).limit(3000);
 
       if (scopeOr) {
         // Para Responsables, Líderes o Guías: mostrar los voluntarios y mandos de su jurisdicción
@@ -442,6 +536,12 @@ export default function ValidadorDashboard() {
         qF2, qF1
       ]);
 
+      if ((e2 && isNetworkError(e2)) || (e1 && isNetworkError(e1))) {
+        setIsOnline(false);
+        await loadVisorFromOfflineCache();
+        return;
+      }
+
       if (e2) console.warn('Error fetching F2 visor:', e2);
       if (e1) console.warn('Error fetching F1 visor:', e1);
 
@@ -450,37 +550,181 @@ export default function ValidadorDashboard() {
       (vF1 || []).forEach(item => map.set(item.dni || item.id, { ...item, _origenTabla: 'voluntarios_general' }));
       (vF2 || []).forEach(item => map.set(item.dni || item.id, { ...item, _origenTabla: 'voluntarios' }));
 
-      const combined = Array.from(map.values()).sort((a, b) => {
-        const timeA = new Date(a.kit_fecha_entrega || a.asistencia_fecha || a.desayuno_fecha || a.cena_fecha || a.kit_fecha_despacho_lote || 0).getTime();
-        const timeB = new Date(b.kit_fecha_entrega || b.asistencia_fecha || b.desayuno_fecha || b.cena_fecha || b.kit_fecha_despacho_lote || 0).getTime();
-        return timeB - timeA;
-      });
-
+      const combined = sortVisorRecords(Array.from(map.values()));
       setVisorRecords(combined);
 
-      if (scopeOr || !targetLeader) {
-        setStats({
-          kitsHoy: combined.filter(r => r.kit_entregado).length,
-          asistenciaHoy: combined.filter(r => r.asistencia_dia_d).length,
-          desayunoHoy: combined.filter(r => r.desayuno_entregado).length,
-          cenaHoy: combined.filter(r => r.cena_entregada).length
+      if (combined.length > 0) {
+        const meta = await saveOfflineRoster(combined, {
+          mode: 'merge',
+          scopeLabel: scopeOr ? `Sector ${user?.nombre || ''}` : targetLeader || 'Actividad Global'
         });
+        setOfflineRosterMeta(meta);
+      }
+
+      if (scopeOr || !targetLeader) {
+        applyStatsFromRecords(combined);
       }
     } catch (err) {
       console.error('Error cargando visor:', err);
+      await loadVisorFromOfflineCache();
     } finally {
       setLoadingVisor(false);
     }
   };
 
+  // Descarga paginada completa (pensada para Admin/Validador antes de salir a zona sin señal)
+  const fetchPaginatedTable = async (tableName, cols) => {
+    const pageSize = 1000;
+    const allRows = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from(tableName)
+        .select(cols)
+        .order('id', { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+      allRows.push(...data);
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+    return allRows;
+  };
+
+  const handleDownloadFullOfflineRoster = async () => {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      setSyncBannerMsg({ type: 'error', text: 'Necesitas internet en este momento para descargar el padrón al teléfono.' });
+      return;
+    }
+    setDownloadingOfflineRoster(true);
+    setSyncBannerMsg(null);
+    try {
+      const scopeOr = getUserScopeOrCondition();
+      let combined = [];
+
+      if (scopeOr) {
+        const [{ data: vF2, error: e2 }, { data: vF1, error: e1 }] = await Promise.all([
+          supabase.from('voluntarios').select(ROSTER_SELECT_COLS).or(scopeOr).limit(3000),
+          supabase.from('voluntarios_general').select(ROSTER_SELECT_COLS).or(scopeOr).limit(3000)
+        ]);
+        if (e2) throw e2;
+        if (e1) throw e1;
+        const map = new Map();
+        (vF1 || []).forEach(item => map.set(item.dni || item.id, { ...item, _origenTabla: 'voluntarios_general' }));
+        (vF2 || []).forEach(item => map.set(item.dni || item.id, { ...item, _origenTabla: 'voluntarios' }));
+        combined = Array.from(map.values());
+      } else {
+        const [f2Rows, f1Rows] = await Promise.all([
+          fetchPaginatedTable('voluntarios', ROSTER_SELECT_COLS),
+          fetchPaginatedTable('voluntarios_general', ROSTER_SELECT_COLS)
+        ]);
+        const map = new Map();
+        f1Rows.forEach(item => map.set(item.dni || item.id, { ...item, _origenTabla: 'voluntarios_general' }));
+        f2Rows.forEach(item => map.set(item.dni || item.id, { ...item, _origenTabla: 'voluntarios' }));
+        combined = Array.from(map.values());
+      }
+
+      const meta = await saveOfflineRoster(combined, {
+        mode: 'replace',
+        scopeLabel: scopeOr ? 'Mi Sector Completo' : 'Padrón General Completo'
+      });
+      await fetchMandosAndLideres();
+      setOfflineRosterMeta(meta);
+      setSyncBannerMsg({
+        type: 'success',
+        text: `✅ ${meta.count.toLocaleString()} voluntarios guardados en tu dispositivo. Ya puedes escanear sin internet.`
+      });
+    } catch (err) {
+      console.error('Error descargando padrón offline:', err);
+      setSyncBannerMsg({
+        type: 'error',
+        text: 'No se pudo completar la descarga offline. Verifica tu señal e intenta nuevamente.'
+      });
+    } finally {
+      setDownloadingOfflineRoster(false);
+    }
+  };
+
+  const handleSyncOfflineQueue = async ({ silent = false } = {}) => {
+    if (syncingQueueRef.current) return;
+    const pendingNow = getOfflineQueue().length;
+    if (pendingNow === 0) {
+      setPendingQueueCount(0);
+      return;
+    }
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      if (!silent) {
+        setSyncBannerMsg({ type: 'error', text: 'Sigues sin internet. Las marcaciones permanecen seguras en tu dispositivo.' });
+      }
+      return;
+    }
+
+    syncingQueueRef.current = true;
+    setIsSyncingQueue(true);
+    try {
+      const result = await flushOfflineQueue(supabase);
+      setPendingQueueCount(result.remaining);
+      if (result.synced > 0) {
+        await Promise.all([fetchStats(), fetchVisorRecords()]);
+        setSyncBannerMsg({
+          type: result.remaining === 0 ? 'success' : 'warning',
+          text:
+            result.remaining === 0
+              ? `✅ ¡${result.synced} registro(s) offline sincronizado(s) con la nube correctamente!`
+              : `Se subieron ${result.synced} registro(s). Aún quedan ${result.remaining} pendiente(s).`
+        });
+      } else if (!silent && result.stoppedOffline) {
+        setIsOnline(false);
+        setSyncBannerMsg({ type: 'error', text: 'La señal volvió a caer durante la sincronización. Nada se ha perdido.' });
+      }
+    } finally {
+      syncingQueueRef.current = false;
+      setIsSyncingQueue(false);
+    }
+  };
+
   useEffect(() => {
     (async () => {
+      const bundle = await getOfflineRosterBundle();
+      if (bundle.records.length > 0) {
+        setOfflineRosterMeta({ count: bundle.records.length, updatedAt: bundle.updatedAt });
+      }
       const mandosRows = await fetchMandosAndLideres();
       await Promise.all([
         fetchStats(mandosRows),
         fetchVisorRecords(undefined, mandosRows)
       ]);
+      if (typeof navigator !== 'undefined' && navigator.onLine && getOfflineQueue().length > 0) {
+        handleSyncOfflineQueue({ silent: true });
+      }
     })();
+  }, []);
+
+  // Escuchar cambios de conectividad del dispositivo y auto-sincronizar cola pendiente
+  useEffect(() => {
+    const onOnline = () => {
+      setIsOnline(true);
+      handleSyncOfflineQueue({ silent: false });
+    };
+    const onOffline = () => {
+      setIsOnline(false);
+    };
+
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+
+    const retryInterval = setInterval(() => {
+      if (typeof navigator !== 'undefined' && navigator.onLine && getOfflineQueue().length > 0) {
+        handleSyncOfflineQueue({ silent: true });
+      }
+    }, 45000);
+
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+      clearInterval(retryInterval);
+    };
   }, []);
 
   // Evitar que roles de campo (Responsable, Líder, Guía) ingresen a Despacho en Bloque (exclusivo almacén)
@@ -627,7 +871,7 @@ export default function ValidadorDashboard() {
     searchVolunteer(cleanDniOrCode);
   };
 
-  // Buscar voluntario en Supabase por DNI o Código
+  // Buscar voluntario en Supabase por DNI o Código (con fallback automático offline en IndexedDB)
   const searchVolunteer = async (queryTerm) => {
     if (!queryTerm) return;
     const cleanTerm = queryTerm.trim();
@@ -638,36 +882,61 @@ export default function ValidadorDashboard() {
     setScannedVoluntario(null);
 
     try {
-      // 1. Buscar en Fase 2 (voluntarios)
-      let q = supabase.from('voluntarios').select('*');
-      if (/^\d+$/.test(cleanTerm)) {
-        q = q.or(`dni.eq.${cleanTerm},dni.ilike.%${cleanTerm}%`);
-      } else {
-        q = q.or(`codigo.eq.${cleanTerm},codigo.ilike.%${cleanTerm}%,dni.ilike.%${cleanTerm}%`);
-      }
-      
-      const { data: f2Data, error: f2Err } = await q.maybeSingle();
-      if (f2Err) console.warn('Busqueda F2:', f2Err);
+      let record = null;
+      let offlineFallback = typeof navigator !== 'undefined' && navigator.onLine === false;
 
-      let record = f2Data ? { ...f2Data, _origenTabla: 'voluntarios' } : null;
-
-      // 2. Si no está en Fase 2, buscar en Fase 1
-      if (!record) {
-        let q1 = supabase.from('voluntarios_general').select('*');
+      if (!offlineFallback) {
+        // 1. Buscar en Fase 2 (voluntarios)
+        let q = supabase.from('voluntarios').select('*');
         if (/^\d+$/.test(cleanTerm)) {
-          q1 = q1.or(`dni.eq.${cleanTerm},dni.ilike.%${cleanTerm}%`);
+          q = q.or(`dni.eq.${cleanTerm},dni.ilike.%${cleanTerm}%`);
         } else {
-          q1 = q1.or(`codigo.eq.${cleanTerm},codigo.ilike.%${cleanTerm}%,dni.ilike.%${cleanTerm}%`);
+          q = q.or(`codigo.eq.${cleanTerm},codigo.ilike.%${cleanTerm}%,dni.ilike.%${cleanTerm}%`);
         }
-        const { data: f1Data, error: f1Err } = await q1.maybeSingle();
-        if (f1Err) console.warn('Busqueda F1:', f1Err);
-        if (f1Data) record = { ...f1Data, _origenTabla: 'voluntarios_general' };
+
+        const { data: f2Data, error: f2Err } = await q.maybeSingle();
+        if (f2Err) {
+          console.warn('Busqueda F2:', f2Err);
+          if (isNetworkError(f2Err)) offlineFallback = true;
+        }
+
+        record = f2Data ? { ...f2Data, _origenTabla: 'voluntarios' } : null;
+
+        // 2. Si no está en Fase 2 y hay señal, buscar en Fase 1
+        if (!record && !offlineFallback) {
+          let q1 = supabase.from('voluntarios_general').select('*');
+          if (/^\d+$/.test(cleanTerm)) {
+            q1 = q1.or(`dni.eq.${cleanTerm},dni.ilike.%${cleanTerm}%`);
+          } else {
+            q1 = q1.or(`codigo.eq.${cleanTerm},codigo.ilike.%${cleanTerm}%,dni.ilike.%${cleanTerm}%`);
+          }
+          const { data: f1Data, error: f1Err } = await q1.maybeSingle();
+          if (f1Err) {
+            console.warn('Busqueda F1:', f1Err);
+            if (isNetworkError(f1Err)) offlineFallback = true;
+          }
+          if (f1Data) record = { ...f1Data, _origenTabla: 'voluntarios_general' };
+        }
+      }
+
+      if (!record && offlineFallback) {
+        setIsOnline(false);
+        record = await findOfflineVolunteer(cleanTerm);
       }
 
       if (!record) {
         playSound('warning');
-        setActionError(`No se encontró ningún voluntario con el DNI o código "${cleanTerm}".`);
+        setActionError(
+          offlineFallback
+            ? `Modo Offline: No se encontró "${cleanTerm}" en el padrón descargado localmente.`
+            : `No se encontró ningún voluntario con el DNI o código "${cleanTerm}".`
+        );
         return;
+      }
+
+      // Actualizar caché local si vino fresco de la nube
+      if (!offlineFallback) {
+        saveOfflineRoster([record], { mode: 'merge' }).catch(() => {});
       }
 
       setScannedVoluntario(record);
@@ -691,6 +960,15 @@ export default function ValidadorDashboard() {
       setKitNotas('');
     } catch (err) {
       console.error('Error buscando voluntario:', err);
+      const localFallback = await findOfflineVolunteer(cleanTerm);
+      if (localFallback) {
+        setIsOnline(false);
+        setScannedVoluntario(localFallback);
+        setEntregaKitCompleto(true);
+        setEntregaPolo(true);
+        setKitNotas('');
+        return;
+      }
       setActionError('Ocurrió un error al consultar el registro.');
     } finally {
       setSearching(false);
@@ -701,18 +979,26 @@ export default function ValidadorDashboard() {
   // HELPERS DE SINCRONIZACIÓN Y BOLSA DE CUSTODIA ANTI-FUGAS
   // ========================================================
   const syncVolunteerPatch = async (voluntario, patchData) => {
-    if (voluntario.dni) {
-      const results = await Promise.all([
-        supabase.from('voluntarios').update(patchData).eq('dni', voluntario.dni),
-        supabase.from('voluntarios_general').update(patchData).eq('dni', voluntario.dni)
-      ]);
-      const err = results.find(r => r.error)?.error;
-      if (err) throw err;
+    let savedOffline = false;
+
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      const { queueLength } = enqueueOfflineOp(voluntario, patchData);
+      setPendingQueueCount(queueLength);
+      savedOffline = true;
     } else {
-      const tbl = voluntario._origenTabla || (voluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
-      const { error } = await supabase.from(tbl).update(patchData).eq('id', voluntario.id);
-      if (error) throw error;
+      try {
+        await applyPatchToSupabase(supabase, voluntario, patchData);
+      } catch (err) {
+        if (!isNetworkError(err)) throw err;
+        const { queueLength } = enqueueOfflineOp(voluntario, patchData);
+        setPendingQueueCount(queueLength);
+        setIsOnline(false);
+        savedOffline = true;
+      }
     }
+
+    await patchOfflineRosterRecord(voluntario, patchData);
+    return { queuedOffline: savedOffline };
   };
 
   const CUSTODY_META = {
@@ -810,23 +1096,21 @@ export default function ValidadorDashboard() {
         asistencia_punto: puntoAsistencia
       };
 
-      if (scannedVoluntario.dni) {
-        await Promise.all([
-          supabase.from('voluntarios').update(updateData).eq('dni', scannedVoluntario.dni),
-          supabase.from('voluntarios_general').update(updateData).eq('dni', scannedVoluntario.dni)
-        ]);
-      } else {
-        const tableName = scannedVoluntario._origenTabla || (scannedVoluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
-        const { error } = await supabase.from(tableName).update(updateData).eq('id', scannedVoluntario.id);
-        if (error) throw error;
-      }
+      const { queuedOffline } = await syncVolunteerPatch(scannedVoluntario, updateData);
 
       playSound('success');
-      setActionSuccessMsg(`¡Asistencia registrada para ${scannedVoluntario.nombres_apellidos}!`);
+      setActionSuccessMsg(
+        `¡Asistencia registrada para ${scannedVoluntario.nombres_apellidos}!${queuedOffline ? ' (📡 Guardado offline, pendiente por subir)' : ''}`
+      );
       setJustConfirmed('ASISTENCIA');
 
       const updated = { ...scannedVoluntario, ...updateData };
       setScannedVoluntario(updated);
+      setVisorRecords(prev => prev.map(item =>
+        ((scannedVoluntario.dni && item.dni === scannedVoluntario.dni) || item.id === scannedVoluntario.id)
+          ? { ...item, ...updateData }
+          : item
+      ));
 
       setSessionHistory(prev => [
         {
@@ -858,7 +1142,7 @@ export default function ValidadorDashboard() {
     if (isFieldRole && targetVol[meta.estadoKey] !== 'EN_CUSTODIA_RESPONSABLE') {
       donor = findCustodyDonor(tipo, tKey);
       if (!donor) {
-        return { blocked: true };
+        return { blocked: true, queuedOffline: false };
       }
       donorClaimKey = `${donor.dni || donor.id}_${tipo}`;
       claimedDonorKeysRef.current.add(donorClaimKey);
@@ -870,7 +1154,8 @@ export default function ValidadorDashboard() {
       if (donor) {
         ops.push(syncVolunteerPatch(donor, meta.releaseDonorPatch));
       }
-      await Promise.all(ops);
+      const results = await Promise.all(ops);
+      const queuedOffline = results.some(r => r?.queuedOffline);
 
       // Refrescar estado local del visor de inmediato
       setVisorRecords(prev => prev.map(item => {
@@ -883,7 +1168,7 @@ export default function ValidadorDashboard() {
         return item;
       }));
 
-      return { blocked: false };
+      return { blocked: false, queuedOffline };
     } finally {
       if (donorClaimKey) {
         claimedDonorKeysRef.current.delete(donorClaimKey);
@@ -913,7 +1198,7 @@ export default function ValidadorDashboard() {
         kit_estado: 'ENTREGADO_FINAL'
       };
 
-      const { blocked } = await executeQrDeliveryWithCustody('KIT', scannedVoluntario, updateData);
+      const { blocked, queuedOffline } = await executeQrDeliveryWithCustody('KIT', scannedVoluntario, updateData);
       if (blocked) {
         playSound('warning');
         setActionError('🔒 Candado Anti-Fugas: No tienes Kits disponibles en tu custodia. Solicita primero un despacho en bloque en Almacén Central.');
@@ -921,7 +1206,9 @@ export default function ValidadorDashboard() {
       }
 
       playSound('success');
-      setActionSuccessMsg(`¡Kit entregado exitosamente a ${scannedVoluntario.nombres_apellidos}!`);
+      setActionSuccessMsg(
+        `¡Kit entregado exitosamente a ${scannedVoluntario.nombres_apellidos}!${queuedOffline ? ' (📡 Guardado offline, pendiente por subir)' : ''}`
+      );
       setJustConfirmed('KIT');
 
       const updated = { ...scannedVoluntario, ...updateData };
@@ -963,7 +1250,7 @@ export default function ValidadorDashboard() {
         desayuno_punto: puntoAlimentos
       };
 
-      const { blocked } = await executeQrDeliveryWithCustody('DESAYUNO', scannedVoluntario, updateData);
+      const { blocked, queuedOffline } = await executeQrDeliveryWithCustody('DESAYUNO', scannedVoluntario, updateData);
       if (blocked) {
         playSound('warning');
         setActionError('🔒 Candado Anti-Fugas: No tienes Desayunos disponibles en tu custodia. Solicita primero un despacho en bloque en Almacén Central.');
@@ -971,7 +1258,9 @@ export default function ValidadorDashboard() {
       }
 
       playSound('success');
-      setActionSuccessMsg(`¡Ración de desayuno registrada para ${scannedVoluntario.nombres_apellidos}!`);
+      setActionSuccessMsg(
+        `¡Ración de desayuno registrada para ${scannedVoluntario.nombres_apellidos}!${queuedOffline ? ' (📡 Guardado offline, pendiente por subir)' : ''}`
+      );
       setJustConfirmed('DESAYUNO');
 
       const updated = { ...scannedVoluntario, ...updateData };
@@ -1013,7 +1302,7 @@ export default function ValidadorDashboard() {
         cena_punto: puntoAlimentos
       };
 
-      const { blocked } = await executeQrDeliveryWithCustody('CENA', scannedVoluntario, updateData);
+      const { blocked, queuedOffline } = await executeQrDeliveryWithCustody('CENA', scannedVoluntario, updateData);
       if (blocked) {
         playSound('warning');
         setActionError('🔒 Candado Anti-Fugas: No tienes Cenas disponibles en tu custodia. Solicita primero un despacho en bloque en Almacén Central.');
@@ -1021,7 +1310,9 @@ export default function ValidadorDashboard() {
       }
 
       playSound('success');
-      setActionSuccessMsg(`¡Ración de cena registrada para ${scannedVoluntario.nombres_apellidos}!`);
+      setActionSuccessMsg(
+        `¡Ración de cena registrada para ${scannedVoluntario.nombres_apellidos}!${queuedOffline ? ' (📡 Guardado offline, pendiente por subir)' : ''}`
+      );
       setJustConfirmed('CENA');
 
       const updated = { ...scannedVoluntario, ...updateData };
@@ -1078,25 +1369,14 @@ export default function ValidadorDashboard() {
         kit_fecha_despacho_lote: null
       };
 
-      if (voluntario.dni) {
-        await Promise.all([
-          supabase.from('voluntarios').update(resetData).eq('dni', voluntario.dni),
-          supabase.from('voluntarios_general').update(resetData).eq('dni', voluntario.dni)
-        ]);
-      } else {
-        const tableName = voluntario._origenTabla || (voluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
-        const { error } = await supabase.from(tableName).update(resetData).eq('id', voluntario.id);
-        if (error) throw error;
-      }
-
-      if (error) throw error;
+      const { queuedOffline } = await syncVolunteerPatch(voluntario, resetData);
 
       playSound('success');
 
       if (scannedVoluntario && scannedVoluntario.id === voluntario.id) {
         setJustConfirmed(null);
         setScannedVoluntario(prev => ({ ...prev, ...resetData }));
-        setActionSuccessMsg(`Entrega de kit anulada correctamente para ${voluntarioNombre}.`);
+        setActionSuccessMsg(`Entrega de kit anulada correctamente para ${voluntarioNombre}.${queuedOffline ? ' (📡 En cola offline)' : ''}`);
       }
 
       await Promise.all([fetchStats(), fetchVisorRecords()]);
@@ -1129,25 +1409,14 @@ export default function ValidadorDashboard() {
         asistencia_punto: null
       };
 
-      if (voluntario.dni) {
-        await Promise.all([
-          supabase.from('voluntarios').update(resetData).eq('dni', voluntario.dni),
-          supabase.from('voluntarios_general').update(resetData).eq('dni', voluntario.dni)
-        ]);
-      } else {
-        const tableName = voluntario._origenTabla || (voluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
-        const { error } = await supabase.from(tableName).update(resetData).eq('id', voluntario.id);
-        if (error) throw error;
-      }
-
-      if (error) throw error;
+      const { queuedOffline } = await syncVolunteerPatch(voluntario, resetData);
 
       playSound('success');
 
       if (scannedVoluntario && scannedVoluntario.id === voluntario.id) {
         setJustConfirmed(null);
         setScannedVoluntario(prev => ({ ...prev, ...resetData }));
-        setActionSuccessMsg(`Asistencia anulada correctamente para ${voluntarioNombre}.`);
+        setActionSuccessMsg(`Asistencia anulada correctamente para ${voluntarioNombre}.${queuedOffline ? ' (📡 En cola offline)' : ''}`);
       }
 
       await Promise.all([fetchStats(), fetchVisorRecords()]);
@@ -1182,23 +1451,14 @@ export default function ValidadorDashboard() {
         desayuno_custodio_nombre: null
       };
 
-      if (voluntario.dni) {
-        await Promise.all([
-          supabase.from('voluntarios').update(resetData).eq('dni', voluntario.dni),
-          supabase.from('voluntarios_general').update(resetData).eq('dni', voluntario.dni)
-        ]);
-      } else {
-        const tableName = voluntario._origenTabla || (voluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
-        const { error } = await supabase.from(tableName).update(resetData).eq('id', voluntario.id);
-        if (error) throw error;
-      }
+      const { queuedOffline } = await syncVolunteerPatch(voluntario, resetData);
 
       playSound('success');
 
       if (scannedVoluntario && scannedVoluntario.id === voluntario.id) {
         setJustConfirmed(null);
         setScannedVoluntario(prev => ({ ...prev, ...resetData }));
-        setActionSuccessMsg(`Entrega de desayuno anulada para ${voluntarioNombre}.`);
+        setActionSuccessMsg(`Entrega de desayuno anulada para ${voluntarioNombre}.${queuedOffline ? ' (📡 En cola offline)' : ''}`);
       }
 
       await Promise.all([fetchStats(), fetchVisorRecords()]);
@@ -1233,23 +1493,14 @@ export default function ValidadorDashboard() {
         cena_custodio_nombre: null
       };
 
-      if (voluntario.dni) {
-        await Promise.all([
-          supabase.from('voluntarios').update(resetData).eq('dni', voluntario.dni),
-          supabase.from('voluntarios_general').update(resetData).eq('dni', voluntario.dni)
-        ]);
-      } else {
-        const tableName = voluntario._origenTabla || (voluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
-        const { error } = await supabase.from(tableName).update(resetData).eq('id', voluntario.id);
-        if (error) throw error;
-      }
+      const { queuedOffline } = await syncVolunteerPatch(voluntario, resetData);
 
       playSound('success');
 
       if (scannedVoluntario && scannedVoluntario.id === voluntario.id) {
         setJustConfirmed(null);
         setScannedVoluntario(prev => ({ ...prev, ...resetData }));
-        setActionSuccessMsg(`Entrega de cena anulada para ${voluntarioNombre}.`);
+        setActionSuccessMsg(`Entrega de cena anulada para ${voluntarioNombre}.${queuedOffline ? ' (📡 En cola offline)' : ''}`);
       }
 
       await Promise.all([fetchStats(), fetchVisorRecords()]);
@@ -1596,6 +1847,10 @@ export default function ValidadorDashboard() {
   // Ejecutar el Despacho en Bloque (total o parcial por cantidad)
   const handleConfirmDespachoLote = async () => {
     if (!selectedLeader || loteVoluntarios.length === 0) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      alert('Modo Offline activo: El Despacho en Bloque de Almacén Central requiere conexión a internet para emitir el lote oficial.');
+      return;
+    }
 
     const kitsTarget = loteKitsPending.slice(0, effectiveKitsQty);
     const desayunosTarget = loteDesayunosPending.slice(0, effectiveDesayunosQty);
@@ -1815,6 +2070,99 @@ export default function ValidadorDashboard() {
           </div>
         </div>
       </header>
+
+      {/* Barra de Conectividad, Caché Offline y Cola de Sincronización */}
+      <div className={`border-b px-4 py-2 text-xs transition-colors ${
+        !isOnline
+          ? 'bg-red-50 border-red-200 text-red-950'
+          : pendingQueueCount > 0
+          ? 'bg-amber-50 border-amber-200 text-amber-950'
+          : 'bg-emerald-50/70 border-emerald-200/80 text-emerald-950'
+      }`}>
+        <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            {isOnline ? (
+              <span className="inline-flex items-center gap-1.5 font-extrabold text-emerald-800">
+                <Wifi className="w-4 h-4 text-emerald-600" />
+                En Línea
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 font-extrabold text-red-800 animate-pulse">
+                <WifiOff className="w-4 h-4 text-red-600" />
+                MODO OFFLINE ACTIVO • Tus marcaciones se guardan en este equipo
+              </span>
+            )}
+
+            <span className="text-stone-400 hidden sm:inline">•</span>
+
+            <span className="inline-flex items-center gap-1 font-semibold text-stone-700">
+              📦 Caché local:{' '}
+              <strong>
+                {offlineRosterMeta.count > 0
+                  ? `${offlineRosterMeta.count.toLocaleString()} voluntarios`
+                  : 'Sin descargar'}
+              </strong>
+              {offlineRosterMeta.updatedAt && (
+                <span className="text-[11px] text-stone-500 hidden md:inline">
+                  ({new Date(offlineRosterMeta.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                </span>
+              )}
+            </span>
+
+            {pendingQueueCount > 0 && (
+              <span className="inline-flex items-center gap-1 bg-amber-200/80 text-amber-950 border border-amber-400 px-2.5 py-0.5 rounded-full font-black">
+                ⏳ {pendingQueueCount} pendiente{pendingQueueCount === 1 ? '' : 's'} por subir
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {pendingQueueCount > 0 && (
+              <button
+                type="button"
+                onClick={() => handleSyncOfflineQueue({ silent: false })}
+                disabled={isSyncingQueue || !isOnline}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold shadow-2xs transition cursor-pointer"
+                title="Subir ahora las marcaciones guardadas sin internet"
+              >
+                <CloudUpload className={`w-3.5 h-3.5 ${isSyncingQueue ? 'animate-bounce' : ''}`} />
+                <span>{isSyncingQueue ? 'Sincronizando...' : `Sincronizar ahora (${pendingQueueCount})`}</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleDownloadFullOfflineRoster}
+              disabled={downloadingOfflineRoster || !isOnline}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white hover:bg-stone-100 disabled:opacity-50 text-stone-800 border border-stone-300 font-bold shadow-2xs transition cursor-pointer"
+              title="Descarga todo el padrón al celular para trabajar sin señal"
+            >
+              <Download className={`w-3.5 h-3.5 text-diocesis-redDark ${downloadingOfflineRoster ? 'animate-bounce' : ''}`} />
+              <span>{downloadingOfflineRoster ? 'Descargando padrón...' : 'Descargar Padrón Offline'}</span>
+            </button>
+          </div>
+        </div>
+
+        {syncBannerMsg && (
+          <div className={`max-w-6xl mx-auto mt-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center justify-between gap-2 ${
+            syncBannerMsg.type === 'success'
+              ? 'bg-emerald-100 border-emerald-300 text-emerald-950'
+              : syncBannerMsg.type === 'warning'
+              ? 'bg-amber-100 border-amber-300 text-amber-950'
+              : 'bg-red-100 border-red-300 text-red-950'
+          }`}>
+            <span>{syncBannerMsg.text}</span>
+            <button
+              type="button"
+              onClick={() => setSyncBannerMsg(null)}
+              className="p-0.5 rounded hover:bg-black/10 cursor-pointer"
+              title="Cerrar aviso"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Selector de Modo de Operación (6 Módulos Oficiales) */}
       <div className="bg-white border-b border-stone-200 shadow-2xs">
