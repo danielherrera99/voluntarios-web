@@ -41,6 +41,12 @@ export default function GestionJerarquia() {
   // Control de acordeón
   const [expandedResp, setExpandedResp] = useState({});
   const [expandedLider, setExpandedLider] = useState({});
+  const [expandedGuiaVols, setExpandedGuiaVols] = useState({});
+  const [expandedNoAsig, setExpandedNoAsig] = useState({});
+
+  // Voluntarios asignados / no asignados en toda la red
+  const [allVoluntarios, setAllVoluntarios] = useState([]);
+  const [loadingVols, setLoadingVols] = useState(false);
 
   // Estados para sincronización inteligente con Google Sheets
   const [syncLoading, setSyncLoading] = useState(false);
@@ -60,6 +66,7 @@ export default function GestionJerarquia() {
       const { data, error } = await supabase
         .from('estructura_mandos')
         .select('*')
+        .limit(3000)
         .order('id', { ascending: true });
 
       if (error) throw error;
@@ -75,6 +82,41 @@ export default function GestionJerarquia() {
       console.error('Error cargando estructura de mandos:', err);
     } finally {
       setLoading(false);
+    }
+
+    // Cargar en paralelo padrón completo (F2 prioridad sobre F1) para poblar voluntarios por cuadrilla y no asignados
+    setLoadingVols(true);
+    try {
+      const fetchAllPages = async (table, cols) => {
+        const out = [];
+        let from = 0;
+        while (true) {
+          const { data, error } = await supabase.from(table).select(cols).range(from, from + 999);
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          out.push(...data);
+          if (data.length < 1000) break;
+          from += 1000;
+        }
+        return out;
+      };
+      const cols = 'dni, nombres_apellidos, responsable_nombre, lider_nombre, guia_nombre, cuadrilla_codigo, telefono, servicio, talla, estado';
+      const [f2List, f1List] = await Promise.all([
+        fetchAllPages('voluntarios', cols),
+        fetchAllPages('voluntarios_general', cols)
+      ]);
+      const mergedMap = new Map();
+      f1List.forEach(v => {
+        if (v.dni) mergedMap.set(String(v.dni).trim(), { ...v, _fase: 1 });
+      });
+      f2List.forEach(v => {
+        if (v.dni) mergedMap.set(String(v.dni).trim(), { ...v, _fase: 2 });
+      });
+      setAllVoluntarios(Array.from(mergedMap.values()));
+    } catch (volErr) {
+      console.error('Error cargando voluntarios para organigrama:', volErr);
+    } finally {
+      setLoadingVols(false);
     }
   };
 
@@ -151,6 +193,64 @@ export default function GestionJerarquia() {
     return Array.from(set).sort();
   }, [records, selectedResp]);
 
+  const normText = (s) =>
+    String(s || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  // Mapear voluntarios reales por cuadrilla y agrupar no asignados
+  const { volsByCuadrilla, noAsigByResp, globalNoAsignados, volMatchingCuadrillas } = useMemo(() => {
+    const validCuadrillas = new Set(
+      records.map(r => String(r.cuadrilla_codigo || '').trim().toUpperCase()).filter(Boolean)
+    );
+    const officialResps = Array.from(new Set(records.map(r => r.responsable_nombre).filter(Boolean)));
+    const resolveOfficialResp = (raw) => {
+      const n = normText(raw);
+      if (!n) return null;
+      if (n.includes('SANDY')) return officialResps.find(o => normText(o).includes('SANDY')) || null;
+      if (n.includes('MELISA')) return officialResps.find(o => normText(o).includes('MELISA')) || null;
+      if (n === 'MAX' || n.includes('MAXIMO')) return officialResps.find(o => normText(o).includes('MAXIMO')) || null;
+      if (n.includes('JHONATAN')) return officialResps.find(o => normText(o).includes('JHONATAN')) || null;
+      if (n.includes('ANYELO') || n.includes('CHISCUL')) return officialResps.find(o => normText(o).includes('CHISCUL')) || null;
+      return officialResps.find(o => normText(o) === n) || officialResps.find(o => normText(o).includes(n) || n.includes(normText(o))) || null;
+    };
+
+    const byCua = {};
+    const noAsigResp = {};
+    const globalUnassigned = [];
+    const matchCuas = new Set();
+    const term = searchTerm.toLowerCase().trim();
+
+    allVoluntarios.forEach(v => {
+      const code = String(v.cuadrilla_codigo || '').trim().toUpperCase();
+      if (code && validCuadrillas.has(code)) {
+        if (!byCua[code]) byCua[code] = [];
+        byCua[code].push(v);
+        if (term && (String(v.nombres_apellidos || '').toLowerCase().includes(term) || String(v.dni || '').includes(term))) {
+          matchCuas.add(code);
+        }
+      } else {
+        const respMatch = resolveOfficialResp(v.responsable_nombre);
+        if (respMatch) {
+          if (!noAsigResp[respMatch]) noAsigResp[respMatch] = [];
+          noAsigResp[respMatch].push(v);
+        } else {
+          globalUnassigned.push(v);
+        }
+      }
+    });
+
+    return {
+      volsByCuadrilla: byCua,
+      noAsigByResp: noAsigResp,
+      globalNoAsignados: globalUnassigned,
+      volMatchingCuadrillas: matchCuas
+    };
+  }, [allVoluntarios, records, searchTerm]);
+
   // Filtrado de registros
   const filteredRecords = useMemo(() => {
     return records.filter(r => {
@@ -166,7 +266,7 @@ export default function GestionJerarquia() {
       if (filterContacto === 'CON_CORREO' && !r.guia_correo) return false;
       if (filterContacto === 'CON_CARTA' && !r.guia_carta) return false;
 
-      // Buscador general de texto
+      // Buscador general de texto (incluye nombre/DNI de voluntarios dentro de la cuadrilla)
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
         const matchGuia = String(r.guia_nombre || '').toLowerCase().includes(term);
@@ -175,12 +275,13 @@ export default function GestionJerarquia() {
         const matchDni = String(r.guia_dni || '').includes(term) || String(r.lider_dni || '').includes(term);
         const matchCod = String(r.cuadrilla_codigo || '').toLowerCase().includes(term);
         const matchTel = String(r.guia_telefono || '').includes(term);
-        return matchGuia || matchLider || matchResp || matchDni || matchCod || matchTel;
+        const matchVol = volMatchingCuadrillas.has(String(r.cuadrilla_codigo || '').trim().toUpperCase());
+        return matchGuia || matchLider || matchResp || matchDni || matchCod || matchTel || matchVol;
       }
 
       return true;
     });
-  }, [records, selectedResp, selectedLider, filterContacto, searchTerm]);
+  }, [records, selectedResp, selectedLider, filterContacto, searchTerm, volMatchingCuadrillas]);
 
   // Estructurar en árbol (Responsable -> Líderes -> Guías)
   const treeData = useMemo(() => {
@@ -616,12 +717,33 @@ export default function GestionJerarquia() {
                     )}
 
                     <div className="text-right">
-                      <div className="text-xs font-bold text-stone-800">
-                        {resp.lideres.length} Líderes • {resp.totalCuadrillas} Guías
-                      </div>
-                      <div className="text-[11px] text-stone-500 font-medium">
-                        Capacidad: {resp.totalCapacidad} voluntarios
-                      </div>
+                      {(() => {
+                        const asignadosResp = resp.lideres.reduce(
+                          (sumL, l) => sumL + l.guias.reduce((sumG, g) => sumG + (volsByCuadrilla[String(g.cuadrilla_codigo || '').trim().toUpperCase()]?.length || 0), 0),
+                          0
+                        );
+                        const noAsigRespList = noAsigByResp[resp.nombre] || [];
+                        return (
+                          <>
+                            <div className="text-xs font-bold text-stone-800">
+                              {resp.lideres.length} Líderes • {resp.totalCuadrillas} Guías
+                            </div>
+                            <div className="flex items-center justify-end gap-1.5 mt-0.5 flex-wrap">
+                              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.2 rounded-full border border-emerald-200">
+                                {asignadosResp} asignados
+                              </span>
+                              {noAsigRespList.length > 0 && (
+                                <span className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.2 rounded-full border border-amber-200">
+                                  {noAsigRespList.length} no asignados
+                                </span>
+                              )}
+                              <span className="text-[11px] text-stone-500 font-medium">
+                                • Cupo {resp.totalCapacidad}
+                              </span>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -694,6 +816,9 @@ export default function GestionJerarquia() {
                                 </a>
                               )}
 
+                              <span className="text-xs font-bold text-emerald-700 px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200">
+                                {lider.guias.reduce((acc, g) => acc + (volsByCuadrilla[String(g.cuadrilla_codigo || '').trim().toUpperCase()]?.length || 0), 0)} asignados
+                              </span>
                               <span className="text-xs font-bold text-stone-700 px-2 py-0.5 rounded-md bg-stone-100">
                                 {lider.guias.length} Guías a cargo
                               </span>
@@ -704,81 +829,263 @@ export default function GestionJerarquia() {
                           {isLiderOpen && (
                             <div className="p-3 md:p-4 bg-white">
                               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
-                                {lider.guias.map((guia) => (
-                                  <div
-                                    key={guia.id || guia.cuadrilla_codigo}
-                                    className="p-3 rounded-xl border border-stone-200 bg-stone-50/40 hover:bg-amber-50/30 hover:border-amber-300 transition flex flex-col justify-between space-y-2"
-                                  >
-                                    <div className="flex items-start justify-between gap-2">
-                                      <div>
-                                        <div className="flex items-center gap-1.5">
-                                          <span className="font-mono text-[10px] font-black px-1.5 py-0.5 rounded bg-diocesis-redDark text-white">
-                                            {guia.cuadrilla_codigo}
-                                          </span>
-                                          {guia.guia_carta && (
-                                            <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100/70 px-1 rounded">
-                                              Carta SÍ
+                                {lider.guias.map((guia) => {
+                                  const cuaCode = String(guia.cuadrilla_codigo || '').trim().toUpperCase();
+                                  const cuaVols = volsByCuadrilla[cuaCode] || [];
+                                  const term = searchTerm.toLowerCase().trim();
+                                  const isVolSearchHit = Boolean(term) && volMatchingCuadrillas.has(cuaCode);
+                                  const isVolsOpen = isVolSearchHit || !!expandedGuiaVols[cuaCode];
+
+                                  return (
+                                    <div
+                                      key={guia.id || guia.cuadrilla_codigo}
+                                      className="p-3 rounded-xl border border-stone-200 bg-stone-50/40 hover:bg-amber-50/30 hover:border-amber-300 transition flex flex-col justify-between space-y-2"
+                                    >
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div>
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="font-mono text-[10px] font-black px-1.5 py-0.5 rounded bg-diocesis-redDark text-white">
+                                              {guia.cuadrilla_codigo}
                                             </span>
+                                            {guia.guia_carta && (
+                                              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100/70 px-1 rounded">
+                                                Carta SÍ
+                                              </span>
+                                            )}
+                                          </div>
+                                          <h5 className="text-xs font-bold text-stone-900 mt-1 leading-snug">
+                                            {guia.guia_nombre}
+                                          </h5>
+                                          <p className="text-[11px] font-mono text-stone-500 mt-0.5">
+                                            DNI: {guia.guia_dni || 'No reg.'}
+                                          </p>
+                                        </div>
+
+                                        <div className="text-right shrink-0 flex flex-col items-end gap-1">
+                                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                                            cuaVols.length > 0
+                                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                              : 'bg-stone-200/70 text-stone-500 border-stone-200'
+                                          }`}>
+                                            {cuaVols.length} / {guia.total_voluntarios || 9}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => setExpandedGuiaVols(prev => ({ ...prev, [cuaCode]: !prev[cuaCode] }))}
+                                            className="inline-flex items-center gap-1 text-[10px] font-bold text-diocesis-redDark hover:underline cursor-pointer"
+                                          >
+                                            {isVolsOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                            <span>Voluntarios ({cuaVols.length})</span>
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      {/* Lista desplegable de voluntarios de esta cuadrilla */}
+                                      {isVolsOpen && (
+                                        <div className="pt-2 border-t border-stone-200/80 space-y-1 max-h-56 overflow-y-auto pr-1">
+                                          {cuaVols.length === 0 ? (
+                                            <p className="text-[10px] text-stone-400 italic">Sin voluntarios asignados aún.</p>
+                                          ) : (
+                                            cuaVols.map((v, vi) => (
+                                              <div
+                                                key={v.dni || vi}
+                                                className="bg-white border border-stone-200/80 rounded-lg px-2 py-1 text-[10px] flex items-center justify-between gap-1.5"
+                                              >
+                                                <div className="min-w-0">
+                                                  <p className="font-bold text-stone-800 truncate">{vi + 1}. {v.nombres_apellidos}</p>
+                                                  <p className="font-mono text-stone-500 text-[9px]">DNI: {v.dni} {v.telefono ? `• ${v.telefono}` : ''}</p>
+                                                </div>
+                                                <span className={`shrink-0 px-1 py-0.2 rounded text-[9px] font-bold ${
+                                                  v._fase === 2 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'
+                                                }`}>
+                                                  F{v._fase}
+                                                </span>
+                                              </div>
+                                            ))
                                           )}
                                         </div>
-                                        <h5 className="text-xs font-bold text-stone-900 mt-1 leading-snug">
-                                          {guia.guia_nombre}
-                                        </h5>
-                                        <p className="text-[11px] font-mono text-stone-500 mt-0.5">
-                                          DNI: {guia.guia_dni || 'No reg.'}
-                                        </p>
-                                      </div>
-
-                                      <div className="text-right shrink-0">
-                                        <span className="text-[10px] font-bold text-stone-500 bg-stone-200/70 px-1.5 py-0.5 rounded">
-                                          {guia.total_voluntarios || 9} cupos
-                                        </span>
-                                      </div>
-                                    </div>
-
-                                    {/* Canales de Contacto del Guía */}
-                                    <div className="pt-2 border-t border-stone-200/60 flex items-center justify-between text-[11px] gap-2">
-                                      {guia.guia_telefono ? (
-                                        <a
-                                          href={`https://wa.me/51${String(guia.guia_telefono).replace(/\D/g, '')}`}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 transition"
-                                          title="WhatsApp del Guía"
-                                        >
-                                          <Phone className="w-3 h-3" />
-                                          <span>{guia.guia_telefono}</span>
-                                        </a>
-                                      ) : (
-                                        <span className="text-stone-400 italic text-[10px]">Sin teléfono</span>
                                       )}
 
-                                      {guia.guia_correo ? (
-                                        <a
-                                          href={`mailto:${guia.guia_correo}`}
-                                          className="inline-flex items-center gap-1 text-stone-600 hover:text-stone-900 truncate max-w-[130px]"
-                                          title={guia.guia_correo}
-                                        >
-                                          <Mail className="w-3 h-3 shrink-0 text-stone-400" />
-                                          <span className="truncate">{guia.guia_correo}</span>
-                                        </a>
-                                      ) : (
-                                        <span className="text-stone-300 text-[10px]">-</span>
-                                      )}
+                                      {/* Canales de Contacto del Guía */}
+                                      <div className="pt-2 border-t border-stone-200/60 flex items-center justify-between text-[11px] gap-2">
+                                        {guia.guia_telefono ? (
+                                          <a
+                                            href={`https://wa.me/51${String(guia.guia_telefono).replace(/\D/g, '')}`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 transition"
+                                            title="WhatsApp del Guía"
+                                          >
+                                            <Phone className="w-3 h-3" />
+                                            <span>{guia.guia_telefono}</span>
+                                          </a>
+                                        ) : (
+                                          <span className="text-stone-400 italic text-[10px]">Sin teléfono</span>
+                                        )}
+
+                                        {guia.guia_correo ? (
+                                          <a
+                                            href={`mailto:${guia.guia_correo}`}
+                                            className="inline-flex items-center gap-1 text-stone-600 hover:text-stone-900 truncate max-w-[130px]"
+                                            title={guia.guia_correo}
+                                          >
+                                            <Mail className="w-3 h-3 shrink-0 text-stone-400" />
+                                            <span className="truncate">{guia.guia_correo}</span>
+                                          </a>
+                                        ) : (
+                                          <span className="text-stone-300 text-[10px]">-</span>
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </div>
                           )}
                         </div>
                       );
                     })}
+
+                    {/* ÁREA DE NO ASIGNADOS DEL RESPONSABLE */}
+                    {(() => {
+                      const rawNoAsig = noAsigByResp[resp.nombre] || [];
+                      const term = searchTerm.toLowerCase().trim();
+                      const filteredList = term
+                        ? rawNoAsig.filter(v => String(v.nombres_apellidos || '').toLowerCase().includes(term) || String(v.dni || '').includes(term))
+                        : rawNoAsig;
+                      if (rawNoAsig.length === 0) return null;
+                      const noAsigKey = 'NOASIG_' + resp.nombre;
+                      const isOpen = !!expandedNoAsig[noAsigKey];
+
+                      return (
+                        <div className="bg-amber-50/40 rounded-2xl border border-amber-300 overflow-hidden shadow-2xs">
+                          <div
+                            onClick={() => setExpandedNoAsig(prev => ({ ...prev, [noAsigKey]: !prev[noAsigKey] }))}
+                            className="p-3.5 flex items-center justify-between cursor-pointer hover:bg-amber-50 transition"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              {isOpen ? <ChevronDown className="w-4 h-4 text-amber-800" /> : <ChevronRight className="w-4 h-4 text-amber-700" />}
+                              <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                              <div>
+                                <h4 className="text-xs md:text-sm font-extrabold text-amber-950">
+                                  No Asignados en {resp.nombre} (Sin Cuadrilla / Guía)
+                                </h4>
+                                <p className="text-[11px] text-amber-800">
+                                  Voluntarios de este sector que todavía no tienen Guía asignado
+                                </p>
+                              </div>
+                            </div>
+                            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                              {filteredList.length} voluntario(s)
+                            </span>
+                          </div>
+
+                          {isOpen && (
+                            <div className="p-3 bg-white border-t border-amber-200 max-h-72 overflow-y-auto">
+                              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-1.5">
+                                {filteredList.slice(0, 180).map((v, vi) => (
+                                  <div
+                                    key={v.dni || vi}
+                                    className="bg-stone-50/70 border border-stone-200 rounded-lg px-2.5 py-1.5 text-[11px] flex items-center justify-between gap-2"
+                                  >
+                                    <div className="min-w-0">
+                                      <p className="font-bold text-stone-800 truncate">{vi + 1}. {v.nombres_apellidos}</p>
+                                      <p className="font-mono text-stone-500 text-[10px]">DNI: {v.dni} {v.telefono ? `• ${v.telefono}` : ''}</p>
+                                    </div>
+                                    <span className={`shrink-0 px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                                      v._fase === 2 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'
+                                    }`}>
+                                      F{v._fase}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                              {filteredList.length > 180 && (
+                                <p className="text-[11px] text-amber-800 font-semibold mt-2 text-center">
+                                  Mostrando los primeros 180 de {filteredList.length}. Usa el buscador superior para localizar un nombre o DNI específico.
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
             );
           })}
+
+          {/* ÁREA GLOBAL: VOLUNTARIOS NO ASIGNADOS / SIN RESPONSABLE TERRITORIAL */}
+          {selectedResp === 'ALL' && selectedLider === 'ALL' && globalNoAsignados.length > 0 && (() => {
+            const term = searchTerm.toLowerCase().trim();
+            const filteredGlobal = term
+              ? globalNoAsignados.filter(v =>
+                  String(v.nombres_apellidos || '').toLowerCase().includes(term) ||
+                  String(v.dni || '').includes(term) ||
+                  String(v.responsable_nombre || '').toLowerCase().includes(term)
+                )
+              : globalNoAsignados;
+            const isOpen = Boolean(term && filteredGlobal.length > 0) || !!expandedNoAsig['__GLOBAL__'];
+
+            return (
+              <div className="bg-white rounded-3xl card-shadow border border-amber-300 overflow-hidden">
+                <div
+                  onClick={() => setExpandedNoAsig(prev => ({ ...prev, '__GLOBAL__': !prev['__GLOBAL__'] }))}
+                  className="p-4 md:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer hover:bg-amber-50/40 transition"
+                >
+                  <div className="flex items-center gap-3">
+                    <button type="button" className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center text-amber-800 shrink-0">
+                      {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    </button>
+                    <div>
+                      <span className="text-[10px] font-extrabold tracking-wider uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                        Área General
+                      </span>
+                      <h3 className="text-base md:text-lg font-bold text-stone-900 mt-0.5">
+                        No Asignados (Sin Responsable / Sin Cuadrilla)
+                      </h3>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-950 border border-amber-300">
+                      {filteredGlobal.length.toLocaleString()} voluntario(s) {loadingVols ? '(cargando...)' : ''}
+                    </span>
+                  </div>
+                </div>
+
+                {isOpen && (
+                  <div className="p-4 bg-stone-50/50 border-t border-amber-200 max-h-80 overflow-y-auto">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-1.5">
+                      {filteredGlobal.slice(0, 200).map((v, vi) => (
+                        <div
+                          key={v.dni || vi}
+                          className="bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-[11px] flex items-center justify-between gap-2"
+                        >
+                          <div className="min-w-0">
+                            <p className="font-bold text-stone-800 truncate">{vi + 1}. {v.nombres_apellidos}</p>
+                            <p className="font-mono text-stone-500 text-[10px]">
+                              DNI: {v.dni} {v.responsable_nombre ? `• ${v.responsable_nombre}` : '• Sin resp.'}
+                            </p>
+                          </div>
+                          <span className={`shrink-0 px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                            v._fase === 2 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'
+                          }`}>
+                            F{v._fase}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {filteredGlobal.length > 200 && (
+                      <p className="text-[11px] text-amber-800 font-semibold mt-2 text-center">
+                        Mostrando los primeros 200 de {filteredGlobal.length.toLocaleString()}. Usa el buscador para filtrar por nombre o DNI.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
       ) : (

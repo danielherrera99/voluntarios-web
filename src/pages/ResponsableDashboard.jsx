@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabase';
@@ -57,6 +57,8 @@ export default function ResponsableDashboard() {
   const [actionLoading, setActionLoading] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedLideres, setExpandedLideres] = useState({});
+  const [expandedCuadrillas, setExpandedCuadrillas] = useState({});
+  const [showNoAsignados, setShowNoAsignados] = useState(false);
   const [actionMsg, setActionMsg] = useState(null);
   const [dniStatusMap, setDniStatusMap] = useState({ f2Map: {}, f1Map: {} });
 
@@ -148,7 +150,7 @@ export default function ResponsableDashboard() {
           `lugar_asignado.ilike.%${a}%`
         ]).join(',');
 
-        const selectCols = 'id, dni, nombres_apellidos, edad, correo, telefono, contacto_emergencia, telefono_emergencia, alergias, medicacion, departamento, provincia, distrito, direccion, jurisdiccion, nombre_institucion, grupo_integra, servicio, talla, estado, fase, archivo_cul_url, archivo_carta_url, archivo_compromiso_url, info_validada, observacion, responsable_nombre, lugar_asignado';
+        const selectCols = 'id, dni, nombres_apellidos, edad, correo, telefono, contacto_emergencia, telefono_emergencia, alergias, medicacion, departamento, provincia, distrito, direccion, jurisdiccion, nombre_institucion, grupo_integra, servicio, talla, estado, fase, archivo_cul_url, archivo_carta_url, archivo_compromiso_url, info_validada, observacion, responsable_nombre, lider_nombre, guia_nombre, cuadrilla_codigo, lugar_asignado';
 
         const [f2Res, f1Res] = await Promise.all([
           supabase.from('voluntarios').select(selectCols).or(orCondition).range(0, 1999),
@@ -334,6 +336,33 @@ export default function ResponsableDashboard() {
     return [...list2, ...list1];
   }, [voluntariosF2, voluntariosF1Only]);
 
+  // Agrupación de voluntarios del sector por cuadrilla y no asignados
+  const { voluntariosByCuadrilla, voluntariosNoAsignados, totalAsignadosSector } = useMemo(() => {
+    const validCodes = new Set(
+      mandos.map(m => String(m.cuadrilla_codigo || '').trim().toUpperCase()).filter(Boolean)
+    );
+    const byCua = {};
+    const noAsig = [];
+    let asigCount = 0;
+
+    unifiedVoluntarios.forEach(v => {
+      const code = String(v.cuadrilla_codigo || '').trim().toUpperCase();
+      if (code && validCodes.has(code)) {
+        if (!byCua[code]) byCua[code] = [];
+        byCua[code].push(v);
+        asigCount++;
+      } else {
+        noAsig.push(v);
+      }
+    });
+
+    return {
+      voluntariosByCuadrilla: byCua,
+      voluntariosNoAsignados: noAsig,
+      totalAsignadosSector: asigCount
+    };
+  }, [unifiedVoluntarios, mandos]);
+
   // Filtro dinámico de voluntarios
   const filteredVoluntarios = useMemo(() => {
     let list = unifiedVoluntarios;
@@ -463,6 +492,14 @@ export default function ResponsableDashboard() {
     setExpandedLideres(prev => ({
       ...prev,
       [nombre]: !prev[nombre]
+    }));
+  };
+
+  const toggleCuadrilla = (codigo) => {
+    const key = String(codigo || '').trim().toUpperCase();
+    setExpandedCuadrillas(prev => ({
+      ...prev,
+      [key]: !prev[key]
     }));
   };
 
@@ -978,16 +1015,28 @@ export default function ResponsableDashboard() {
                   Organigrama de Mandos de tu Sector
                 </h3>
                 <p className="text-xs text-stone-500">
-                  Despliega cada líder para ver los guías y cuadrillas bajo su mando
+                  Despliega cada líder y haz clic en cualquier cuadrilla para ver sus voluntarios asignados
                 </p>
+                <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    {totalAsignadosSector} asignados en cuadrillas
+                  </span>
+                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${
+                    voluntariosNoAsignados.length > 0
+                      ? 'bg-amber-50 text-amber-900 border-amber-300'
+                      : 'bg-stone-100 text-stone-600 border-stone-200'
+                  }`}>
+                    {voluntariosNoAsignados.length} no asignados
+                  </span>
+                </div>
               </div>
 
               <input
                 type="text"
-                placeholder="Buscar por líder, guía o cuadrilla..."
+                placeholder="Buscar líder, guía, cuadrilla o voluntario..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="px-3 py-1.5 text-xs bg-white border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-diocesis-red w-full sm:w-64"
+                className="px-3 py-1.5 text-xs bg-white border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-diocesis-red w-full sm:w-72"
               />
             </div>
 
@@ -1000,18 +1049,38 @@ export default function ResponsableDashboard() {
               <div className="space-y-3">
                 {lideresList
                   .filter(l => {
-                    if (!searchTerm) return true;
-                    const term = searchTerm.toLowerCase();
+                    if (!searchTerm.trim()) return true;
+                    const term = searchTerm.toLowerCase().trim();
                     const matchLider = l.nombre.toLowerCase().includes(term) || String(l.dni || '').includes(term);
-                    const matchGuia = l.guias.some(g => 
-                      String(g.guia_nombre || '').toLowerCase().includes(term) ||
-                      String(g.cuadrilla_codigo || '').toLowerCase().includes(term)
-                    );
+                    const matchGuia = l.guias.some(g => {
+                      const code = String(g.cuadrilla_codigo || '').trim().toUpperCase();
+                      const vols = voluntariosByCuadrilla[code] || [];
+                      return (
+                        String(g.guia_nombre || '').toLowerCase().includes(term) ||
+                        code.toLowerCase().includes(term) ||
+                        vols.some(v =>
+                          String(v.nombres_apellidos || '').toLowerCase().includes(term) ||
+                          String(v.dni || '').includes(term)
+                        )
+                      );
+                    });
                     return matchLider || matchGuia;
                   })
                   .map((lider, idx) => {
-                    const isExpanded = !!expandedLideres[lider.nombre];
+                    const term = searchTerm.toLowerCase().trim();
+                    const hasVolMatch = Boolean(term) && lider.guias.some(g => {
+                      const code = String(g.cuadrilla_codigo || '').trim().toUpperCase();
+                      return (voluntariosByCuadrilla[code] || []).some(v =>
+                        String(v.nombres_apellidos || '').toLowerCase().includes(term) ||
+                        String(v.dni || '').includes(term)
+                      );
+                    });
+                    const isExpanded = hasVolMatch || !!expandedLideres[lider.nombre];
                     const cupoTotalLider = lider.guias.reduce((acc, g) => acc + (g.total_voluntarios || 9), 0);
+                    const asignadosTotalLider = lider.guias.reduce((acc, g) => {
+                      const code = String(g.cuadrilla_codigo || '').trim().toUpperCase();
+                      return acc + (voluntariosByCuadrilla[code]?.length || 0);
+                    }, 0);
 
                     return (
                       <div 
@@ -1044,8 +1113,10 @@ export default function ResponsableDashboard() {
                                   );
                                 })()}
                               </div>
-                              <div className="flex items-center gap-2 text-xs text-stone-500 mt-0.5">
+                              <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500 mt-0.5">
                                 <span>{lider.guias.length} Guías / Cuadrillas</span>
+                                <span>•</span>
+                                <span className="font-bold text-emerald-700">{asignadosTotalLider} asignados</span>
                                 <span>•</span>
                                 <span className="font-semibold text-diocesis-red">{cupoTotalLider} cupos de voluntarios</span>
                               </div>
@@ -1080,103 +1151,186 @@ export default function ResponsableDashboard() {
                                     <th className="py-2.5 px-3">DNI Guía</th>
                                     <th className="py-2.5 px-3">Etapa / Fase</th>
                                     <th className="py-2.5 px-3">Documentación</th>
-                                    <th className="py-2.5 px-3 text-right">Cupo</th>
+                                    <th className="py-2.5 px-3 text-right">Asignados / Cupo</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-stone-200/50">
                                   {lider.guias.map((g, gIdx) => {
                                     const gInfo = getDniEtapaInfo(g.guia_dni, g.guia_carta);
+                                    const cuaCode = String(g.cuadrilla_codigo || '').trim().toUpperCase();
+                                    const cuaVols = voluntariosByCuadrilla[cuaCode] || [];
+                                    const matchesVolInside = Boolean(term) && cuaVols.some(v =>
+                                      String(v.nombres_apellidos || '').toLowerCase().includes(term) ||
+                                      String(v.dni || '').includes(term)
+                                    );
+                                    const isCuaOpen = matchesVolInside || !!expandedCuadrillas[cuaCode];
+
                                     return (
-                                      <tr key={g.id || gIdx} className="hover:bg-white transition">
-                                        <td className="py-2.5 px-3">
-                                          <span className="font-mono font-bold px-2 py-0.5 rounded bg-white text-diocesis-redDark border border-stone-300">
-                                            {g.cuadrilla_codigo}
-                                          </span>
-                                        </td>
-                                        <td className="py-2.5 px-3 font-bold text-stone-900">{g.guia_nombre}</td>
-                                        <td className="py-2.5 px-3 font-mono font-bold text-stone-700">{g.guia_dni || '-'}</td>
-                                        
-                                        {/* Etapa / Fase */}
-                                        <td className="py-2.5 px-3">
-                                          <div className="flex flex-col items-start gap-0.5">
-                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border shadow-2xs ${gInfo.badgeClass}`}>
-                                              {gInfo.etapa === 3 && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
-                                              {gInfo.etapa === 2 && <Clock className="w-3 h-3 text-blue-600" />}
-                                              {gInfo.etapa === 1 && <Clock className="w-3 h-3 text-amber-600" />}
-                                              {gInfo.etapa === 0 && <AlertCircle className="w-3 h-3 text-stone-400" />}
-                                              {gInfo.label}
-                                            </span>
-                                            <span className="text-[10px] text-stone-400 font-medium pl-1">
-                                              {gInfo.sublabel}
-                                            </span>
-                                          </div>
-                                        </td>
-
-                                        {/* Documentación / Carta */}
-                                        <td className="py-2.5 px-3">
-                                          <div className="flex flex-wrap items-center gap-1.5">
-                                            {gInfo.cartaUrl ? (
-                                              <a
-                                                href={gInfo.cartaUrl}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300 transition"
-                                                title="Ver Carta de Respaldo enviada"
-                                              >
-                                                ✓ Carta ↗
-                                              </a>
-                                            ) : gInfo.tieneCarta ? (
-                                              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                                                ✓ Carta
+                                      <Fragment key={g.id || gIdx}>
+                                        <tr
+                                          onClick={() => toggleCuadrilla(cuaCode)}
+                                          className="hover:bg-white transition cursor-pointer select-none"
+                                          title="Clic para ver los voluntarios asignados a esta cuadrilla"
+                                        >
+                                          <td className="py-2.5 px-3">
+                                            <div className="inline-flex items-center gap-1.5">
+                                              {isCuaOpen ? (
+                                                <ChevronDown className="w-3.5 h-3.5 text-diocesis-redDark shrink-0" />
+                                              ) : (
+                                                <ChevronRight className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                                              )}
+                                              <span className="font-mono font-bold px-2 py-0.5 rounded bg-white text-diocesis-redDark border border-stone-300">
+                                                {g.cuadrilla_codigo}
                                               </span>
-                                            ) : (
-                                              <span className="text-[10px] font-bold text-stone-400 bg-stone-100 px-2 py-0.5 rounded-md border border-stone-200">
-                                                Sin Carta
+                                            </div>
+                                          </td>
+                                          <td className="py-2.5 px-3 font-bold text-stone-900">{g.guia_nombre}</td>
+                                          <td className="py-2.5 px-3 font-mono font-bold text-stone-700">{g.guia_dni || '-'}</td>
+                                          
+                                          {/* Etapa / Fase */}
+                                          <td className="py-2.5 px-3">
+                                            <div className="flex flex-col items-start gap-0.5">
+                                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border shadow-2xs ${gInfo.badgeClass}`}>
+                                                {gInfo.etapa === 3 && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
+                                                {gInfo.etapa === 2 && <Clock className="w-3 h-3 text-blue-600" />}
+                                                {gInfo.etapa === 1 && <Clock className="w-3 h-3 text-amber-600" />}
+                                                {gInfo.etapa === 0 && <AlertCircle className="w-3 h-3 text-stone-400" />}
+                                                {gInfo.label}
                                               </span>
-                                            )}
+                                              <span className="text-[10px] text-stone-400 font-medium pl-1">
+                                                {gInfo.sublabel}
+                                              </span>
+                                            </div>
+                                          </td>
 
-                                            {gInfo.tieneCul && (
-                                              gInfo.culUrl ? (
+                                          {/* Documentación / Carta */}
+                                          <td className="py-2.5 px-3" onClick={(e) => e.stopPropagation()}>
+                                            <div className="flex flex-wrap items-center gap-1.5">
+                                              {gInfo.cartaUrl ? (
                                                 <a
-                                                  href={gInfo.culUrl}
+                                                  href={gInfo.cartaUrl}
                                                   target="_blank"
                                                   rel="noreferrer"
-                                                  className="text-[9px] font-bold text-blue-800 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded border border-blue-200 transition"
-                                                  title="Ver Certificado Único Laboral"
+                                                  className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300 transition"
+                                                  title="Ver Carta de Respaldo enviada"
                                                 >
-                                                  CUL ↗
+                                                  ✓ Carta ↗
                                                 </a>
-                                              ) : (
-                                                <span className="text-[9px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
-                                                  CUL
+                                              ) : gInfo.tieneCarta ? (
+                                                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                                  ✓ Carta
                                                 </span>
-                                              )
-                                            )}
-
-                                            {gInfo.tieneCompromiso && (
-                                              gInfo.compromisoUrl ? (
-                                                <a
-                                                  href={gInfo.compromisoUrl}
-                                                  target="_blank"
-                                                  rel="noreferrer"
-                                                  className="text-[9px] font-bold text-purple-800 bg-purple-50 hover:bg-purple-100 px-1.5 py-0.5 rounded border border-purple-200 transition"
-                                                  title="Ver Acta de Compromiso"
-                                                >
-                                                  Acta ↗
-                                                </a>
                                               ) : (
-                                                <span className="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
-                                                  Acta
+                                                <span className="text-[10px] font-bold text-stone-400 bg-stone-100 px-2 py-0.5 rounded-md border border-stone-200">
+                                                  Sin Carta
                                                 </span>
-                                              )
-                                            )}
-                                          </div>
-                                        </td>
+                                              )}
 
-                                        <td className="py-2.5 px-3 text-right font-bold text-stone-800">
-                                          {g.total_voluntarios || 9}
-                                        </td>
-                                      </tr>
+                                              {gInfo.tieneCul && (
+                                                gInfo.culUrl ? (
+                                                  <a
+                                                    href={gInfo.culUrl}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="text-[9px] font-bold text-blue-800 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded border border-blue-200 transition"
+                                                    title="Ver Certificado Único Laboral"
+                                                  >
+                                                    CUL ↗
+                                                  </a>
+                                                ) : (
+                                                  <span className="text-[9px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                                                    CUL
+                                                  </span>
+                                                )
+                                              )}
+
+                                              {gInfo.tieneCompromiso && (
+                                                gInfo.compromisoUrl ? (
+                                                  <a
+                                                    href={gInfo.compromisoUrl}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="text-[9px] font-bold text-purple-800 bg-purple-50 hover:bg-purple-100 px-1.5 py-0.5 rounded border border-purple-200 transition"
+                                                    title="Ver Acta de Compromiso"
+                                                  >
+                                                    Acta ↗
+                                                  </a>
+                                                ) : (
+                                                  <span className="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                                                    Acta
+                                                  </span>
+                                                )
+                                              )}
+                                            </div>
+                                          </td>
+
+                                          <td className="py-2.5 px-3 text-right">
+                                            <span className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-full text-[11px] border ${
+                                              cuaVols.length > 0
+                                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                                : 'bg-stone-100 text-stone-500 border-stone-200'
+                                            }`}>
+                                              <Users className="w-3 h-3" />
+                                              {cuaVols.length} / {g.total_voluntarios || 9}
+                                            </span>
+                                          </td>
+                                        </tr>
+
+                                        {/* Voluntarios asignados dentro de esta cuadrilla */}
+                                        {isCuaOpen && (
+                                          <tr key={`${g.id || gIdx}-vols`} className="bg-amber-50/35">
+                                            <td colSpan={6} className="px-4 py-3 border-t border-stone-200/70">
+                                              {cuaVols.length === 0 ? (
+                                                <div className="text-[11px] text-stone-500 italic py-1 pl-5">
+                                                  Aún no hay voluntarios asignados a esta cuadrilla ({g.cuadrilla_codigo}).
+                                                </div>
+                                              ) : (
+                                                <div className="pl-3 space-y-1.5">
+                                                  <div className="text-[10px] font-extrabold uppercase tracking-wider text-stone-500 mb-1">
+                                                    Voluntarios asignados a {g.guia_nombre} ({cuaVols.length})
+                                                  </div>
+                                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                                                    {cuaVols.map((v, vIdx) => (
+                                                      <div
+                                                        key={v.dni || vIdx}
+                                                        className="bg-white rounded-xl border border-stone-200 px-3 py-2 flex items-center justify-between gap-2 text-[11px] shadow-2xs"
+                                                      >
+                                                        <div className="min-w-0">
+                                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                                            <span className="font-mono font-bold text-stone-400">#{vIdx + 1}</span>
+                                                            <span className="font-bold text-stone-900 truncate">{v.nombres_apellidos}</span>
+                                                            <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${
+                                                              v._source === 'fase2'
+                                                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                                                : 'bg-amber-50 text-amber-800 border-amber-200'
+                                                            }`}>
+                                                              {v._source === 'fase2' ? 'Fase 2' : 'Fase 1'}
+                                                            </span>
+                                                          </div>
+                                                          <div className="flex flex-wrap items-center gap-2 text-[10px] text-stone-500 mt-0.5">
+                                                            <span className="font-mono font-semibold text-stone-600">DNI: {v.dni}</span>
+                                                            {v.telefono && <span>• Tel: {v.telefono}</span>}
+                                                            {v.servicio && <span>• {v.servicio}</span>}
+                                                            {v.talla && <span>• Talla {v.talla}</span>}
+                                                          </div>
+                                                        </div>
+                                                        <button
+                                                          type="button"
+                                                          onClick={() => setSelectedVoluntarioModal(v)}
+                                                          className="shrink-0 p-1.5 rounded-lg bg-stone-100 hover:bg-amber-100 text-stone-600 hover:text-diocesis-redDark transition cursor-pointer"
+                                                          title="Ver ficha completa"
+                                                        >
+                                                          <Eye className="w-3.5 h-3.5" />
+                                                        </button>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </td>
+                                          </tr>
+                                        )}
+                                      </Fragment>
                                     );
                                   })}
                                 </tbody>
@@ -1187,6 +1341,107 @@ export default function ResponsableDashboard() {
                       </div>
                     );
                   })}
+
+                {/* ÁREA DE NO ASIGNADOS (SIN CUADRILLA / GUÍA) */}
+                {(() => {
+                  const term = searchTerm.toLowerCase().trim();
+                  const filteredUnassigned = term
+                    ? voluntariosNoAsignados.filter(v =>
+                        String(v.nombres_apellidos || '').toLowerCase().includes(term) ||
+                        String(v.dni || '').includes(term) ||
+                        String(v.servicio || '').toLowerCase().includes(term)
+                      )
+                    : voluntariosNoAsignados;
+                  const isUnassignedOpen = Boolean(term && filteredUnassigned.length > 0) || showNoAsignados;
+
+                  return (
+                    <div className={`rounded-2xl border overflow-hidden shadow-xs transition ${
+                      voluntariosNoAsignados.length > 0
+                        ? 'bg-white border-amber-300'
+                        : 'bg-emerald-50/50 border-emerald-200'
+                    }`}>
+                      <div
+                        onClick={() => setShowNoAsignados(prev => !prev)}
+                        className="p-4 flex items-center justify-between cursor-pointer hover:bg-amber-50/40 transition"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shadow-xs ${
+                            voluntariosNoAsignados.length > 0
+                              ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                              : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          }`}>
+                            {voluntariosNoAsignados.length > 0 ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-extrabold text-sm text-stone-900">
+                                No Asignados (Sin Cuadrilla / Guía)
+                              </span>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                voluntariosNoAsignados.length > 0
+                                  ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                  : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              }`}>
+                                {filteredUnassigned.length} voluntario(s)
+                              </span>
+                            </div>
+                            <p className="text-xs text-stone-500 mt-0.5">
+                              {voluntariosNoAsignados.length > 0
+                                ? 'Voluntarios de tu sector que aún no han sido asignados a un Guía o Cuadrilla'
+                                : 'Todos los voluntarios registrados en tu sector ya cuentan con Guía y Cuadrilla asignada'}
+                            </p>
+                          </div>
+                        </div>
+
+                        {voluntariosNoAsignados.length > 0 && (
+                          <button type="button" className="text-stone-400 hover:text-stone-700">
+                            {isUnassignedOpen ? <ChevronDown className="w-5 h-5 text-amber-800" /> : <ChevronRight className="w-5 h-5" />}
+                          </button>
+                        )}
+                      </div>
+
+                      {isUnassignedOpen && filteredUnassigned.length > 0 && (
+                        <div className="bg-amber-50/30 p-4 border-t border-amber-200/60">
+                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                            {filteredUnassigned.map((v, vIdx) => (
+                              <div
+                                key={v.dni || vIdx}
+                                className="bg-white rounded-xl border border-stone-200 px-3 py-2 flex items-center justify-between gap-2 text-[11px] shadow-2xs"
+                              >
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-mono font-bold text-stone-400">#{vIdx + 1}</span>
+                                    <span className="font-bold text-stone-900 truncate">{v.nombres_apellidos}</span>
+                                    <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${
+                                      v._source === 'fase2'
+                                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                        : 'bg-amber-50 text-amber-800 border-amber-200'
+                                    }`}>
+                                      {v._source === 'fase2' ? 'Fase 2' : 'Fase 1'}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2 text-[10px] text-stone-500 mt-0.5">
+                                    <span className="font-mono font-semibold text-stone-600">DNI: {v.dni}</span>
+                                    {v.telefono && <span>• Tel: {v.telefono}</span>}
+                                    {v.servicio && <span>• {v.servicio}</span>}
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedVoluntarioModal(v)}
+                                  className="shrink-0 p-1.5 rounded-lg bg-stone-100 hover:bg-amber-100 text-stone-600 hover:text-diocesis-redDark transition cursor-pointer"
+                                  title="Ver ficha completa"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>
