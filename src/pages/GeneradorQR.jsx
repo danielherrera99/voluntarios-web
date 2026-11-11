@@ -21,6 +21,7 @@ import {
   FileCheck
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { encryptVolunteerQrPayload } from '../utils/qrCrypto';
 
 export default function GeneradorQR() {
   const [dniInput, setDniInput] = useState('');
@@ -39,15 +40,12 @@ export default function GeneradorQR() {
     return url;
   };
 
-  // Generar QR cuando se carga el voluntario
+  // Generar QR cifrado cuando se carga el voluntario (sin exponer DNI ni nombres en texto plano)
   useEffect(() => {
     if (volunteer) {
-      // El QR codifica un identificador único seguro verificable
-      const qrPayload = JSON.stringify({
-        tipo: 'VOLUNTARIO_PAPA_2026',
+      const qrPayload = encryptVolunteerQrPayload({
         dni: volunteer.dni,
-        codigo: volunteer.codigo || `VOL-${volunteer.dni}`,
-        nombre: volunteer.nombres_apellidos
+        codigo: volunteer.codigo || `VOL-${volunteer.dni}`
       });
 
       QRCode.toDataURL(qrPayload, {

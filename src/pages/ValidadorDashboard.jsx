@@ -55,6 +55,7 @@ import {
   enqueueOfflineOp,
   flushOfflineQueue
 } from '../utils/offlineStore';
+import { decodeVolunteerQrPayload } from '../utils/qrCrypto';
 
 // Sonidos sintéticos del navegador (Web Audio API)
 const playSound = (type = 'success') => {
@@ -858,23 +859,30 @@ export default function ValidadorDashboard() {
     };
   }, []);
 
-  // Procesar texto leído por el QR
+  // Procesar texto leído por el QR (cifrado VP26:..., JSON heredado o DNI directo)
   const handleQrDecoded = (decodedText) => {
-    let cleanDniOrCode = decodedText.trim();
-    try {
-      const parsed = JSON.parse(decodedText);
-      if (parsed.dni) cleanDniOrCode = String(parsed.dni).trim();
-      else if (parsed.codigo) cleanDniOrCode = String(parsed.codigo).trim();
-    } catch (e) {}
+    const decoded = decodeVolunteerQrPayload(decodedText);
+    const cleanDniOrCode = decoded.lookupTerm;
 
     stopCamera();
+    if (decoded.format === 'invalid_mac' || decoded.format === 'invalid') {
+      playSound('warning');
+      setActionError('Código QR inválido o manipulado. Verifica la credencial del voluntario.');
+      return;
+    }
     searchVolunteer(cleanDniOrCode);
   };
 
   // Buscar voluntario en Supabase por DNI o Código (con fallback automático offline en IndexedDB)
   const searchVolunteer = async (queryTerm) => {
     if (!queryTerm) return;
-    const cleanTerm = queryTerm.trim();
+    const decodedInput = decodeVolunteerQrPayload(queryTerm);
+    if (decodedInput.format === 'invalid_mac' || decodedInput.format === 'invalid') {
+      playSound('warning');
+      setActionError('Código QR cifrado inválido o manipulado.');
+      return;
+    }
+    const cleanTerm = decodedInput.lookupTerm;
     setSearching(true);
     setActionError(null);
     setActionSuccessMsg(null);
