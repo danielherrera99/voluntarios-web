@@ -122,6 +122,7 @@ export const saveOfflineRoster = async (records, { mode = 'merge', scopeLabel = 
   if (queue.length > 0) {
     const byKey = new Map(finalRecords.map((r) => [getRecordKey(r), r]));
     queue.forEach((op) => {
+      if (op.opType === 'INSERT' || !op.patchData) return;
       const matchKey = op.dni ? `dni:${String(op.dni).trim()}` : `id:${op.origenTabla || 'g'}:${op.id}`;
       const cur = byKey.get(matchKey);
       if (cur) {
@@ -230,12 +231,28 @@ export const enqueueOfflineOp = (voluntario, patchData) => {
   const queue = getOfflineQueue();
   const op = {
     opId: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    opType: 'PATCH',
     dni: voluntario?.dni ? String(voluntario.dni).trim() : null,
     id: voluntario?.id ?? null,
     origenTabla: voluntario?._origenTabla || (voluntario?.fase === '3' ? 'voluntarios' : 'voluntarios_general'),
     fase: voluntario?.fase || null,
     nombre: voluntario?.nombres_apellidos || 'Voluntario',
     patchData,
+    createdAt: new Date().toISOString()
+  };
+  queue.push(op);
+  writeOfflineQueue(queue);
+  return { op, queueLength: queue.length };
+};
+
+export const enqueueOfflineInsert = (tableName, rowPayload, label) => {
+  const queue = getOfflineQueue();
+  const op = {
+    opId: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    opType: 'INSERT',
+    tableName,
+    rowPayload,
+    nombre: label || 'Adicional',
     createdAt: new Date().toISOString()
   };
   queue.push(op);
@@ -259,16 +276,21 @@ export const flushOfflineQueue = async (supabase) => {
   for (let i = 0; i < queue.length; i += 1) {
     const op = queue[i];
     try {
-      await applyPatchToSupabase(
-        supabase,
-        {
-          dni: op.dni,
-          id: op.id,
-          _origenTabla: op.origenTabla,
-          fase: op.fase
-        },
-        op.patchData
-      );
+      if (op.opType === 'INSERT' && op.tableName && op.rowPayload) {
+        const { error } = await supabase.from(op.tableName).insert(op.rowPayload);
+        if (error) throw error;
+      } else {
+        await applyPatchToSupabase(
+          supabase,
+          {
+            dni: op.dni,
+            id: op.id,
+            _origenTabla: op.origenTabla,
+            fase: op.fase
+          },
+          op.patchData
+        );
+      }
       synced += 1;
       // Quitar inmediatamente el elemento sincronizado para evitar duplicar trabajo si se corta a mitad
       const idx = remainingOps.findIndex((item) => item.opId === op.opId);
@@ -286,3 +308,4 @@ export const flushOfflineQueue = async (supabase) => {
 
   return { synced, remaining: remainingOps.length, stoppedOffline: false, errors };
 };
+

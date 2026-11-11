@@ -39,7 +39,8 @@ import {
   Wifi,
   WifiOff,
   CloudUpload,
-  Download
+  Download,
+  Plus
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
@@ -53,6 +54,7 @@ import {
   getOfflineMandos,
   getOfflineQueue,
   enqueueOfflineOp,
+  enqueueOfflineInsert,
   flushOfflineQueue
 } from '../utils/offlineStore';
 import { decodeVolunteerQrPayload } from '../utils/qrCrypto';
@@ -227,7 +229,22 @@ export default function ValidadorDashboard() {
   const [downloadingOfflineRoster, setDownloadingOfflineRoster] = useState(false);
   const [syncBannerMsg, setSyncBannerMsg] = useState(null);
 
-  const ROSTER_SELECT_COLS = 'id, dni, codigo, nombres_apellidos, talla, servicio, responsable_nombre, lider_nombre, guia_nombre, cuadrilla_codigo, lugar_asignado, fotografia_url, kit_entregado, kit_polo_entregado, kit_items_entregados, kit_fecha_entrega, kit_entregado_por, kit_estado, kit_custodio_nombre, kit_fecha_despacho_lote, asistencia_dia_d, asistencia_fecha, asistencia_registrada_por, asistencia_punto, desayuno_entregado, desayuno_fecha, desayuno_entregado_por, desayuno_punto, desayuno_estado, desayuno_custodio_nombre, cena_entregada, cena_fecha, cena_entregada_por, cena_punto, cena_estado, cena_custodio_nombre, fase, estado';
+  // ========================================================
+  // ENTREGAS ADICIONALES CON MOTIVO (DUPLICADOS / CONTINGENCIA)
+  // ========================================================
+  const [adicionalesRecords, setAdicionalesRecords] = useState([]);
+  const [adicionalModalTarget, setAdicionalModalTarget] = useState(null); // { voluntario, articulo: 'KIT'|'DESAYUNO'|'CENA' }
+  const [adicionalMotivo, setAdicionalMotivo] = useState('');
+  const [adicionalDetalle, setAdicionalDetalle] = useState('');
+  const [savingAdicional, setSavingAdicional] = useState(false);
+  const [batchExtraOpen, setBatchExtraOpen] = useState(false);
+  const [batchExtraArticulo, setBatchExtraArticulo] = useState('KIT');
+  const [batchExtraQty, setBatchExtraQty] = useState(1);
+  const [batchExtraMotivo, setBatchExtraMotivo] = useState('');
+  const [batchExtraDetalle, setBatchExtraDetalle] = useState('');
+  const [savingBatchExtra, setSavingBatchExtra] = useState(false);
+
+  const ROSTER_SELECT_COLS = 'id, dni, codigo, nombres_apellidos, talla, servicio, responsable_nombre, lider_nombre, guia_nombre, cuadrilla_codigo, lugar_asignado, fotografia_url, kit_entregado, kit_polo_entregado, kit_items_entregados, kit_observaciones, kit_fecha_entrega, kit_entregado_por, kit_estado, kit_custodio_nombre, kit_fecha_despacho_lote, asistencia_dia_d, asistencia_fecha, asistencia_registrada_por, asistencia_punto, desayuno_entregado, desayuno_fecha, desayuno_entregado_por, desayuno_punto, desayuno_estado, desayuno_custodio_nombre, cena_entregada, cena_fecha, cena_entregada_por, cena_punto, cena_estado, cena_custodio_nombre, fase, estado';
 
   const normalizeMandoText = (s) => (s || '')
     .toString()
@@ -667,7 +684,7 @@ export default function ValidadorDashboard() {
       const result = await flushOfflineQueue(supabase);
       setPendingQueueCount(result.remaining);
       if (result.synced > 0) {
-        await Promise.all([fetchStats(), fetchVisorRecords()]);
+        await Promise.all([fetchStats(), fetchVisorRecords(), fetchAdicionales()]);
         setSyncBannerMsg({
           type: result.remaining === 0 ? 'success' : 'warning',
           text:
@@ -685,6 +702,202 @@ export default function ValidadorDashboard() {
     }
   };
 
+  const fetchAdicionales = async () => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+      const { data, error } = await supabase
+        .from('entregas_adicionales')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (!error && Array.isArray(data)) {
+        setAdicionalesRecords(data);
+      }
+    } catch (e) {
+      console.warn('Error cargando entregas adicionales:', e);
+    }
+  };
+
+  const insertAdditionalRecord = async (payload) => {
+    let savedOffline = false;
+    const optimisticRow = {
+      id: `local_${Date.now()}`,
+      created_at: new Date().toISOString(),
+      ...payload
+    };
+
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      const { queueLength } = enqueueOfflineInsert(
+        'entregas_adicionales',
+        payload,
+        `Adicional ${payload.articulo}: ${payload.voluntario_nombre || payload.responsable_nombre}`
+      );
+      setPendingQueueCount(queueLength);
+      savedOffline = true;
+    } else {
+      try {
+        const { data, error } = await supabase
+          .from('entregas_adicionales')
+          .insert(payload)
+          .select()
+          .single();
+        if (error) throw error;
+        if (data) {
+          setAdicionalesRecords(prev => [data, ...prev]);
+          return { queuedOffline: false, record: data };
+        }
+      } catch (err) {
+        if (!isNetworkError(err)) throw err;
+        const { queueLength } = enqueueOfflineInsert(
+          'entregas_adicionales',
+          payload,
+          `Adicional ${payload.articulo}: ${payload.voluntario_nombre || payload.responsable_nombre}`
+        );
+        setPendingQueueCount(queueLength);
+        setIsOnline(false);
+        savedOffline = true;
+      }
+    }
+
+    setAdicionalesRecords(prev => [optimisticRow, ...prev]);
+    return { queuedOffline: savedOffline, record: optimisticRow };
+  };
+
+  const openAdicionalModal = (voluntario, articulo) => {
+    setAdicionalModalTarget({ voluntario, articulo });
+    setAdicionalMotivo('');
+    setAdicionalDetalle(
+      articulo === 'KIT'
+        ? `Kit + Polo (Talla ${voluntario.talla || 'Estándar'})`
+        : puntoAlimentos
+    );
+  };
+
+  const handleConfirmAdditionalVolunteer = async () => {
+    if (!adicionalModalTarget) return;
+    const reason = adicionalMotivo.trim();
+    if (!reason) {
+      alert('Por favor indica el motivo por el cual se entrega este adicional.');
+      return;
+    }
+
+    const { voluntario, articulo } = adicionalModalTarget;
+    setSavingAdicional(true);
+    try {
+      const regName = user?.nombre || 'Validador Oficial';
+      const detailStr = adicionalDetalle.trim() || null;
+
+      const { queuedOffline } = await insertAdditionalRecord({
+        tipo_registro: 'VOLUNTARIO_INDIVIDUAL',
+        articulo,
+        cantidad: 1,
+        responsable_nombre: voluntario.responsable_nombre || user?.responsable_nombre || user?.nombre || null,
+        voluntario_dni: voluntario.dni ? String(voluntario.dni).trim() : null,
+        voluntario_nombre: voluntario.nombres_apellidos || 'Voluntario',
+        motivo: reason,
+        detalle: detailStr,
+        registrado_por: regName
+      });
+
+      if (articulo === 'KIT') {
+        const prevObs = (voluntario.kit_observaciones || '').trim();
+        const tag = `[ADICIONAL (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}): ${reason} • Por: ${regName}]`;
+        const nextObs = prevObs ? `${prevObs} | ${tag}` : tag;
+        await syncVolunteerPatch(voluntario, { kit_observaciones: nextObs });
+        setVisorRecords(prev =>
+          prev.map(item =>
+            ((voluntario.dni && item.dni === voluntario.dni) || item.id === voluntario.id)
+              ? { ...item, kit_observaciones: nextObs }
+              : item
+          )
+        );
+        if (scannedVoluntario && ((voluntario.dni && scannedVoluntario.dni === voluntario.dni) || scannedVoluntario.id === voluntario.id)) {
+          setScannedVoluntario(prev => ({ ...prev, kit_observaciones: nextObs }));
+        }
+      }
+
+      playSound('success');
+      setActionSuccessMsg(
+        `¡Adicional (${articulo}) registrado para ${voluntario.nombres_apellidos}! Motivo: "${reason}"${queuedOffline ? ' (📡 Guardado offline, pendiente por subir)' : ''}`
+      );
+      setSessionHistory(prev => [
+        {
+          id: Date.now(),
+          nombre: voluntario.nombres_apellidos,
+          dni: voluntario.dni,
+          tipo: `${articulo} (ADICIONAL)`,
+          detalle: reason,
+          hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        },
+        ...prev.slice(0, 9)
+      ]);
+      setAdicionalModalTarget(null);
+    } catch (err) {
+      console.error('Error registrando entrega adicional:', err);
+      alert('No se pudo registrar la entrega adicional. Intenta nuevamente.');
+    } finally {
+      setSavingAdicional(false);
+    }
+  };
+
+  const handleConfirmBatchExtra = async () => {
+    if (!selectedLeader) return;
+    const qty = parseInt(batchExtraQty, 10) || 0;
+    const reason = batchExtraMotivo.trim();
+    if (qty < 1) {
+      alert('La cantidad adicional debe ser al menos 1.');
+      return;
+    }
+    if (!reason) {
+      alert('Debes ingresar el motivo del despacho adicional.');
+      return;
+    }
+
+    setSavingBatchExtra(true);
+    try {
+      const { record } = await insertAdditionalRecord({
+        tipo_registro: 'LOTE_RESPONSABLE',
+        articulo: batchExtraArticulo,
+        cantidad: qty,
+        responsable_nombre: selectedLeader,
+        voluntario_dni: null,
+        voluntario_nombre: null,
+        motivo: reason,
+        detalle: batchExtraDetalle.trim() || null,
+        registrado_por: user?.nombre || 'Almacén Central'
+      });
+
+      playSound('success');
+      setSyncBannerMsg({
+        type: 'success',
+        text: `✅ Despacho adicional registrado: +${qty} ${batchExtraArticulo} para ${selectedLeader} (Motivo: "${reason}").`
+      });
+      setBatchExtraQty(1);
+      setBatchExtraMotivo('');
+      setBatchExtraDetalle('');
+      setBatchExtraOpen(false);
+      if (record) {
+        await fetchAdicionales();
+      }
+    } catch (err) {
+      console.error('Error registrando despacho adicional al responsable:', err);
+      alert('No se pudo registrar el despacho adicional.');
+    } finally {
+      setSavingBatchExtra(false);
+    }
+  };
+
+  const getVoluntarioAdicionales = (vol, articuloFilter = null) => {
+    const dni = vol?.dni ? String(vol.dni).trim() : null;
+    if (!dni) return [];
+    return adicionalesRecords.filter(
+      r =>
+        r.tipo_registro === 'VOLUNTARIO_INDIVIDUAL' &&
+        String(r.voluntario_dni || '').trim() === dni &&
+        (!articuloFilter || r.articulo === articuloFilter)
+    );
+  };
+
   useEffect(() => {
     (async () => {
       const bundle = await getOfflineRosterBundle();
@@ -694,7 +907,8 @@ export default function ValidadorDashboard() {
       const mandosRows = await fetchMandosAndLideres();
       await Promise.all([
         fetchStats(mandosRows),
-        fetchVisorRecords(undefined, mandosRows)
+        fetchVisorRecords(undefined, mandosRows),
+        fetchAdicionales()
       ]);
       if (typeof navigator !== 'undefined' && navigator.onLine && getOfflineQueue().length > 0) {
         handleSyncOfflineQueue({ silent: true });
@@ -2678,6 +2892,157 @@ export default function ValidadorDashboard() {
                     </button>
                   </div>
 
+                  {/* ==================================================== */}
+                  {/* DESPACHO ADICIONAL CON MOTIVO (DUPLICADOS/CONTING.)  */}
+                  {/* ==================================================== */}
+                  <div className="p-4 sm:p-5 bg-amber-50/70 rounded-2xl border-2 border-amber-300 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <h4 className="text-sm font-bold text-amber-950 flex items-center gap-1.5">
+                          <Plus className="w-4 h-4 text-amber-700" />
+                          Despacho Adicional con Motivo (Duplicados o Contingencia)
+                        </h4>
+                        <p className="text-xs text-amber-900/90">
+                          ¿El sistema ya marca voluntarios como despachados en otra lista o necesitas entregar refuerzo adicional a <strong>{selectedLeader}</strong>? Registra un lote extra justificado.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setBatchExtraOpen(prev => !prev)}
+                        className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 self-start sm:self-auto shrink-0 cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>{batchExtraOpen ? 'Cerrar Formulario' : 'Dar Adicional al Responsable'}</span>
+                      </button>
+                    </div>
+
+                    {batchExtraOpen && (
+                      <div className="p-4 bg-white rounded-xl border border-amber-200 space-y-3 animate-in fade-in duration-150">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-bold text-stone-700 block">Artículo adicional:</label>
+                            <select
+                              value={batchExtraArticulo}
+                              onChange={(e) => setBatchExtraArticulo(e.target.value)}
+                              className="w-full px-3 py-2 bg-stone-50 border border-stone-300 rounded-xl text-xs font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            >
+                              <option value="KIT">🎁 Kits & Polos</option>
+                              <option value="DESAYUNO">☕ Desayunos</option>
+                              <option value="CENA">🍽️ Cenas</option>
+                            </select>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-bold text-stone-700 block">Cantidad extra:</label>
+                            <input
+                              type="number"
+                              min={1}
+                              max={500}
+                              value={batchExtraQty}
+                              onChange={(e) => setBatchExtraQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                              className="w-full px-3 py-2 bg-stone-50 border border-stone-300 rounded-xl text-sm font-black font-mono text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-bold text-stone-700 block">Detalle / Tallas (opcional):</label>
+                            <input
+                              type="text"
+                              value={batchExtraDetalle}
+                              onChange={(e) => setBatchExtraDetalle(e.target.value)}
+                              placeholder="Ej: 3 talla M, 2 talla L..."
+                              className="w-full px-3 py-2 bg-stone-50 border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-bold text-stone-700 block">
+                            Motivo obligatorio del adicional:
+                          </label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {[
+                              'Voluntarios duplicados en otra lista / ya figuraban entregados',
+                              'Reasignación de cuadrilla de último minuto',
+                              'Contingencia / nuevos ingresos en campo',
+                              'Reposición por extravío o deterioro'
+                            ].map(preset => (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() => setBatchExtraMotivo(preset)}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition cursor-pointer ${
+                                  batchExtraMotivo === preset
+                                    ? 'bg-amber-600 text-white border-amber-700'
+                                    : 'bg-amber-50 hover:bg-amber-100 text-amber-950 border-amber-200'
+                                }`}
+                              >
+                                {preset}
+                              </button>
+                            ))}
+                          </div>
+                          <textarea
+                            rows={2}
+                            value={batchExtraMotivo}
+                            onChange={(e) => setBatchExtraMotivo(e.target.value)}
+                            placeholder="Describe el motivo por el cual se autoriza este despacho adicional..."
+                            className="w-full p-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={savingBatchExtra || !batchExtraMotivo.trim()}
+                          onClick={handleConfirmBatchExtra}
+                          className="w-full sm:w-auto px-5 py-2.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>
+                            {savingBatchExtra
+                              ? 'Registrando adicional...'
+                              : `Confirmar Despacho Adicional (+${batchExtraQty} ${batchExtraArticulo})`}
+                          </span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Historial de adicionales entregados a este responsable */}
+                    {(() => {
+                      const leaderExtras = adicionalesRecords.filter(
+                        r => r.tipo_registro === 'LOTE_RESPONSABLE' && r.responsable_nombre === selectedLeader
+                      );
+                      if (leaderExtras.length === 0) return null;
+                      return (
+                        <div className="pt-2 border-t border-amber-200 space-y-1.5">
+                          <span className="text-[11px] font-bold text-amber-950 block">
+                            📋 Adicionales ya registrados para {selectedLeader} ({leaderExtras.length}):
+                          </span>
+                          <div className="space-y-1 max-h-40 overflow-y-auto">
+                            {leaderExtras.map(ex => (
+                              <div
+                                key={ex.id}
+                                className="p-2 bg-white rounded-lg border border-amber-200 text-[11px] flex flex-col sm:flex-row sm:items-center justify-between gap-1"
+                              >
+                                <div>
+                                  <span className="font-black text-amber-950">
+                                    +{ex.cantidad} {ex.articulo}
+                                  </span>
+                                  {ex.detalle && <span className="text-stone-500"> ({ex.detalle})</span>}
+                                  <span className="text-stone-700 block sm:inline sm:ml-2">
+                                    Motivo: <strong>{ex.motivo}</strong>
+                                  </span>
+                                </div>
+                                <span className="text-[10px] text-stone-500 font-mono shrink-0">
+                                  {ex.registrado_por} • {new Date(ex.created_at).toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
                   {/* Comprobante de Despacho Digital si se completó */}
                   {loteReceipt && (
                     <div className="p-6 bg-white rounded-3xl border-2 border-emerald-400 shadow-xl space-y-4 animate-in zoom-in-95 duration-200">
@@ -3429,17 +3794,42 @@ export default function ValidadorDashboard() {
                                 </div>
                               )
                             ) : (
-                              (user?.rol === 'admin' || sessionUndoSnapshots[actionKey]) && (
-                                <button
-                                  type="button"
-                                  disabled={savingAction || markingActionKey === actionKey}
-                                  onClick={() => handleQuickUndo(item, card.tipo)}
-                                  className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50 mt-1"
-                                >
-                                  <RotateCcw className="w-2.5 h-2.5" />
-                                  <span>{sessionUndoSnapshots[actionKey] ? 'Deshacer' : 'Anular'}</span>
-                                </button>
-                              )
+                              <div className="flex flex-col gap-1 mt-1">
+                                {(() => {
+                                  const cardExtras = getVoluntarioAdicionales(item, card.tipo);
+                                  if (cardExtras.length === 0) return null;
+                                  return (
+                                    <span
+                                      className="px-1.5 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-950 border border-amber-300 rounded self-start"
+                                      title={cardExtras.map(e => `${e.motivo} (${e.registrado_por})`).join(' | ')}
+                                    >
+                                      +{cardExtras.length} Adicional{cardExtras.length > 1 ? 'es' : ''}
+                                    </span>
+                                  );
+                                })()}
+                                <div className="flex flex-wrap items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => openAdicionalModal(item, card.tipo)}
+                                    className="px-2 py-0.5 text-[10px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 rounded flex items-center gap-0.5 transition cursor-pointer shadow-2xs"
+                                    title="Entregar 1 adicional justificando el motivo (ej. duplicado en dos listas)"
+                                  >
+                                    <Plus className="w-2.5 h-2.5" />
+                                    <span>Adicional</span>
+                                  </button>
+                                  {(user?.rol === 'admin' || sessionUndoSnapshots[actionKey]) && (
+                                    <button
+                                      type="button"
+                                      disabled={savingAction || markingActionKey === actionKey}
+                                      onClick={() => handleQuickUndo(item, card.tipo)}
+                                      className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 transition cursor-pointer shadow-2xs disabled:opacity-50"
+                                    >
+                                      <RotateCcw className="w-2.5 h-2.5" />
+                                      <span>{sessionUndoSnapshots[actionKey] ? 'Deshacer' : 'Anular'}</span>
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
                             )}
                           </div>
                         );
@@ -4437,6 +4827,41 @@ export default function ValidadorDashboard() {
                 </div>
               )}
 
+              {/* ENTREGA ADICIONAL CON MOTIVO CUANDO YA FIGURA ENTREGADO (DUPLICADOS / REASIGNACIÓN) */}
+              {(() => {
+                const extraTabSpec = {
+                  kits: { flag: 'kit_entregado', tipo: 'KIT', label: 'Kit', emoji: '🎁' },
+                  desayuno: { flag: 'desayuno_entregado', tipo: 'DESAYUNO', label: 'Desayuno', emoji: '☕' },
+                  cena: { flag: 'cena_entregada', tipo: 'CENA', label: 'Cena', emoji: '🍽️' }
+                }[activeTab];
+                if (!extraTabSpec || !scannedVoluntario[extraTabSpec.flag]) return null;
+                const existingExtras = getVoluntarioAdicionales(scannedVoluntario, extraTabSpec.tipo);
+                return (
+                  <div className="space-y-2 pt-2 border-t border-stone-200">
+                    {existingExtras.length > 0 && (
+                      <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-xl text-[11px] text-amber-950 space-y-1">
+                        <span className="font-bold block">
+                          {extraTabSpec.emoji} Adicionales ya entregados ({existingExtras.length}):
+                        </span>
+                        {existingExtras.map(ex => (
+                          <div key={ex.id} className="text-[10px] text-amber-900">
+                            • Motivo: <strong>{ex.motivo}</strong> ({ex.registrado_por})
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => openAdicionalModal(scannedVoluntario, extraTabSpec.tipo)}
+                      className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-2xl font-bold text-xs shadow-sm transition flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Entregar {extraTabSpec.label} Adicional (con Motivo)</span>
+                    </button>
+                  </div>
+                );
+              })()}
+
             </div>
 
             {/* Footer del Modal */}
@@ -4461,6 +4886,112 @@ export default function ValidadorDashboard() {
             </>
           )}
 
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Entrega Adicional Individual con Motivo */}
+      {adicionalModalTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-amber-300 overflow-hidden">
+            <div className="bg-amber-600 text-white p-4 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-widest bg-black/20 px-2.5 py-0.5 rounded-full inline-block">
+                  Autorización de Adicional
+                </span>
+                <h3 className="text-base font-black font-title mt-0.5">
+                  ➕ Entregar {adicionalModalTarget.articulo === 'KIT' ? 'Kit' : adicionalModalTarget.articulo === 'DESAYUNO' ? 'Desayuno' : 'Cena'} Adicional
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAdicionalModalTarget(null)}
+                className="p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition cursor-pointer"
+                title="Cerrar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200 text-xs space-y-0.5">
+                <span className="font-black text-stone-900 text-sm block">
+                  {adicionalModalTarget.voluntario.nombres_apellidos}
+                </span>
+                <span className="text-stone-600 font-mono block">
+                  DNI: <strong>{adicionalModalTarget.voluntario.dni}</strong> • Talla: <strong>{adicionalModalTarget.voluntario.talla || 'Estándar'}</strong>
+                </span>
+                <span className="text-stone-500 block">
+                  Responsable: <strong>{adicionalModalTarget.voluntario.responsable_nombre || 'Sin asignar'}</strong>
+                </span>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-stone-800 block">
+                  Motivo obligatorio (¿por qué se entrega 1 adicional?):
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    'Aparece en dos listas / ya marcado bajo otro líder',
+                    'Reasignado de otra cuadrilla sin kit físico',
+                    'No recibió físicamente pese a figurar entregado',
+                    'Reposición por daño, extravío o cambio de talla'
+                  ].map(preset => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setAdicionalMotivo(preset)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition cursor-pointer ${
+                        adicionalMotivo === preset
+                          ? 'bg-amber-600 text-white border-amber-700'
+                          : 'bg-amber-50 hover:bg-amber-100 text-amber-950 border-amber-200'
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  rows={3}
+                  value={adicionalMotivo}
+                  onChange={(e) => setAdicionalMotivo(e.target.value)}
+                  placeholder="Escribe aquí el motivo específico del adicional..."
+                  className="w-full p-3 bg-stone-50 border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-stone-700 block">
+                  Detalle de entrega (opcional):
+                </label>
+                <input
+                  type="text"
+                  value={adicionalDetalle}
+                  onChange={(e) => setAdicionalDetalle(e.target.value)}
+                  placeholder="Ej: Kit + Polo talla M, Sede Santuario..."
+                  className="w-full px-3 py-2 bg-stone-50 border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-200">
+                <button
+                  type="button"
+                  onClick={() => setAdicionalModalTarget(null)}
+                  className="px-4 py-2 text-xs font-bold text-stone-600 hover:text-stone-900 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={savingAdicional || !adicionalMotivo.trim()}
+                  onClick={handleConfirmAdditionalVolunteer}
+                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>{savingAdicional ? 'Guardando...' : 'Confirmar Adicional'}</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
