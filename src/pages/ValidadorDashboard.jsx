@@ -192,6 +192,8 @@ export default function ValidadorDashboard() {
   const [confirmingLote, setConfirmingLote] = useState(false);
 
   const html5QrCodeRef = useRef(null);
+  const claimedDonorKeysRef = useRef(new Set());
+  const isFieldRole = user?.rol === 'responsable' || user?.rol === 'lider' || user?.rol === 'guia';
 
   // Determinar condición de filtro por rol y jurisdicción
   const getUserScopeOrCondition = () => {
@@ -581,6 +583,101 @@ export default function ValidadorDashboard() {
   };
 
   // ========================================================
+  // HELPERS DE SINCRONIZACIÓN Y BOLSA DE CUSTODIA ANTI-FUGAS
+  // ========================================================
+  const syncVolunteerPatch = async (voluntario, patchData) => {
+    if (voluntario.dni) {
+      const results = await Promise.all([
+        supabase.from('voluntarios').update(patchData).eq('dni', voluntario.dni),
+        supabase.from('voluntarios_general').update(patchData).eq('dni', voluntario.dni)
+      ]);
+      const err = results.find(r => r.error)?.error;
+      if (err) throw err;
+    } else {
+      const tbl = voluntario._origenTabla || (voluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
+      const { error } = await supabase.from(tbl).update(patchData).eq('id', voluntario.id);
+      if (error) throw error;
+    }
+  };
+
+  const CUSTODY_META = {
+    KIT: {
+      deliveredKey: 'kit_entregado',
+      estadoKey: 'kit_estado',
+      custodioKey: 'kit_custodio_nombre',
+      snapshotDonor: (d) => ({
+        kit_estado: d.kit_estado || 'EN_CUSTODIA_RESPONSABLE',
+        kit_custodio_nombre: d.kit_custodio_nombre || null,
+        kit_fecha_despacho_lote: d.kit_fecha_despacho_lote || null,
+        kit_entregado_por: d.kit_entregado_por || null
+      }),
+      releaseDonorPatch: {
+        kit_estado: 'PENDIENTE',
+        kit_custodio_nombre: null,
+        kit_custodio_dni: null,
+        kit_fecha_despacho_lote: null,
+        kit_entregado_por: null
+      }
+    },
+    DESAYUNO: {
+      deliveredKey: 'desayuno_entregado',
+      estadoKey: 'desayuno_estado',
+      custodioKey: 'desayuno_custodio_nombre',
+      snapshotDonor: (d) => ({
+        desayuno_estado: d.desayuno_estado || 'EN_CUSTODIA_RESPONSABLE',
+        desayuno_custodio_nombre: d.desayuno_custodio_nombre || null,
+        desayuno_fecha: d.desayuno_fecha || null,
+        desayuno_entregado_por: d.desayuno_entregado_por || null,
+        desayuno_punto: d.desayuno_punto || null
+      }),
+      releaseDonorPatch: {
+        desayuno_estado: 'PENDIENTE',
+        desayuno_custodio_nombre: null,
+        desayuno_fecha: null,
+        desayuno_entregado_por: null,
+        desayuno_punto: null
+      }
+    },
+    CENA: {
+      deliveredKey: 'cena_entregada',
+      estadoKey: 'cena_estado',
+      custodioKey: 'cena_custodio_nombre',
+      snapshotDonor: (d) => ({
+        cena_estado: d.cena_estado || 'EN_CUSTODIA_RESPONSABLE',
+        cena_custodio_nombre: d.cena_custodio_nombre || null,
+        cena_fecha: d.cena_fecha || null,
+        cena_entregada_por: d.cena_entregada_por || null,
+        cena_punto: d.cena_punto || null
+      }),
+      releaseDonorPatch: {
+        cena_estado: 'PENDIENTE',
+        cena_custodio_nombre: null,
+        cena_fecha: null,
+        cena_entregada_por: null,
+        cena_punto: null
+      }
+    }
+  };
+
+  const findCustodyDonor = (tipo, excludeIdKey) => {
+    const meta = CUSTODY_META[tipo];
+    if (!meta) return null;
+    return visorRecords.find(r => {
+      const rKey = r.dni || r.id;
+      return (
+        rKey !== excludeIdKey &&
+        !r[meta.deliveredKey] &&
+        r[meta.estadoKey] === 'EN_CUSTODIA_RESPONSABLE' &&
+        !claimedDonorKeysRef.current.has(`${rKey}_${tipo}`)
+      );
+    }) || null;
+  };
+
+  const custodiaKitsCount = visorRecords.filter(v => !v.kit_entregado && v.kit_estado === 'EN_CUSTODIA_RESPONSABLE').length;
+  const custodiaDesayunosCount = visorRecords.filter(v => !v.desayuno_entregado && v.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE').length;
+  const custodiaCenasCount = visorRecords.filter(v => !v.cena_entregada && v.cena_estado === 'EN_CUSTODIA_RESPONSABLE').length;
+
+  // ========================================================
   // ACCIONES INDIVIDUALES (1 A 1)
   // ========================================================
 
@@ -637,6 +734,48 @@ export default function ValidadorDashboard() {
     }
   };
 
+  const executeQrDeliveryWithCustody = async (tipo, targetVol, updateData) => {
+    const meta = CUSTODY_META[tipo];
+    const tKey = targetVol.dni || targetVol.id;
+    let donor = null;
+    let donorClaimKey = null;
+
+    if (isFieldRole && targetVol[meta.estadoKey] !== 'EN_CUSTODIA_RESPONSABLE') {
+      donor = findCustodyDonor(tipo, tKey);
+      if (!donor) {
+        return { blocked: true };
+      }
+      donorClaimKey = `${donor.dni || donor.id}_${tipo}`;
+      claimedDonorKeysRef.current.add(donorClaimKey);
+      updateData[meta.custodioKey] = donor[meta.custodioKey] || user?.nombre || 'Responsable';
+    }
+
+    try {
+      const ops = [syncVolunteerPatch(targetVol, updateData)];
+      if (donor) {
+        ops.push(syncVolunteerPatch(donor, meta.releaseDonorPatch));
+      }
+      await Promise.all(ops);
+
+      // Refrescar estado local del visor de inmediato
+      setVisorRecords(prev => prev.map(item => {
+        if ((targetVol.dni && item.dni === targetVol.dni) || item.id === targetVol.id) {
+          return { ...item, ...updateData };
+        }
+        if (donor && ((donor.dni && item.dni === donor.dni) || item.id === donor.id)) {
+          return { ...item, ...meta.releaseDonorPatch };
+        }
+        return item;
+      }));
+
+      return { blocked: false };
+    } finally {
+      if (donorClaimKey) {
+        claimedDonorKeysRef.current.delete(donorClaimKey);
+      }
+    }
+  };
+
   // 2. Registrar Entrega de Kits & Polos
   const handleConfirmKitDelivery = async () => {
     if (!scannedVoluntario) return;
@@ -659,15 +798,11 @@ export default function ValidadorDashboard() {
         kit_estado: 'ENTREGADO_FINAL'
       };
 
-      if (scannedVoluntario.dni) {
-        await Promise.all([
-          supabase.from('voluntarios').update(updateData).eq('dni', scannedVoluntario.dni),
-          supabase.from('voluntarios_general').update(updateData).eq('dni', scannedVoluntario.dni)
-        ]);
-      } else {
-        const tableName = scannedVoluntario._origenTabla || (scannedVoluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
-        const { error } = await supabase.from(tableName).update(updateData).eq('id', scannedVoluntario.id);
-        if (error) throw error;
+      const { blocked } = await executeQrDeliveryWithCustody('KIT', scannedVoluntario, updateData);
+      if (blocked) {
+        playSound('warning');
+        setActionError('🔒 Candado Anti-Fugas: No tienes Kits disponibles en tu custodia. Solicita primero un despacho en bloque en Almacén Central.');
+        return;
       }
 
       playSound('success');
@@ -713,15 +848,11 @@ export default function ValidadorDashboard() {
         desayuno_punto: puntoAlimentos
       };
 
-      if (scannedVoluntario.dni) {
-        await Promise.all([
-          supabase.from('voluntarios').update(updateData).eq('dni', scannedVoluntario.dni),
-          supabase.from('voluntarios_general').update(updateData).eq('dni', scannedVoluntario.dni)
-        ]);
-      } else {
-        const tableName = scannedVoluntario._origenTabla || (scannedVoluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
-        const { error } = await supabase.from(tableName).update(updateData).eq('id', scannedVoluntario.id);
-        if (error) throw error;
+      const { blocked } = await executeQrDeliveryWithCustody('DESAYUNO', scannedVoluntario, updateData);
+      if (blocked) {
+        playSound('warning');
+        setActionError('🔒 Candado Anti-Fugas: No tienes Desayunos disponibles en tu custodia. Solicita primero un despacho en bloque en Almacén Central.');
+        return;
       }
 
       playSound('success');
@@ -767,15 +898,11 @@ export default function ValidadorDashboard() {
         cena_punto: puntoAlimentos
       };
 
-      if (scannedVoluntario.dni) {
-        await Promise.all([
-          supabase.from('voluntarios').update(updateData).eq('dni', scannedVoluntario.dni),
-          supabase.from('voluntarios_general').update(updateData).eq('dni', scannedVoluntario.dni)
-        ]);
-      } else {
-        const tableName = scannedVoluntario._origenTabla || (scannedVoluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
-        const { error } = await supabase.from(tableName).update(updateData).eq('id', scannedVoluntario.id);
-        if (error) throw error;
+      const { blocked } = await executeQrDeliveryWithCustody('CENA', scannedVoluntario, updateData);
+      if (blocked) {
+        playSound('warning');
+        setActionError('🔒 Candado Anti-Fugas: No tienes Cenas disponibles en tu custodia. Solicita primero un despacho en bloque en Almacén Central.');
+        return;
       }
 
       playSound('success');
@@ -1020,24 +1147,6 @@ export default function ValidadorDashboard() {
   };
 
   // ========================================================
-  // HELPER SINCRONIZACIÓN DUAL DE TABLAS (POR DNI O ID)
-  // ========================================================
-  const syncVolunteerPatch = async (voluntario, patchData) => {
-    if (voluntario.dni) {
-      const results = await Promise.all([
-        supabase.from('voluntarios').update(patchData).eq('dni', voluntario.dni),
-        supabase.from('voluntarios_general').update(patchData).eq('dni', voluntario.dni)
-      ]);
-      const err = results.find(r => r.error)?.error;
-      if (err) throw err;
-    } else {
-      const tbl = voluntario._origenTabla || (voluntario.fase === '3' ? 'voluntarios' : 'voluntarios_general');
-      const { error } = await supabase.from(tbl).update(patchData).eq('id', voluntario.id);
-      if (error) throw error;
-    }
-  };
-
-  // ========================================================
   // ACCIONES RÁPIDAS A 1 CLIC EN EL VISOR (ASISTENCIA, KIT, DESAYUNO, CENA)
   // ========================================================
   const getQuickActionSpec = (tipo, voluntario) => {
@@ -1067,7 +1176,8 @@ export default function ValidadorDashboard() {
           kit_items_entregados: voluntario.kit_items_entregados || null,
           kit_fecha_entrega: voluntario.kit_fecha_entrega || null,
           kit_entregado_por: voluntario.kit_entregado_por || null,
-          kit_estado: voluntario.kit_estado || 'PENDIENTE'
+          kit_estado: voluntario.kit_estado || 'PENDIENTE',
+          kit_custodio_nombre: voluntario.kit_custodio_nombre || null
         },
         patch: {
           kit_entregado: true,
@@ -1085,7 +1195,8 @@ export default function ValidadorDashboard() {
           desayuno_estado: voluntario.desayuno_estado || 'PENDIENTE',
           desayuno_fecha: voluntario.desayuno_fecha || null,
           desayuno_entregado_por: voluntario.desayuno_entregado_por || null,
-          desayuno_punto: voluntario.desayuno_punto || null
+          desayuno_punto: voluntario.desayuno_punto || null,
+          desayuno_custodio_nombre: voluntario.desayuno_custodio_nombre || null
         },
         patch: {
           desayuno_entregado: true,
@@ -1102,7 +1213,8 @@ export default function ValidadorDashboard() {
           cena_estado: voluntario.cena_estado || 'PENDIENTE',
           cena_fecha: voluntario.cena_fecha || null,
           cena_entregada_por: voluntario.cena_entregada_por || null,
-          cena_punto: voluntario.cena_punto || null
+          cena_punto: voluntario.cena_punto || null,
+          cena_custodio_nombre: voluntario.cena_custodio_nombre || null
         },
         patch: {
           cena_entregada: true,
@@ -1123,26 +1235,66 @@ export default function ValidadorDashboard() {
     const spec = getQuickActionSpec(tipo, voluntario);
     if (!spec) return;
 
+    const meta = CUSTODY_META[tipo];
+    let donor = null;
+    let donorPrev = null;
+    let donorClaimKey = null;
+
+    // Candado Anti-Fugas para roles de campo (Responsables, Líderes, Guías)
+    if (isFieldRole && meta && voluntario[meta.estadoKey] !== 'EN_CUSTODIA_RESPONSABLE') {
+      donor = findCustodyDonor(tipo, idKey);
+      if (!donor) {
+        playSound('warning');
+        alert('🔒 Candado Anti-Fugas: Ya entregaste todo tu stock en custodia para este rubro. Debes solicitar un nuevo despacho en Almacén Central antes de entregar más.');
+        return;
+      }
+      donorClaimKey = `${donor.dni || donor.id}_${tipo}`;
+      claimedDonorKeysRef.current.add(donorClaimKey);
+      donorPrev = meta.snapshotDonor(donor);
+      spec.patch[meta.custodioKey] = donor[meta.custodioKey] || user?.nombre || 'Responsable';
+    }
+
     setMarkingActionKey(actionKey);
 
-    // Actualización optimista instantánea en UI
+    // Actualización optimista instantánea (incluyendo transferencia de custodia si aplica)
     setVisorRecords(prev => prev.map(item => {
-      const match = (voluntario.dni && item.dni === voluntario.dni) || (item.id === voluntario.id);
-      return match ? { ...item, ...spec.patch } : item;
+      if ((voluntario.dni && item.dni === voluntario.dni) || item.id === voluntario.id) {
+        return { ...item, ...spec.patch };
+      }
+      if (donor && ((donor.dni && item.dni === donor.dni) || item.id === donor.id)) {
+        return { ...item, ...meta.releaseDonorPatch };
+      }
+      return item;
     }));
     setStats(prev => ({ ...prev, [spec.statKey]: (prev[spec.statKey] || 0) + 1 }));
-    setSessionUndoSnapshots(prev => ({ ...prev, [actionKey]: spec.snapshot }));
+    setSessionUndoSnapshots(prev => ({
+      ...prev,
+      [actionKey]: {
+        targetPrev: spec.snapshot,
+        donorVol: donor,
+        donorPrev
+      }
+    }));
     playSound('success');
 
     try {
-      await syncVolunteerPatch(voluntario, spec.patch);
+      const ops = [syncVolunteerPatch(voluntario, spec.patch)];
+      if (donor) {
+        ops.push(syncVolunteerPatch(donor, meta.releaseDonorPatch));
+      }
+      await Promise.all(ops);
     } catch (err) {
       console.error(`Error marcando ${tipo} rápido:`, err);
       alert('Ocurrió un error al guardar el registro en el servidor. Intenta nuevamente.');
-      // Revertir optimismo
+      // Revertir optimismo completo
       setVisorRecords(prev => prev.map(item => {
-        const match = (voluntario.dni && item.dni === voluntario.dni) || (item.id === voluntario.id);
-        return match ? { ...item, ...spec.snapshot } : item;
+        if ((voluntario.dni && item.dni === voluntario.dni) || item.id === voluntario.id) {
+          return { ...item, ...spec.snapshot };
+        }
+        if (donor && ((donor.dni && item.dni === donor.dni) || item.id === donor.id)) {
+          return { ...item, ...donorPrev };
+        }
+        return item;
       }));
       setStats(prev => ({ ...prev, [spec.statKey]: Math.max(0, (prev[spec.statKey] || 1) - 1) }));
       setSessionUndoSnapshots(prev => {
@@ -1151,6 +1303,9 @@ export default function ValidadorDashboard() {
         return next;
       });
     } finally {
+      if (donorClaimKey) {
+        claimedDonorKeysRef.current.delete(donorClaimKey);
+      }
       setMarkingActionKey(null);
     }
   };
@@ -1159,10 +1314,10 @@ export default function ValidadorDashboard() {
     const idKey = voluntario.dni || voluntario.id;
     if (!idKey) return;
     const actionKey = `${idKey}_${tipo}`;
-    const snapshot = sessionUndoSnapshots[actionKey];
+    const undoEntry = sessionUndoSnapshots[actionKey];
 
     // Si no se marcó en esta sesión y es Admin, usar anulación oficial con confirmación
-    if (!snapshot) {
+    if (!undoEntry) {
       if (user?.rol !== 'admin') {
         alert('Solo los administradores o quien acaba de marcar el registro pueden anularlo.');
         return;
@@ -1174,13 +1329,19 @@ export default function ValidadorDashboard() {
       return;
     }
 
+    const { targetPrev, donorVol, donorPrev } = undoEntry;
     const spec = getQuickActionSpec(tipo, voluntario);
     setMarkingActionKey(actionKey);
 
-    // Restaurar exactamente el estado previo (incluyendo si estaba EN_CUSTODIA_RESPONSABLE)
+    // Restaurar exactamente el estado previo tanto del voluntario como del donante si hubo traspaso
     setVisorRecords(prev => prev.map(item => {
-      const match = (voluntario.dni && item.dni === voluntario.dni) || (item.id === voluntario.id);
-      return match ? { ...item, ...snapshot } : item;
+      if ((voluntario.dni && item.dni === voluntario.dni) || item.id === voluntario.id) {
+        return { ...item, ...targetPrev };
+      }
+      if (donorVol && ((donorVol.dni && item.dni === donorVol.dni) || item.id === donorVol.id)) {
+        return { ...item, ...donorPrev };
+      }
+      return item;
     }));
     setStats(prev => ({ ...prev, [spec.statKey]: Math.max(0, (prev[spec.statKey] || 1) - 1) }));
     setSessionUndoSnapshots(prev => {
@@ -1190,7 +1351,11 @@ export default function ValidadorDashboard() {
     });
 
     try {
-      await syncVolunteerPatch(voluntario, snapshot);
+      const ops = [syncVolunteerPatch(voluntario, targetPrev)];
+      if (donorVol && donorPrev) {
+        ops.push(syncVolunteerPatch(donorVol, donorPrev));
+      }
+      await Promise.all(ops);
     } catch (err) {
       console.error(`Error revirtiendo ${tipo}:`, err);
       alert('No se pudo deshacer el cambio en el servidor.');
@@ -2233,6 +2398,59 @@ export default function ValidadorDashboard() {
               </div>
             </div>
 
+            {/* Panel de Bolsa de Custodia Disponible (Exclusivo Roles de Campo: Responsables, Líderes, Guías) */}
+            {isFieldRole && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  {
+                    label: '🎁 Kits en Tu Custodia',
+                    avail: custodiaKitsCount,
+                    delivered: visorRecords.filter(v => v.kit_entregado).length,
+                    pending: visorRecords.filter(v => !v.kit_entregado && v.kit_estado !== 'EN_CUSTODIA_RESPONSABLE').length,
+                    activeClasses: 'bg-amber-50 border-amber-300 text-amber-950'
+                  },
+                  {
+                    label: '☕ Desayunos en Tu Custodia',
+                    avail: custodiaDesayunosCount,
+                    delivered: visorRecords.filter(v => v.desayuno_entregado).length,
+                    pending: visorRecords.filter(v => !v.desayuno_entregado && v.desayuno_estado !== 'EN_CUSTODIA_RESPONSABLE').length,
+                    activeClasses: 'bg-orange-50 border-orange-300 text-orange-950'
+                  },
+                  {
+                    label: '🍽️ Cenas en Tu Custodia',
+                    avail: custodiaCenasCount,
+                    delivered: visorRecords.filter(v => v.cena_entregada).length,
+                    pending: visorRecords.filter(v => !v.cena_entregada && v.cena_estado !== 'EN_CUSTODIA_RESPONSABLE').length,
+                    activeClasses: 'bg-emerald-50 border-emerald-300 text-emerald-950'
+                  }
+                ].map((box, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 shadow-2xs ${
+                      box.avail > 0 ? box.activeClasses : 'bg-stone-50 border-stone-200 text-stone-500'
+                    }`}
+                  >
+                    <div className="text-xs min-w-0">
+                      <span className="font-bold block truncate">{box.label}</span>
+                      <span className="text-[11px] block truncate opacity-90">
+                        {box.delivered} entregados • {box.pending} sin retirar
+                      </span>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className={`text-xl font-black font-mono px-2.5 py-0.5 rounded-xl bg-white border ${
+                        box.avail > 0 ? 'border-stone-300 text-stone-900' : 'border-stone-200 text-stone-400'
+                      }`}>
+                        {box.avail}
+                      </span>
+                      <span className="text-[9px] uppercase font-bold block text-center mt-0.5 opacity-75">
+                        Disp.
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Barra de Filtros y Búsqueda */}
             <div className="bg-white rounded-2xl p-4 border border-stone-200 shadow-2xs space-y-3">
               {/* Fila 1: Búsqueda amplia y Selectores de Punto / Sector */}
@@ -2535,233 +2753,156 @@ export default function ValidadorDashboard() {
                         )}
                       </div>
 
-                      {/* 2. Kit & Polo */}
-                      <div className={`p-2.5 rounded-xl border flex flex-col justify-between gap-1.5 transition-colors ${
-                        item.kit_entregado 
-                          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
-                          : item.kit_estado === 'EN_CUSTODIA_RESPONSABLE'
-                          ? 'bg-amber-50/80 border-amber-300 text-amber-950'
-                          : 'bg-stone-50 border-stone-200 text-stone-700'
-                      }`}>
-                        <div>
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="font-bold block truncate">
-                              {item.kit_entregado 
-                                ? '🎁 Kit Entregado' 
-                                : item.kit_estado === 'EN_CUSTODIA_RESPONSABLE'
-                                ? '📦 En Custodia Líder'
-                                : '⚪ Kit Pendiente'}
-                            </span>
-                            {markingActionKey === `${idKey}_KIT` && (
-                              <RefreshCw className="w-3 h-3 animate-spin text-emerald-600 shrink-0" />
-                            )}
-                          </div>
-                          {item.kit_entregado && (
-                            <span className="text-[10px] text-stone-600 block truncate">
-                              {item.kit_items_entregados || 'Kit Oficial'} • {item.kit_fecha_entrega ? new Date(item.kit_fecha_entrega).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                            </span>
-                          )}
-                          {!item.kit_entregado && item.kit_estado === 'EN_CUSTODIA_RESPONSABLE' && (
-                            <span className="text-[10px] text-amber-800 block truncate">
-                              Custodio: <strong>{item.kit_custodio_nombre}</strong>
-                            </span>
-                          )}
-                        </div>
+                      {/* 2, 3, 4: Kit, Desayuno, Cena (Con Candado Anti-Fugas y Custodia) */}
+                      {[
+                        {
+                          tipo: 'KIT',
+                          delivered: !!item.kit_entregado,
+                          estado: item.kit_estado,
+                          custodio: item.kit_custodio_nombre,
+                          custodyAvail: custodiaKitsCount,
+                          deliveredTitle: '🎁 Kit Entregado',
+                          custodyTitle: '📦 En Custodia Líder',
+                          pendingTitle: '⚪ Kit Pendiente',
+                          deliveredSub: `${item.kit_items_entregados || 'Kit Oficial'} • ${item.kit_fecha_entrega ? new Date(item.kit_fecha_entrega).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}`,
+                          btnLabel: 'Entregar Kit',
+                          deliveredClasses: 'bg-emerald-50/70 border-emerald-200 text-emerald-950',
+                          btnClasses: 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800',
+                          onResetCustody: () => handleResetKit(item)
+                        },
+                        {
+                          tipo: 'DESAYUNO',
+                          delivered: !!item.desayuno_entregado,
+                          estado: item.desayuno_estado,
+                          custodio: item.desayuno_custodio_nombre,
+                          custodyAvail: custodiaDesayunosCount,
+                          deliveredTitle: '☕ Desayuno Entregado',
+                          custodyTitle: '📦 Desayuno en Líder',
+                          pendingTitle: '⚪ Desayuno Pendiente',
+                          deliveredSub: `${item.desayuno_fecha ? new Date(item.desayuno_fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''} por ${item.desayuno_entregado_por || 'Validador'}`,
+                          btnLabel: 'Entregar Desayuno',
+                          deliveredClasses: 'bg-orange-50/80 border-orange-200 text-orange-950',
+                          btnClasses: 'bg-orange-600 hover:bg-orange-700 active:bg-orange-800',
+                          onResetCustody: () => handleResetDesayuno(item)
+                        },
+                        {
+                          tipo: 'CENA',
+                          delivered: !!item.cena_entregada,
+                          estado: item.cena_estado,
+                          custodio: item.cena_custodio_nombre,
+                          custodyAvail: custodiaCenasCount,
+                          deliveredTitle: '🍽️ Cena Entregada',
+                          custodyTitle: '📦 Cena en Líder',
+                          pendingTitle: '⚪ Cena Pendiente',
+                          deliveredSub: `${item.cena_fecha ? new Date(item.cena_fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''} por ${item.cena_entregada_por || 'Validador'}`,
+                          btnLabel: 'Entregar Cena',
+                          deliveredClasses: 'bg-emerald-50/80 border-emerald-200 text-emerald-950',
+                          btnClasses: 'bg-teal-600 hover:bg-teal-700 active:bg-teal-800',
+                          onResetCustody: () => handleResetCena(item)
+                        }
+                      ].map(card => {
+                        const inCustody = !card.delivered && card.estado === 'EN_CUSTODIA_RESPONSABLE';
+                        const isLockedOut = isFieldRole && !card.delivered && !inCustody && card.custodyAvail === 0;
+                        const isPoolSwap = isFieldRole && !card.delivered && !inCustody && card.custodyAvail > 0;
+                        const actionKey = `${idKey}_${card.tipo}`;
 
-                        {!item.kit_entregado ? (
-                          <div className="flex flex-col gap-1 mt-1">
-                            <button
-                              type="button"
-                              disabled={markingActionKey === `${idKey}_KIT`}
-                              onClick={() => handleQuickAction(item, 'KIT')}
-                              className={`w-full py-1.5 px-2.5 text-white rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 ${
-                                item.kit_estado === 'EN_CUSTODIA_RESPONSABLE'
-                                  ? 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800'
-                                  : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800'
-                              }`}
-                              title={item.kit_estado === 'EN_CUSTODIA_RESPONSABLE' ? 'Confirmar entrega final del kit al voluntario' : 'Entregar Kit & Polo en 1 clic'}
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              <span>{item.kit_estado === 'EN_CUSTODIA_RESPONSABLE' ? 'Entregar al Vol.' : 'Entregar Kit'}</span>
-                            </button>
-                            {user?.rol === 'admin' && item.kit_estado === 'EN_CUSTODIA_RESPONSABLE' && (
-                              <button
-                                type="button"
-                                disabled={savingAction}
-                                onClick={() => handleResetKit(item)}
-                                className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50"
-                              >
-                                <RotateCcw className="w-2.5 h-2.5" />
-                                <span>Anular Custodia</span>
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          (user?.rol === 'admin' || sessionUndoSnapshots[`${idKey}_KIT`]) && (
-                            <button
-                              type="button"
-                              disabled={savingAction || markingActionKey === `${idKey}_KIT`}
-                              onClick={() => handleQuickUndo(item, 'KIT')}
-                              className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50 mt-1"
-                            >
-                              <RotateCcw className="w-2.5 h-2.5" />
-                              <span>{sessionUndoSnapshots[`${idKey}_KIT`] ? 'Deshacer' : 'Anular'}</span>
-                            </button>
-                          )
-                        )}
-                      </div>
+                        return (
+                          <div
+                            key={card.tipo}
+                            className={`p-2.5 rounded-xl border flex flex-col justify-between gap-1.5 transition-colors ${
+                              card.delivered
+                                ? card.deliveredClasses
+                                : inCustody
+                                ? 'bg-amber-50/80 border-amber-300 text-amber-950'
+                                : 'bg-stone-50 border-stone-200 text-stone-700'
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="font-bold block truncate">
+                                  {card.delivered ? card.deliveredTitle : inCustody ? card.custodyTitle : card.pendingTitle}
+                                </span>
+                                {markingActionKey === actionKey && (
+                                  <RefreshCw className="w-3 h-3 animate-spin text-stone-600 shrink-0" />
+                                )}
+                              </div>
+                              {card.delivered && (
+                                <span className="text-[10px] text-stone-600 block truncate">
+                                  {card.deliveredSub}
+                                </span>
+                              )}
+                              {inCustody && (
+                                <span className="text-[10px] text-amber-800 block truncate">
+                                  Custodio: <strong>{card.custodio}</strong>
+                                </span>
+                              )}
+                            </div>
 
-                      {/* 3. Desayuno */}
-                      <div className={`p-2.5 rounded-xl border flex flex-col justify-between gap-1.5 transition-colors ${
-                        item.desayuno_entregado 
-                          ? 'bg-orange-50/80 border-orange-200 text-orange-950'
-                          : item.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE'
-                          ? 'bg-amber-50/80 border-amber-300 text-amber-950'
-                          : 'bg-stone-50 border-stone-200 text-stone-700'
-                      }`}>
-                        <div>
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="font-bold block truncate">
-                              {item.desayuno_entregado 
-                                ? '☕ Desayuno Entregado' 
-                                : item.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE'
-                                ? '📦 Desayuno en Líder'
-                                : '⚪ Desayuno Pendiente'}
-                            </span>
-                            {markingActionKey === `${idKey}_DESAYUNO` && (
-                              <RefreshCw className="w-3 h-3 animate-spin text-orange-600 shrink-0" />
+                            {!card.delivered ? (
+                              isLockedOut ? (
+                                <div
+                                  className="w-full mt-1 py-1.5 px-2 bg-stone-200/70 text-stone-500 border border-stone-300 rounded-lg text-[10px] font-bold text-center select-none"
+                                  title="Solicita un despacho en bloque en Almacén Central para tener stock disponible"
+                                >
+                                  🔒 Sin stock en custodia
+                                </div>
+                              ) : (
+                                <div className="flex flex-col gap-1 mt-1">
+                                  <button
+                                    type="button"
+                                    disabled={markingActionKey === actionKey}
+                                    onClick={() => handleQuickAction(item, card.tipo)}
+                                    className={`w-full py-1.5 px-2.5 text-white rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 ${
+                                      inCustody || isPoolSwap
+                                        ? 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800'
+                                        : card.btnClasses
+                                    }`}
+                                    title={
+                                      inCustody
+                                        ? 'Confirmar entrega final al voluntario'
+                                        : isPoolSwap
+                                        ? `Entregar usando 1 de los ${card.custodyAvail} disponibles en tu custodia`
+                                        : `${card.btnLabel} en 1 clic`
+                                    }
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span className="truncate">
+                                      {inCustody
+                                        ? 'Entregar al Vol.'
+                                        : isPoolSwap
+                                        ? `Usar de Lote (${card.custodyAvail})`
+                                        : card.btnLabel}
+                                    </span>
+                                  </button>
+                                  {user?.rol === 'admin' && inCustody && (
+                                    <button
+                                      type="button"
+                                      disabled={savingAction}
+                                      onClick={card.onResetCustody}
+                                      className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50"
+                                    >
+                                      <RotateCcw className="w-2.5 h-2.5" />
+                                      <span>Anular Custodia</span>
+                                    </button>
+                                  )}
+                                </div>
+                              )
+                            ) : (
+                              (user?.rol === 'admin' || sessionUndoSnapshots[actionKey]) && (
+                                <button
+                                  type="button"
+                                  disabled={savingAction || markingActionKey === actionKey}
+                                  onClick={() => handleQuickUndo(item, card.tipo)}
+                                  className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50 mt-1"
+                                >
+                                  <RotateCcw className="w-2.5 h-2.5" />
+                                  <span>{sessionUndoSnapshots[actionKey] ? 'Deshacer' : 'Anular'}</span>
+                                </button>
+                              )
                             )}
                           </div>
-                          {item.desayuno_entregado && (
-                            <span className="text-[10px] text-stone-600 block truncate">
-                              {item.desayuno_fecha ? new Date(item.desayuno_fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''} por {item.desayuno_entregado_por || 'Validador'}
-                            </span>
-                          )}
-                          {!item.desayuno_entregado && item.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE' && (
-                            <span className="text-[10px] text-amber-800 block truncate">
-                              Custodio: <strong>{item.desayuno_custodio_nombre}</strong>
-                            </span>
-                          )}
-                        </div>
-
-                        {!item.desayuno_entregado ? (
-                          <div className="flex flex-col gap-1 mt-1">
-                            <button
-                              type="button"
-                              disabled={markingActionKey === `${idKey}_DESAYUNO`}
-                              onClick={() => handleQuickAction(item, 'DESAYUNO')}
-                              className={`w-full py-1.5 px-2.5 text-white rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 ${
-                                item.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE'
-                                  ? 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800'
-                                  : 'bg-orange-600 hover:bg-orange-700 active:bg-orange-800'
-                              }`}
-                              title={item.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE' ? 'Confirmar entrega final de desayuno al voluntario' : 'Entregar Desayuno en 1 clic'}
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              <span>{item.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE' ? 'Entregar al Vol.' : 'Entregar Desayuno'}</span>
-                            </button>
-                            {user?.rol === 'admin' && item.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE' && (
-                              <button
-                                type="button"
-                                disabled={savingAction}
-                                onClick={() => handleResetDesayuno(item)}
-                                className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50"
-                              >
-                                <RotateCcw className="w-2.5 h-2.5" />
-                                <span>Anular Custodia</span>
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          (user?.rol === 'admin' || sessionUndoSnapshots[`${idKey}_DESAYUNO`]) && (
-                            <button
-                              type="button"
-                              disabled={savingAction || markingActionKey === `${idKey}_DESAYUNO`}
-                              onClick={() => handleQuickUndo(item, 'DESAYUNO')}
-                              className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50 mt-1"
-                            >
-                              <RotateCcw className="w-2.5 h-2.5" />
-                              <span>{sessionUndoSnapshots[`${idKey}_DESAYUNO`] ? 'Deshacer' : 'Anular'}</span>
-                            </button>
-                          )
-                        )}
-                      </div>
-
-                      {/* 4. Cena */}
-                      <div className={`p-2.5 rounded-xl border flex flex-col justify-between gap-1.5 transition-colors ${
-                        item.cena_entregada 
-                          ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
-                          : item.cena_estado === 'EN_CUSTODIA_RESPONSABLE'
-                          ? 'bg-amber-50/80 border-amber-300 text-amber-950'
-                          : 'bg-stone-50 border-stone-200 text-stone-700'
-                      }`}>
-                        <div>
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="font-bold block truncate">
-                              {item.cena_entregada 
-                                ? '🍽️ Cena Entregada' 
-                                : item.cena_estado === 'EN_CUSTODIA_RESPONSABLE'
-                                ? '📦 Cena en Líder'
-                                : '⚪ Cena Pendiente'}
-                            </span>
-                            {markingActionKey === `${idKey}_CENA` && (
-                              <RefreshCw className="w-3 h-3 animate-spin text-emerald-600 shrink-0" />
-                            )}
-                          </div>
-                          {item.cena_entregada && (
-                            <span className="text-[10px] text-stone-600 block truncate">
-                              {item.cena_fecha ? new Date(item.cena_fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''} por {item.cena_entregada_por || 'Validador'}
-                            </span>
-                          )}
-                          {!item.cena_entregada && item.cena_estado === 'EN_CUSTODIA_RESPONSABLE' && (
-                            <span className="text-[10px] text-amber-800 block truncate">
-                              Custodio: <strong>{item.cena_custodio_nombre}</strong>
-                            </span>
-                          )}
-                        </div>
-
-                        {!item.cena_entregada ? (
-                          <div className="flex flex-col gap-1 mt-1">
-                            <button
-                              type="button"
-                              disabled={markingActionKey === `${idKey}_CENA`}
-                              onClick={() => handleQuickAction(item, 'CENA')}
-                              className={`w-full py-1.5 px-2.5 text-white rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 ${
-                                item.cena_estado === 'EN_CUSTODIA_RESPONSABLE'
-                                  ? 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800'
-                                  : 'bg-teal-600 hover:bg-teal-700 active:bg-teal-800'
-                              }`}
-                              title={item.cena_estado === 'EN_CUSTODIA_RESPONSABLE' ? 'Confirmar entrega final de cena al voluntario' : 'Entregar Cena en 1 clic'}
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              <span>{item.cena_estado === 'EN_CUSTODIA_RESPONSABLE' ? 'Entregar al Vol.' : 'Entregar Cena'}</span>
-                            </button>
-                            {user?.rol === 'admin' && item.cena_estado === 'EN_CUSTODIA_RESPONSABLE' && (
-                              <button
-                                type="button"
-                                disabled={savingAction}
-                                onClick={() => handleResetCena(item)}
-                                className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50"
-                              >
-                                <RotateCcw className="w-2.5 h-2.5" />
-                                <span>Anular Custodia</span>
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          (user?.rol === 'admin' || sessionUndoSnapshots[`${idKey}_CENA`]) && (
-                            <button
-                              type="button"
-                              disabled={savingAction || markingActionKey === `${idKey}_CENA`}
-                              onClick={() => handleQuickUndo(item, 'CENA')}
-                              className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded flex items-center gap-1 self-start transition cursor-pointer shadow-2xs disabled:opacity-50 mt-1"
-                            >
-                              <RotateCcw className="w-2.5 h-2.5" />
-                              <span>{sessionUndoSnapshots[`${idKey}_CENA`] ? 'Deshacer' : 'Anular'}</span>
-                            </button>
-                          )
-                        )}
-                      </div>
+                        );
+                      })}
 
                     </div>
 
@@ -3578,9 +3719,26 @@ export default function ValidadorDashboard() {
                     </label>
                   </div>
 
+                  {isFieldRole && !scannedVoluntario.kit_entregado && scannedVoluntario.kit_estado !== 'EN_CUSTODIA_RESPONSABLE' && (
+                    <div className={`p-3 rounded-xl border text-xs ${
+                      custodiaKitsCount > 0
+                        ? 'bg-amber-50 border-amber-300 text-amber-950'
+                        : 'bg-rose-50 border-rose-300 text-rose-900'
+                    }`}>
+                      {custodiaKitsCount > 0
+                        ? `📦 Este voluntario está Pendiente, pero tienes ${custodiaKitsCount} Kit(s) en tu custodia. Al confirmar, se descontará 1 de tu lote.`
+                        : '🔒 Candado Anti-Fugas: No tienes Kits disponibles en tu custodia. Solicita un despacho en Almacén Central antes de entregar.'}
+                    </div>
+                  )}
+
                   <button
                     type="button"
-                    disabled={savingAction || (!entregaKitCompleto && !entregaPolo) || scannedVoluntario.kit_entregado}
+                    disabled={
+                      savingAction ||
+                      (!entregaKitCompleto && !entregaPolo) ||
+                      scannedVoluntario.kit_entregado ||
+                      (isFieldRole && scannedVoluntario.kit_estado !== 'EN_CUSTODIA_RESPONSABLE' && custodiaKitsCount === 0)
+                    }
                     onClick={handleConfirmKitDelivery}
                     className="w-full py-3 px-4 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white rounded-2xl font-bold text-sm shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                   >
@@ -3597,6 +3755,10 @@ export default function ValidadorDashboard() {
                             ? 'Kit Ya Entregado' 
                             : scannedVoluntario.kit_estado === 'EN_CUSTODIA_RESPONSABLE'
                             ? 'Confirmar Entrega Final al Voluntario (Sacar de Custodia)'
+                            : (isFieldRole && custodiaKitsCount === 0)
+                            ? '🔒 Sin Stock en Tu Custodia'
+                            : (isFieldRole && custodiaKitsCount > 0)
+                            ? `Entregar Usando 1 de Tu Lote (${custodiaKitsCount} disp.)`
                             : 'Confirmar Entrega de Kit'}
                         </span>
                       </>
@@ -3608,9 +3770,25 @@ export default function ValidadorDashboard() {
               {/* FORMULARIO DE ACCIÓN: MODO DESAYUNO */}
               {activeTab === 'desayuno' && (
                 <div className="space-y-3 pt-2 border-t border-stone-200">
+                  {isFieldRole && !scannedVoluntario.desayuno_entregado && scannedVoluntario.desayuno_estado !== 'EN_CUSTODIA_RESPONSABLE' && (
+                    <div className={`p-3 rounded-xl border text-xs ${
+                      custodiaDesayunosCount > 0
+                        ? 'bg-amber-50 border-amber-300 text-amber-950'
+                        : 'bg-rose-50 border-rose-300 text-rose-900'
+                    }`}>
+                      {custodiaDesayunosCount > 0
+                        ? `📦 Este voluntario está Pendiente, pero tienes ${custodiaDesayunosCount} Desayuno(s) en tu custodia. Al confirmar, se descontará 1 de tu lote.`
+                        : '🔒 Candado Anti-Fugas: No tienes Desayunos en tu custodia. Solicita un despacho en Almacén Central antes de entregar.'}
+                    </div>
+                  )}
+
                   <button
                     type="button"
-                    disabled={savingAction || scannedVoluntario.desayuno_entregado}
+                    disabled={
+                      savingAction ||
+                      scannedVoluntario.desayuno_entregado ||
+                      (isFieldRole && scannedVoluntario.desayuno_estado !== 'EN_CUSTODIA_RESPONSABLE' && custodiaDesayunosCount === 0)
+                    }
                     onClick={handleConfirmDesayuno}
                     className="w-full py-3 px-4 bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white rounded-2xl font-bold text-sm shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                   >
@@ -3627,6 +3805,10 @@ export default function ValidadorDashboard() {
                             ? 'Desayuno Ya Entregado' 
                             : scannedVoluntario.desayuno_estado === 'EN_CUSTODIA_RESPONSABLE'
                             ? 'Confirmar Entrega Final de Desayuno (Sacar de Custodia)'
+                            : (isFieldRole && custodiaDesayunosCount === 0)
+                            ? '🔒 Sin Stock en Tu Custodia'
+                            : (isFieldRole && custodiaDesayunosCount > 0)
+                            ? `Entregar Desayuno de Tu Lote (${custodiaDesayunosCount} disp.)`
                             : 'Confirmar Entrega de Desayuno'}
                         </span>
                       </>
@@ -3638,9 +3820,25 @@ export default function ValidadorDashboard() {
               {/* FORMULARIO DE ACCIÓN: MODO CENA */}
               {activeTab === 'cena' && (
                 <div className="space-y-3 pt-2 border-t border-stone-200">
+                  {isFieldRole && !scannedVoluntario.cena_entregada && scannedVoluntario.cena_estado !== 'EN_CUSTODIA_RESPONSABLE' && (
+                    <div className={`p-3 rounded-xl border text-xs ${
+                      custodiaCenasCount > 0
+                        ? 'bg-amber-50 border-amber-300 text-amber-950'
+                        : 'bg-rose-50 border-rose-300 text-rose-900'
+                    }`}>
+                      {custodiaCenasCount > 0
+                        ? `📦 Este voluntario está Pendiente, pero tienes ${custodiaCenasCount} Cena(s) en tu custodia. Al confirmar, se descontará 1 de tu lote.`
+                        : '🔒 Candado Anti-Fugas: No tienes Cenas en tu custodia. Solicita un despacho en Almacén Central antes de entregar.'}
+                    </div>
+                  )}
+
                   <button
                     type="button"
-                    disabled={savingAction || scannedVoluntario.cena_entregada}
+                    disabled={
+                      savingAction ||
+                      scannedVoluntario.cena_entregada ||
+                      (isFieldRole && scannedVoluntario.cena_estado !== 'EN_CUSTODIA_RESPONSABLE' && custodiaCenasCount === 0)
+                    }
                     onClick={handleConfirmCena}
                     className="w-full py-3 px-4 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white rounded-2xl font-bold text-sm shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                   >
@@ -3657,6 +3855,10 @@ export default function ValidadorDashboard() {
                             ? 'Cena Ya Entregada' 
                             : scannedVoluntario.cena_estado === 'EN_CUSTODIA_RESPONSABLE'
                             ? 'Confirmar Entrega Final de Cena (Sacar de Custodia)'
+                            : (isFieldRole && custodiaCenasCount === 0)
+                            ? '🔒 Sin Stock en Tu Custodia'
+                            : (isFieldRole && custodiaCenasCount > 0)
+                            ? `Entregar Cena de Tu Lote (${custodiaCenasCount} disp.)`
                             : 'Confirmar Entrega de Cena'}
                         </span>
                       </>
