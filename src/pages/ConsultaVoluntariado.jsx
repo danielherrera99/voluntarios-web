@@ -223,6 +223,27 @@ export default function ConsultaVoluntariado() {
             const respNombre = apiData.responsable_asignado || (apiData.lugar_asignado && /^Equipo\s+/i.test(apiData.lugar_asignado) ? apiData.lugar_asignado.replace(/^Equipo\s+/i, '').trim() : null);
             const responsableAsignadoFinal = resolverNombreResponsable(respNombre) || apiData.responsable_asignado;
 
+            let liderNombre = apiData.lider_nombre || null;
+            let guiaNombre = apiData.guia_nombre || null;
+            let cuadrillaCodigo = apiData.cuadrilla_codigo || null;
+
+            // Si la respuesta del backend aún no incluye líder/guía, completar directo desde Supabase
+            if (apiData.lider_nombre === undefined) {
+              try {
+                const targetTbl = apiData.fase === '1' ? 'voluntarios_general' : 'voluntarios';
+                const { data: extraRow } = await supabase
+                  .from(targetTbl)
+                  .select('lider_nombre, guia_nombre, cuadrilla_codigo')
+                  .eq('dni', cleanDni)
+                  .maybeSingle();
+                if (extraRow) {
+                  liderNombre = extraRow.lider_nombre || null;
+                  guiaNombre = extraRow.guia_nombre || null;
+                  cuadrillaCodigo = extraRow.cuadrilla_codigo || null;
+                }
+              } catch (e) {}
+            }
+
             setResult({
               status: apiData.status === 'FASE1_REGISTRADO' ? 'FASE1' : apiData.status,
               fase: apiData.fase || '1',
@@ -235,6 +256,9 @@ export default function ConsultaVoluntariado() {
               observacion: apiData.observacion || null,
               lugarAsignado: apiData.lugar_asignado || null,
               responsableAsignado: responsableAsignadoFinal,
+              liderNombre,
+              guiaNombre,
+              cuadrillaCodigo,
               tipoAsignacion: apiData.tipo_asignacion || (responsableAsignadoFinal ? 'EQUIPO_LIDER' : null)
             });
             return;
@@ -253,7 +277,7 @@ export default function ConsultaVoluntariado() {
       // 2. Respaldo directo a Supabase (consultando ÚNICAMENTE campos públicos, sin datos personales sensibles)
       const { data: f2Data, error: f2Error } = await supabase
         .from('voluntarios')
-        .select('dni, nombres_apellidos, codigo, servicio, departamento, estado, fase, observacion, info_validada, lugar_asignado, responsable_nombre')
+        .select('dni, nombres_apellidos, codigo, servicio, departamento, estado, fase, observacion, info_validada, lugar_asignado, responsable_nombre, lider_nombre, guia_nombre, cuadrilla_codigo')
         .eq('dni', cleanDni)
         .maybeSingle();
 
@@ -295,6 +319,9 @@ export default function ConsultaVoluntariado() {
           observacion: f2Data.observacion || null,
           lugarAsignado,
           responsableAsignado: rawRespName,
+          liderNombre: f2Data.lider_nombre || null,
+          guiaNombre: f2Data.guia_nombre || null,
+          cuadrillaCodigo: f2Data.cuadrilla_codigo || null,
           tipoAsignacion
         });
         return;
@@ -303,7 +330,7 @@ export default function ConsultaVoluntariado() {
       // Consultar en Fase 1 (únicamente campos necesarios)
       const { data: f1Data, error: f1Error } = await supabase
         .from('voluntarios_general')
-        .select('dni, nombres_apellidos, codigo, servicio, departamento, estado, fase, lugar_asignado, responsable_nombre')
+        .select('dni, nombres_apellidos, codigo, servicio, departamento, estado, fase, lugar_asignado, responsable_nombre, lider_nombre, guia_nombre, cuadrilla_codigo')
         .eq('dni', cleanDni)
         .maybeSingle();
 
@@ -330,6 +357,9 @@ export default function ConsultaVoluntariado() {
           observacion: 'Te encuentras registrado/a en el Padrón General inicial (Fase 1). Si completaste tu ficha o documentos de la Fase 2 recientemente, tu expediente está en proceso de validación.',
           lugarAsignado: lugarAsignadoF1,
           responsableAsignado: rawRespNameF1,
+          liderNombre: f1Data.lider_nombre || null,
+          guiaNombre: f1Data.guia_nombre || null,
+          cuadrillaCodigo: f1Data.cuadrilla_codigo || null,
           tipoAsignacion: tipoAsignacionF1
         });
         return;
@@ -761,7 +791,7 @@ export default function ConsultaVoluntariado() {
                   </div>
 
                   {/* ASIGNACIÓN DE RESPONSABLE / EQUIPO DIOCESANO */}
-                  {result.lugarAsignado ? (
+                  {(result.lugarAsignado || result.responsableAsignado || result.liderNombre || result.guiaNombre) ? (
                     <div className="bg-gradient-to-br from-amber-50 to-orange-50/60 rounded-2xl p-5 md:p-6 border-2 border-amber-200/80 shadow-sm space-y-4">
                       <div className="flex items-center justify-between flex-wrap gap-2 border-b border-amber-200/60 pb-3">
                         <div className="flex items-center gap-2.5">
@@ -777,9 +807,16 @@ export default function ConsultaVoluntariado() {
                             </p>
                           </div>
                         </div>
-                        <span className="text-[11px] font-bold bg-amber-200 text-amber-900 px-3 py-1 rounded-full uppercase tracking-wider">
-                          {result.tipoAsignacion === 'SEDE_ESPECIAL' ? '🏛️ Comisión / Sede' : '🎖️ Equipo Asignado'}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {result.cuadrillaCodigo && (
+                            <span className="text-[11px] font-mono font-black bg-teal-100 text-teal-900 border border-teal-300 px-2.5 py-1 rounded-full uppercase">
+                              {result.cuadrillaCodigo}
+                            </span>
+                          )}
+                          <span className="text-[11px] font-bold bg-amber-200 text-amber-900 px-3 py-1 rounded-full uppercase tracking-wider">
+                            {result.tipoAsignacion === 'SEDE_ESPECIAL' ? '🏛️ Comisión / Sede' : '🎖️ Equipo Asignado'}
+                          </span>
+                        </div>
                       </div>
 
                       {result.tipoAsignacion === 'SEDE_ESPECIAL' ? (
@@ -807,7 +844,7 @@ export default function ConsultaVoluntariado() {
                               <div className="space-y-0.5">
                                 <span className="text-xs text-amber-800 uppercase font-bold tracking-wider">Responsable General Asignado</span>
                                 <h5 className="text-lg md:text-xl font-title font-bold text-stone-900">
-                                  {result.responsableAsignado || result.lugarAsignado.replace(/^Equipo\s+/i, '')}
+                                  {result.responsableAsignado || (result.lugarAsignado || '').replace(/^Equipo\s+/i, '') || 'Por asignar'}
                                 </h5>
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="inline-block text-[11px] font-semibold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-md">
@@ -818,9 +855,37 @@ export default function ConsultaVoluntariado() {
                             </div>
                           </div>
 
+                          {/* LÍDER DE SECTOR Y GUÍA DE CUADRILLA */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-amber-200/70">
+                            <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 space-y-0.5">
+                              <span className="text-[11px] text-amber-900 uppercase font-extrabold tracking-wide block">
+                                ⭐ Líder de Sector
+                              </span>
+                              <span className={`text-sm font-bold block ${result.liderNombre ? 'text-stone-900' : 'text-stone-500 italic'}`}>
+                                {result.liderNombre || 'Pendiente de asignación'}
+                              </span>
+                            </div>
+
+                            <div className="p-3 rounded-xl bg-teal-50/70 border border-teal-200 space-y-0.5">
+                              <div className="flex items-center justify-between gap-1.5">
+                                <span className="text-[11px] text-teal-900 uppercase font-extrabold tracking-wide block">
+                                  🚩 Guía de Cuadrilla
+                                </span>
+                                {result.cuadrillaCodigo && (
+                                  <span className="text-[10px] font-mono font-bold bg-teal-200/80 text-teal-950 px-1.5 py-0.2 rounded">
+                                    {result.cuadrillaCodigo}
+                                  </span>
+                                )}
+                              </div>
+                              <span className={`text-sm font-bold block ${result.guiaNombre ? 'text-stone-900' : 'text-stone-500 italic'}`}>
+                                {result.guiaNombre || 'Pendiente de asignación'}
+                              </span>
+                            </div>
+                          </div>
+
                           {/* NOTA INFORMATIVA SIN EXPONER TELÉFONOS PERSONALES */}
                           <div className="bg-amber-50/80 rounded-lg p-3 border border-amber-100 text-xs text-stone-700 leading-relaxed">
-                            <strong>Próximo paso:</strong> Tu Responsable General, junto con los líderes y guías de cuadrilla, se encargará de coordinar tu cuadrilla, punto exacto de encuentro y entrega de credenciales.
+                            <strong>Próximo paso:</strong> Tu Responsable General, junto con tu líder y guía de cuadrilla, se encargará de coordinar tu cuadrilla, punto exacto de encuentro y entrega de credenciales.
                           </div>
                         </div>
                       )}
@@ -934,12 +999,29 @@ export default function ConsultaVoluntariado() {
                       )}
                     </div>
                     <div>
-                      <span className="text-xs text-amber-900 uppercase font-bold block">Equipo / Responsable Preliminar</span>
+                      <span className="text-xs text-amber-900 uppercase font-bold block">Equipo / Cadena de Mandos</span>
                       <span className="text-stone-800 font-bold text-sm block mt-1">
                         {result.responsableAsignado 
                           ? `Equipo ${result.responsableAsignado}` 
                           : (result.lugarAsignado ? formatearSedeEspecial(result.lugarAsignado) : (result.comision || 'En proceso'))}
                       </span>
+                      {(result.liderNombre || result.guiaNombre) && (
+                        <div className="mt-1.5 text-xs text-stone-700 space-y-0.5">
+                          {result.liderNombre && (
+                            <span className="block">⭐ Líder: <strong>{result.liderNombre}</strong></span>
+                          )}
+                          {result.guiaNombre && (
+                            <span className="block">
+                              🚩 Guía: <strong>{result.guiaNombre}</strong>
+                              {result.cuadrillaCodigo && (
+                                <span className="ml-1.5 font-mono text-[10px] bg-teal-100 text-teal-900 px-1.5 py-0.2 rounded">
+                                  {result.cuadrillaCodigo}
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1048,13 +1130,28 @@ export default function ConsultaVoluntariado() {
                       </span>
                     </div>
 
-                    {result.responsableAsignado && (
-                      <div className="md:col-span-2 pt-2 border-t border-sky-200/80">
-                        <span className="text-xs text-sky-900 uppercase font-bold block">Equipo / Responsable Preliminar</span>
-                        <div className="flex items-center gap-2 flex-wrap mt-1">
-                          <span className="text-stone-900 font-bold text-sm">
-                            Equipo {result.responsableAsignado}
-                          </span>
+                    {(result.responsableAsignado || result.liderNombre || result.guiaNombre) && (
+                      <div className="md:col-span-2 pt-2 border-t border-sky-200/80 space-y-1.5">
+                        <span className="text-xs text-sky-900 uppercase font-bold block">Equipo / Cadena de Mandos</span>
+                        <div className="flex flex-col gap-1 text-xs text-stone-800">
+                          {result.responsableAsignado && (
+                            <span className="font-bold text-sm text-stone-900">
+                              🎖️ Equipo {result.responsableAsignado}
+                            </span>
+                          )}
+                          {result.liderNombre && (
+                            <span>⭐ Líder de Sector: <strong>{result.liderNombre}</strong></span>
+                          )}
+                          {result.guiaNombre && (
+                            <span>
+                              🚩 Guía de Cuadrilla: <strong>{result.guiaNombre}</strong>
+                              {result.cuadrillaCodigo && (
+                                <span className="ml-1.5 font-mono text-[10px] bg-teal-100 text-teal-900 px-1.5 py-0.2 rounded">
+                                  {result.cuadrillaCodigo}
+                                </span>
+                              )}
+                            </span>
+                          )}
                         </div>
                       </div>
                     )}
