@@ -170,7 +170,7 @@ export default function ValidadorDashboard() {
   const [visorRecords, setVisorRecords] = useState([]);
   const [loadingVisor, setLoadingVisor] = useState(false);
   const [visorSearch, setVisorSearch] = useState('');
-  const [visorFilter, setVisorFilter] = useState('ALL'); // 'ALL' | 'PENDING_ASISTENCIA' | 'ASISTENCIA' | 'KITS' | 'DESAYUNO' | 'CENA'
+  const [visorFilter, setVisorFilter] = useState('ALL'); // 'ALL' | 'PENDING_ASISTENCIA' | 'ASISTENCIA' | 'KITS' | 'DESAYUNO' | 'CENA' | 'MANDOS'
   const [selectedVisorLeader, setSelectedVisorLeader] = useState('');
   const [markingActionKey, setMarkingActionKey] = useState(null);
   const [sessionUndoSnapshots, setSessionUndoSnapshots] = useState({});
@@ -179,6 +179,8 @@ export default function ValidadorDashboard() {
   // ESTADOS DEL MÓDULO DE DESPACHO EN BLOQUE A RESPONSABLES
   // ========================================================
   const [lideresList, setLideresList] = useState(CANONICAL_LIDERES);
+  const [mandosIndex, setMandosIndex] = useState({ byDni: {}, byName: {} });
+  const mandosRowsRef = useRef([]);
   const [selectedLeader, setSelectedLeader] = useState('');
   const [loadingLote, setLoadingLote] = useState(false);
   const [loteVoluntarios, setLoteVoluntarios] = useState([]);
@@ -196,8 +198,40 @@ export default function ValidadorDashboard() {
   const isFieldRole = user?.rol === 'responsable' || user?.rol === 'lider' || user?.rol === 'guia';
   const isSectorScope = isFieldRole || Boolean(selectedVisorLeader);
 
+  const normalizeMandoText = (s) => (s || '')
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .trim()
+    .replace(/\s+/g, ' ');
+
+  const getMandoInfo = (voluntario) => {
+    if (!voluntario) return null;
+    const dni = (voluntario.dni || '').toString().trim();
+    if (dni && mandosIndex.byDni[dni]) return mandosIndex.byDni[dni];
+    const normName = normalizeMandoText(voluntario.nombres_apellidos);
+    if (normName && mandosIndex.byName[normName]) return mandosIndex.byName[normName];
+    return null;
+  };
+
+  const getSectorMandosDnis = (aliasesOrNames, rowsOverride) => {
+    const rows = rowsOverride || mandosRowsRef.current || [];
+    const normAliases = aliasesOrNames.map(a => normalizeMandoText(a)).filter(Boolean);
+    if (normAliases.length === 0 || rows.length === 0) return [];
+    const dnis = new Set();
+    rows.forEach(m => {
+      const rNom = normalizeMandoText(m.responsable_nombre);
+      if (normAliases.some(a => rNom.includes(a) || a.includes(rNom))) {
+        if (m.lider_dni) dnis.add(String(m.lider_dni).trim());
+        if (m.guia_dni) dnis.add(String(m.guia_dni).trim());
+      }
+    });
+    return Array.from(dnis);
+  };
+
   // Determinar condición de filtro por rol y jurisdicción
-  const getUserScopeOrCondition = () => {
+  const getUserScopeOrCondition = (rowsOverride) => {
     if (!user || user.rol === 'admin' || user.rol === 'validador') {
       return null; // Administrador o Validador de Almacén Central: acceso global
     }
@@ -205,14 +239,31 @@ export default function ValidadorDashboard() {
       const aliases = (user.dni && RESPONSABLE_ALIASES[user.dni])
         ? RESPONSABLE_ALIASES[user.dni]
         : [user.responsable_nombre || user.nombre];
-      return aliases.flatMap(a => [
+      const parts = aliases.flatMap(a => [
         `responsable_nombre.ilike.%${a}%`,
         `lugar_asignado.ilike.%${a}%`
-      ]).join(',');
+      ]);
+      const mandosDnis = getSectorMandosDnis(aliases, rowsOverride);
+      if (mandosDnis.length > 0) {
+        parts.push(`dni.in.(${mandosDnis.join(',')})`);
+      }
+      return parts.join(',');
     }
     if (user.rol === 'lider') {
       const lNom = user.lider_nombre || user.nombre;
-      return `lider_nombre.ilike.%${lNom}%`;
+      const parts = [`lider_nombre.ilike.%${lNom}%`];
+      const rows = rowsOverride || mandosRowsRef.current || [];
+      const normL = normalizeMandoText(lNom);
+      const guiaDnis = [...new Set(
+        rows
+          .filter(m => normalizeMandoText(m.lider_nombre).includes(normL))
+          .map(m => m.guia_dni)
+          .filter(Boolean)
+      )];
+      if (guiaDnis.length > 0) {
+        parts.push(`dni.in.(${guiaDnis.join(',')})`);
+      }
+      return parts.join(',');
     }
     if (user.rol === 'guia') {
       if (user.cuadrilla_codigo) {
@@ -228,13 +279,18 @@ export default function ValidadorDashboard() {
       const aliases = (user.dni && RESPONSABLE_ALIASES[user.dni])
         ? RESPONSABLE_ALIASES[user.dni]
         : [user.responsable_nombre || user.nombre];
-      const recResp = (rec.responsable_nombre || rec.lugar_asignado || '').toUpperCase();
-      return aliases.some(a => recResp.includes(a.toUpperCase()));
+      const recResp = normalizeMandoText(rec.responsable_nombre || rec.lugar_asignado || '');
+      if (aliases.some(a => recResp.includes(normalizeMandoText(a)))) return true;
+      const mandosDnis = getSectorMandosDnis(aliases);
+      if (rec.dni && mandosDnis.includes(String(rec.dni).trim())) return true;
+      return false;
     }
     if (user.rol === 'lider') {
-      const lNom = (user.lider_nombre || user.nombre || '').toUpperCase();
-      const recLid = (rec.lider_nombre || '').toUpperCase();
-      return recLid.includes(lNom);
+      const lNom = normalizeMandoText(user.lider_nombre || user.nombre || '');
+      const recLid = normalizeMandoText(rec.lider_nombre || '');
+      if (recLid.includes(lNom)) return true;
+      const mInfo = getMandoInfo(rec);
+      return mInfo && normalizeMandoText(mInfo.superior).includes(lNom);
     }
     if (user.rol === 'guia') {
       return rec.cuadrilla_codigo === user.cuadrilla_codigo || rec.guia_nombre === user.nombre;
@@ -242,37 +298,87 @@ export default function ValidadorDashboard() {
     return true;
   };
 
-  // Cargar lista dinámica de líderes de estructura_mandos
-  const fetchLideres = async () => {
+  // Cargar jerarquía oficial completa (Responsables, Líderes y Guías) desde estructura_mandos
+  const fetchMandosAndLideres = async () => {
     try {
       const { data, error } = await supabase
         .from('estructura_mandos')
-        .select('responsable_general_nombre, responsable_general_dni')
-        .not('responsable_general_nombre', 'is', null);
+        .select('responsable_nombre, responsable_dni, lider_nombre, lider_dni, guia_nombre, guia_dni')
+        .limit(5000);
 
       if (!error && data && data.length > 0) {
-        const unique = new Map();
-        CANONICAL_LIDERES.forEach(l => unique.set(l.nombre.toUpperCase().trim(), l));
-        data.forEach(item => {
-          const norm = item.responsable_general_nombre.toUpperCase().trim();
-          if (!unique.has(norm)) {
-            unique.set(norm, {
-              nombre: item.responsable_general_nombre.trim(),
-              dni: item.responsable_general_dni || ''
-            });
+        mandosRowsRef.current = data;
+        const byDni = {};
+        const byName = {};
+
+        // Paso 1: Registrar Guías
+        data.forEach(r => {
+          const info = {
+            role: 'GUIA',
+            badge: '🚩 GUÍA',
+            classes: 'bg-teal-100 text-teal-950 border-teal-300',
+            superior: r.lider_nombre || r.responsable_nombre || null,
+            responsable: r.responsable_nombre || null
+          };
+          if (r.guia_dni) byDni[String(r.guia_dni).trim()] = info;
+          const n = normalizeMandoText(r.guia_nombre);
+          if (n) byName[n] = info;
+        });
+
+        // Paso 2: Registrar Líderes (prevalece sobre Guía si ejerce ambos cargos)
+        data.forEach(r => {
+          const info = {
+            role: 'LIDER',
+            badge: '⭐ LÍDER',
+            classes: 'bg-amber-100 text-amber-950 border-amber-400',
+            superior: r.responsable_nombre || null,
+            responsable: r.responsable_nombre || null
+          };
+          if (r.lider_dni) byDni[String(r.lider_dni).trim()] = info;
+          const n = normalizeMandoText(r.lider_nombre);
+          if (n) byName[n] = info;
+        });
+
+        // Paso 3: Registrar Responsables Generales (máxima jerarquía)
+        const uniqueResp = new Map();
+        CANONICAL_LIDERES.forEach(l => uniqueResp.set(normalizeMandoText(l.nombre), l));
+        data.forEach(r => {
+          if (r.responsable_nombre) {
+            const info = {
+              role: 'RESPONSABLE',
+              badge: '👑 RESPONSABLE',
+              classes: 'bg-purple-100 text-purple-900 border-purple-300',
+              superior: null,
+              responsable: r.responsable_nombre
+            };
+            if (r.responsable_dni) byDni[String(r.responsable_dni).trim()] = info;
+            const n = normalizeMandoText(r.responsable_nombre);
+            if (n) {
+              byName[n] = info;
+              if (!uniqueResp.has(n)) {
+                uniqueResp.set(n, {
+                  nombre: r.responsable_nombre.trim(),
+                  dni: r.responsable_dni || ''
+                });
+              }
+            }
           }
         });
-        setLideresList(Array.from(unique.values()).sort((a, b) => a.nombre.localeCompare(b.nombre)));
+
+        setMandosIndex({ byDni, byName });
+        setLideresList(Array.from(uniqueResp.values()).sort((a, b) => a.nombre.localeCompare(b.nombre)));
+        return data;
       }
     } catch (e) {
-      console.warn('Error fetching leaders list:', e);
+      console.warn('Error fetching mandos & leaders list:', e);
     }
+    return [];
   };
 
   // Cargar métricas iniciales del validador / responsable
-  const fetchStats = async () => {
+  const fetchStats = async (rowsOverride) => {
     try {
-      const scopeOr = getUserScopeOrCondition();
+      const scopeOr = getUserScopeOrCondition(rowsOverride);
 
       let qK = supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('kit_entregado', true);
       let qA = supabase.from('voluntarios').select('*', { count: 'exact', head: true }).eq('asistencia_dia_d', true);
@@ -302,27 +408,31 @@ export default function ValidadorDashboard() {
   };
 
   // Cargar registros completos del Visor en Tiempo Real
-  const fetchVisorRecords = async (leaderOverride) => {
+  const fetchVisorRecords = async (leaderOverride, rowsOverride) => {
     setLoadingVisor(true);
     try {
       const targetLeader = typeof leaderOverride === 'string' ? leaderOverride : selectedVisorLeader;
-      const scopeOr = getUserScopeOrCondition();
+      const scopeOr = getUserScopeOrCondition(rowsOverride);
       const selectCols = 'id, dni, codigo, nombres_apellidos, talla, servicio, responsable_nombre, lugar_asignado, fotografia_url, kit_entregado, kit_polo_entregado, kit_items_entregados, kit_fecha_entrega, kit_entregado_por, kit_estado, kit_custodio_nombre, kit_fecha_despacho_lote, asistencia_dia_d, asistencia_fecha, asistencia_registrada_por, asistencia_punto, desayuno_entregado, desayuno_fecha, desayuno_entregado_por, desayuno_punto, desayuno_estado, desayuno_custodio_nombre, cena_entregada, cena_fecha, cena_entregada_por, cena_punto, cena_estado, cena_custodio_nombre, fase, estado';
 
-      let qF2 = supabase.from('voluntarios').select(selectCols);
-      let qF1 = supabase.from('voluntarios_general').select(selectCols);
+      let qF2 = supabase.from('voluntarios').select(selectCols).limit(3000);
+      let qF1 = supabase.from('voluntarios_general').select(selectCols).limit(3000);
 
       if (scopeOr) {
-        // Para Responsables, Líderes o Guías: mostrar los voluntarios de su jurisdicción
+        // Para Responsables, Líderes o Guías: mostrar los voluntarios y mandos de su jurisdicción
         qF2 = qF2.or(scopeOr);
         qF1 = qF1.or(scopeOr);
       } else if (targetLeader) {
-        // Para Admin/Validador seleccionando un responsable específico: cargar todo su padrón
+        // Para Admin/Validador seleccionando un responsable específico: cargar todo su padrón + sus guías/líderes
         const firstWord = targetLeader.split(' ')[0] || targetLeader;
-        qF2 = qF2.ilike('responsable_nombre', `%${firstWord}%`);
-        qF1 = qF1.ilike('responsable_nombre', `%${firstWord}%`);
+        const sectorMandosDnis = getSectorMandosDnis([targetLeader, firstWord], rowsOverride);
+        const orExpr = sectorMandosDnis.length > 0
+          ? `responsable_nombre.ilike.%${firstWord}%,dni.in.(${sectorMandosDnis.join(',')})`
+          : `responsable_nombre.ilike.%${firstWord}%`;
+        qF2 = qF2.or(orExpr);
+        qF1 = qF1.or(orExpr);
       } else {
-        // Para Administradores y Validadores de Almacén: vista global
+        // Para Administradores y Validadores de Almacén: vista global con actividad
         const globalFilter = 'kit_entregado.eq.true,asistencia_dia_d.eq.true,desayuno_entregado.eq.true,cena_entregada.eq.true,kit_estado.eq.EN_CUSTODIA_RESPONSABLE,desayuno_estado.eq.EN_CUSTODIA_RESPONSABLE,cena_estado.eq.EN_CUSTODIA_RESPONSABLE';
         qF2 = qF2.or(globalFilter);
         qF1 = qF1.or(globalFilter);
@@ -364,9 +474,13 @@ export default function ValidadorDashboard() {
   };
 
   useEffect(() => {
-    fetchStats();
-    fetchVisorRecords();
-    fetchLideres();
+    (async () => {
+      const mandosRows = await fetchMandosAndLideres();
+      await Promise.all([
+        fetchStats(mandosRows),
+        fetchVisorRecords(undefined, mandosRows)
+      ]);
+    })();
   }, []);
 
   // Evitar que roles de campo (Responsable, Líder, Guía) ingresen a Despacho en Bloque (exclusivo almacén)
@@ -1623,6 +1737,8 @@ export default function ValidadorDashboard() {
 
   // Filtrado de registros en el Visor
   const filteredVisorRecords = visorRecords.filter(item => {
+    const mando = getMandoInfo(item);
+    if (visorFilter === 'MANDOS' && !mando) return false;
     if (visorFilter === 'PENDING_ASISTENCIA' && item.asistencia_dia_d) return false;
     if (visorFilter === 'KITS' && !item.kit_entregado && item.kit_estado !== 'EN_CUSTODIA_RESPONSABLE') return false;
     if (visorFilter === 'ASISTENCIA' && !item.asistencia_dia_d) return false;
@@ -1631,13 +1747,15 @@ export default function ValidadorDashboard() {
 
     if (visorSearch.trim()) {
       const term = visorSearch.toLowerCase().trim();
+      const normTerm = normalizeMandoText(term);
       const matchName = item.nombres_apellidos?.toLowerCase().includes(term);
       const matchDni = item.dni?.includes(term);
       const matchCodigo = item.codigo?.toLowerCase().includes(term);
       const matchResp = item.responsable_nombre?.toLowerCase().includes(term);
       const matchCust = (item.kit_custodio_nombre || '').toLowerCase().includes(term) || (item.desayuno_custodio_nombre || '').toLowerCase().includes(term);
       const matchVal = (item.kit_entregado_por || '').toLowerCase().includes(term) || (item.asistencia_registrada_por || '').toLowerCase().includes(term);
-      return matchName || matchDni || matchCodigo || matchResp || matchCust || matchVal;
+      const matchRole = mando && (mando.role.includes(normTerm) || normalizeMandoText(mando.badge).includes(normTerm) || normalizeMandoText(mando.superior || '').includes(normTerm));
+      return matchName || matchDni || matchCodigo || matchResp || matchCust || matchVal || matchRole;
     }
     return true;
   });
@@ -2283,15 +2401,24 @@ export default function ValidadorDashboard() {
                       Padrón del Grupo Asignado ({loteVoluntarios.length} voluntarios):
                     </h4>
                     <div className="max-h-72 overflow-y-auto space-y-1.5 pr-1">
-                      {loteVoluntarios.map((v, i) => (
+                      {loteVoluntarios.map((v, i) => {
+                        const mando = getMandoInfo(v);
+                        return (
                         <div 
                           key={v.id || i}
                           className="p-2.5 bg-white rounded-xl border border-stone-200 flex items-center justify-between gap-3 text-xs shadow-2xs"
                         >
                           <div className="min-w-0">
-                            <span className="font-bold text-stone-900 block truncate">
-                              {i + 1}. {v.nombres_apellidos}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-stone-900 truncate">
+                                {i + 1}. {v.nombres_apellidos}
+                              </span>
+                              {mando && (
+                                <span className={`px-1.5 py-0.2 rounded border text-[9px] font-black uppercase tracking-wider shrink-0 ${mando.classes}`}>
+                                  {mando.badge}
+                                </span>
+                              )}
+                            </div>
                             <span className="text-[11px] text-stone-500 font-mono">
                               DNI: <strong>{v.dni}</strong> • Talla: <strong>{v.talla || 'L'}</strong>
                             </span>
@@ -2332,7 +2459,8 @@ export default function ValidadorDashboard() {
                             </span>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -2609,6 +2737,18 @@ export default function ValidadorDashboard() {
                 >
                   🍽️ Cenas ({visorRecords.filter(r => r.cena_entregada || r.cena_estado === 'EN_CUSTODIA_RESPONSABLE').length})
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setVisorFilter('MANDOS')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                    visorFilter === 'MANDOS'
+                      ? 'bg-purple-700 text-white shadow-xs'
+                      : 'bg-purple-50 text-purple-900 hover:bg-purple-100 border border-purple-200'
+                  }`}
+                >
+                  ⭐🚩 Guías y Líderes ({visorRecords.filter(r => Boolean(getMandoInfo(r))).length})
+                </button>
               </div>
 
               {/* Conteo filtrado */}
@@ -2650,10 +2790,13 @@ export default function ValidadorDashboard() {
               <div className="space-y-3">
                 {filteredVisorRecords.map((item) => {
                   const idKey = item.dni || item.id;
+                  const mando = getMandoInfo(item);
                   return (
                   <div
                     key={idKey}
-                    className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200 shadow-sm hover:border-stone-300 transition space-y-3"
+                    className={`bg-white rounded-2xl p-4 sm:p-5 border shadow-sm hover:border-stone-300 transition space-y-3 ${
+                      mando ? 'border-amber-300/80 ring-1 ring-amber-200/40' : 'border-stone-200'
+                    }`}
                   >
                     {/* Fila Principal: Foto, Datos y Talla */}
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -2671,21 +2814,33 @@ export default function ValidadorDashboard() {
                           </div>
                         )}
                         <div className="min-w-0">
-                          <h4 className="font-bold text-sm text-stone-900 truncate">
-                            {item.nombres_apellidos}
-                          </h4>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-bold text-sm text-stone-900 truncate">
+                              {item.nombres_apellidos}
+                            </h4>
+                            {mando && (
+                              <span className={`px-2 py-0.5 rounded-md border text-[10px] font-black uppercase tracking-wider shrink-0 shadow-2xs ${mando.classes}`}>
+                                {mando.badge}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs font-mono text-stone-500">
                             DNI: <strong className="text-diocesis-redDark">{item.dni || 'S/D'}</strong> • Código: <span className="font-bold">{item.codigo || `VOL-${item.dni}`}</span>
                           </p>
                           <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                            {mando?.superior && (
+                              <span className="text-[10px] bg-amber-50 text-amber-900 px-1.5 py-0.2 rounded border border-amber-200 font-semibold">
+                                {mando.role === 'GUIA' ? `Líder: ${mando.superior}` : `Resp: ${mando.superior}`}
+                              </span>
+                            )}
                             {item.servicio && (
                               <span className="text-[10px] bg-stone-100 text-stone-700 px-1.5 py-0.2 rounded font-medium">
                                 {item.servicio}
                               </span>
                             )}
-                            {item.responsable_nombre && (
+                            {(item.responsable_nombre || mando?.responsable) && (
                               <span className="text-[10px] bg-blue-50 text-blue-800 px-1.5 py-0.2 rounded font-medium">
-                                Resp: {item.responsable_nombre}
+                                Resp: {item.responsable_nombre || mando.responsable}
                               </span>
                             )}
                             {item.lugar_asignado && (
@@ -3288,9 +3443,16 @@ export default function ValidadorDashboard() {
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <h4 className="font-bold text-sm text-stone-900 truncate">
-                      {scannedVoluntario.nombres_apellidos}
-                    </h4>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h4 className="font-bold text-sm text-stone-900 truncate">
+                        {scannedVoluntario.nombres_apellidos}
+                      </h4>
+                      {getMandoInfo(scannedVoluntario) && (
+                        <span className={`px-2 py-0.5 rounded-md border text-[10px] font-black uppercase tracking-wider shrink-0 ${getMandoInfo(scannedVoluntario).classes}`}>
+                          {getMandoInfo(scannedVoluntario).badge}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs font-mono text-stone-500">
                       DNI: <strong className="text-diocesis-redDark">{scannedVoluntario.dni || 'S/D'}</strong> • Código: <span>{scannedVoluntario.codigo || `VOL-${scannedVoluntario.dni}`}</span>
                     </p>
@@ -3610,20 +3772,32 @@ export default function ValidadorDashboard() {
                 )}
 
                 <div className="space-y-1 text-center sm:text-left flex-1 min-w-0">
-                  <h4 className="text-lg sm:text-xl font-bold font-title text-stone-900 leading-tight">
-                    {scannedVoluntario.nombres_apellidos}
-                  </h4>
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                    <h4 className="text-lg sm:text-xl font-bold font-title text-stone-900 leading-tight">
+                      {scannedVoluntario.nombres_apellidos}
+                    </h4>
+                    {getMandoInfo(scannedVoluntario) && (
+                      <span className={`px-2.5 py-0.5 rounded-lg border text-[11px] font-black uppercase tracking-wider shrink-0 shadow-2xs ${getMandoInfo(scannedVoluntario).classes}`}>
+                        {getMandoInfo(scannedVoluntario).badge}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs font-mono font-bold text-stone-500">
                     DNI: <span className="text-diocesis-redDark">{scannedVoluntario.dni || 'Sin DNI'}</span> • Código: <span>{scannedVoluntario.codigo || `VOL-${scannedVoluntario.dni}`}</span>
                   </p>
                   
                   <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 pt-1">
+                    {getMandoInfo(scannedVoluntario)?.superior && (
+                      <span className="text-[10px] font-bold bg-amber-50 text-amber-900 px-2 py-0.5 rounded border border-amber-200">
+                        {getMandoInfo(scannedVoluntario).role === 'GUIA' ? `Líder: ${getMandoInfo(scannedVoluntario).superior}` : `Resp: ${getMandoInfo(scannedVoluntario).superior}`}
+                      </span>
+                    )}
                     <span className="text-[10px] font-bold bg-stone-100 text-stone-700 px-2 py-0.5 rounded border border-stone-200">
                       {scannedVoluntario.servicio || 'Servicio General'}
                     </span>
-                    {scannedVoluntario.responsable_nombre && (
+                    {(scannedVoluntario.responsable_nombre || getMandoInfo(scannedVoluntario)?.responsable) && (
                       <span className="text-[10px] font-bold bg-blue-50 text-blue-800 px-2 py-0.5 rounded border border-blue-200">
-                        Resp: {scannedVoluntario.responsable_nombre}
+                        Resp: {scannedVoluntario.responsable_nombre || getMandoInfo(scannedVoluntario).responsable}
                       </span>
                     )}
                     {scannedVoluntario.lugar_asignado && (
