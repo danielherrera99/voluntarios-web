@@ -185,6 +185,9 @@ export default function ValidadorDashboard() {
   const [despacharKitsCheck, setDespacharKitsCheck] = useState(true);
   const [despacharDesayunoCheck, setDespacharDesayunoCheck] = useState(false);
   const [despacharCenaCheck, setDespacharCenaCheck] = useState(false);
+  const [kitsCantidad, setKitsCantidad] = useState(0);
+  const [desayunosCantidad, setDesayunosCantidad] = useState(0);
+  const [cenasCantidad, setCenasCantidad] = useState(0);
   const [loteReceipt, setLoteReceipt] = useState(null);
   const [confirmingLote, setConfirmingLote] = useState(false);
 
@@ -1200,11 +1203,44 @@ export default function ValidadorDashboard() {
   // ========================================================
   // DESPACHO EN BLOQUE A RESPONSABLES (MODO B)
   // ========================================================
-  const handleSelectLeader = async (leaderName) => {
+  const computeTallas = (list) => list.reduce((acc, v) => {
+    const t = (v.talla || 'Sin Talla').toUpperCase().trim();
+    acc[t] = (acc[t] || 0) + 1;
+    return acc;
+  }, {});
+
+  const dispatchBatchTarget = async (targetList, patchData) => {
+    const dnis = targetList.map(v => v.dni).filter(Boolean);
+    const idsSinDniF2 = targetList.filter(v => !v.dni && v._origenTabla === 'voluntarios').map(v => v.id);
+    const idsSinDniF1 = targetList.filter(v => !v.dni && v._origenTabla === 'voluntarios_general').map(v => v.id);
+
+    const updatePromises = [];
+    for (let i = 0; i < dnis.length; i += 100) {
+      const chunk = dnis.slice(i, i + 100);
+      updatePromises.push(supabase.from('voluntarios').update(patchData).in('dni', chunk));
+      updatePromises.push(supabase.from('voluntarios_general').update(patchData).in('dni', chunk));
+    }
+    for (let i = 0; i < idsSinDniF2.length; i += 100) {
+      updatePromises.push(supabase.from('voluntarios').update(patchData).in('id', idsSinDniF2.slice(i, i + 100)));
+    }
+    for (let i = 0; i < idsSinDniF1.length; i += 100) {
+      updatePromises.push(supabase.from('voluntarios_general').update(patchData).in('id', idsSinDniF1.slice(i, i + 100)));
+    }
+    const results = await Promise.all(updatePromises);
+    const err = results.find(r => r.error)?.error;
+    if (err) throw err;
+  };
+
+  const handleSelectLeader = async (leaderName, preserveReceipt = false) => {
     setSelectedLeader(leaderName);
-    setLoteReceipt(null);
+    if (!preserveReceipt) {
+      setLoteReceipt(null);
+    }
     if (!leaderName) {
       setLoteVoluntarios([]);
+      setKitsCantidad(0);
+      setDesayunosCantidad(0);
+      setCenasCantidad(0);
       return;
     }
 
@@ -1228,7 +1264,13 @@ export default function ValidadorDashboard() {
       (f1Data || []).forEach(v => map.set(v.dni || v.id, { ...v, _origenTabla: 'voluntarios_general' }));
       (f2Data || []).forEach(v => map.set(v.dni || v.id, { ...v, _origenTabla: 'voluntarios' }));
 
-      setLoteVoluntarios(Array.from(map.values()));
+      const list = Array.from(map.values());
+      setLoteVoluntarios(list);
+
+      // Inicializar cantidades por defecto al total pendiente de cada rubro
+      setKitsCantidad(list.filter(v => !v.kit_entregado && v.kit_estado !== 'EN_CUSTODIA_RESPONSABLE').length);
+      setDesayunosCantidad(list.filter(v => !v.desayuno_entregado && v.desayuno_estado !== 'EN_CUSTODIA_RESPONSABLE').length);
+      setCenasCantidad(list.filter(v => !v.cena_entregada && v.cena_estado !== 'EN_CUSTODIA_RESPONSABLE').length);
     } catch (err) {
       console.error('Error cargando voluntarios del responsable:', err);
       setActionError('Error al consultar el lote de voluntarios del responsable seleccionado.');
@@ -1238,11 +1280,7 @@ export default function ValidadorDashboard() {
   };
 
   // Desglose de tallas del lote seleccionado
-  const loteTallasBreakdown = loteVoluntarios.reduce((acc, v) => {
-    const t = (v.talla || 'Sin Talla').toUpperCase().trim();
-    acc[t] = (acc[t] || 0) + 1;
-    return acc;
-  }, {});
+  const loteTallasBreakdown = computeTallas(loteVoluntarios);
 
   // Conteos de estado del lote seleccionado
   const loteKitsPending = loteVoluntarios.filter(v => !v.kit_entregado && v.kit_estado !== 'EN_CUSTODIA_RESPONSABLE');
@@ -1257,20 +1295,48 @@ export default function ValidadorDashboard() {
   const loteCenasCustodia = loteVoluntarios.filter(v => v.cena_estado === 'EN_CUSTODIA_RESPONSABLE');
   const loteCenasDelivered = loteVoluntarios.filter(v => v.cena_entregada);
 
-  // Ejecutar el Despacho en Bloque
+  // Cantidades efectivas respetando el candado máximo pendiente
+  const effectiveKitsQty = despacharKitsCheck
+    ? Math.min(loteKitsPending.length, Math.max(0, parseInt(kitsCantidad, 10) || 0))
+    : 0;
+  const effectiveDesayunosQty = despacharDesayunoCheck
+    ? Math.min(loteDesayunosPending.length, Math.max(0, parseInt(desayunosCantidad, 10) || 0))
+    : 0;
+  const effectiveCenasQty = despacharCenaCheck
+    ? Math.min(loteCenasPending.length, Math.max(0, parseInt(cenasCantidad, 10) || 0))
+    : 0;
+
+  const kitsTargetPreview = loteKitsPending.slice(0, effectiveKitsQty);
+  const kitsTallasPreview = computeTallas(kitsTargetPreview);
+
+  // Ejecutar el Despacho en Bloque (total o parcial por cantidad)
   const handleConfirmDespachoLote = async () => {
     if (!selectedLeader || loteVoluntarios.length === 0) return;
-    if (!despacharKitsCheck && !despacharDesayunoCheck && !despacharCenaCheck) {
-      alert('Debes seleccionar al menos un tipo de entrega (Kits, Desayuno o Cena).');
+
+    const kitsTarget = loteKitsPending.slice(0, effectiveKitsQty);
+    const desayunosTarget = loteDesayunosPending.slice(0, effectiveDesayunosQty);
+    const cenasTarget = loteCenasPending.slice(0, effectiveCenasQty);
+
+    if (kitsTarget.length === 0 && desayunosTarget.length === 0 && cenasTarget.length === 0) {
+      alert('Debes seleccionar al menos un artículo y una cantidad mayor a 0 para despachar.');
       return;
     }
 
     const itemsToDispatchDesc = [];
-    if (despacharKitsCheck) itemsToDispatchDesc.push(`${loteKitsPending.length} Kits`);
-    if (despacharDesayunoCheck) itemsToDispatchDesc.push(`${loteDesayunosPending.length} Desayunos`);
-    if (despacharCenaCheck) itemsToDispatchDesc.push(`${loteCenasPending.length} Cenas`);
+    if (kitsTarget.length > 0) {
+      const rest = loteKitsPending.length - kitsTarget.length;
+      itemsToDispatchDesc.push(`${kitsTarget.length} Kits${rest > 0 ? ` (quedarán ${rest} pendientes)` : ' (lote completo)'}`);
+    }
+    if (desayunosTarget.length > 0) {
+      const rest = loteDesayunosPending.length - desayunosTarget.length;
+      itemsToDispatchDesc.push(`${desayunosTarget.length} Desayunos${rest > 0 ? ` (quedarán ${rest} pendientes)` : ' (lote completo)'}`);
+    }
+    if (cenasTarget.length > 0) {
+      const rest = loteCenasPending.length - cenasTarget.length;
+      itemsToDispatchDesc.push(`${cenasTarget.length} Cenas${rest > 0 ? ` (quedarán ${rest} pendientes)` : ' (lote completo)'}`);
+    }
 
-    const confirmMsg = `¿Confirmar DESPACHO EN BLOQUE al Responsable:\n\n👤 ${selectedLeader}?\n\nArtículos a entregar:\n• ${itemsToDispatchDesc.join('\n• ')}\n\n⚠️ Nota: Los voluntarios quedarán marcados como "EN CUSTODIA DEL RESPONSABLE" con candado anti-fraude.`;
+    const confirmMsg = `¿Confirmar DESPACHO EN BLOQUE al Responsable:\n\n👤 ${selectedLeader}?\n\nArtículos a entregar en este envío:\n• ${itemsToDispatchDesc.join('\n• ')}\n\n⚠️ Nota: Estos voluntarios quedarán marcados como "EN CUSTODIA DEL RESPONSABLE" y los restantes seguirán pendientes para próximos retiros.`;
     if (!window.confirm(confirmMsg)) return;
 
     setConfirmingLote(true);
@@ -1280,90 +1346,47 @@ export default function ValidadorDashboard() {
       const nowIso = new Date().toISOString();
       const validadorNombre = user?.nombre || 'Almacén Central';
 
-      // 1. Despachar Kits pendientes
-      if (despacharKitsCheck && loteKitsPending.length > 0) {
-        const dnis = loteKitsPending.map(v => v.dni).filter(Boolean);
-        const idsSinDniF2 = loteKitsPending.filter(v => !v.dni && v._origenTabla === 'voluntarios').map(v => v.id);
-        const idsSinDniF1 = loteKitsPending.filter(v => !v.dni && v._origenTabla === 'voluntarios_general').map(v => v.id);
-
-        const kitPatch = {
+      // 1. Despachar Kits seleccionados
+      if (kitsTarget.length > 0) {
+        await dispatchBatchTarget(kitsTarget, {
           kit_estado: 'EN_CUSTODIA_RESPONSABLE',
           kit_custodio_nombre: selectedLeader,
           kit_fecha_despacho_lote: nowIso,
           kit_entregado_por: validadorNombre
-        };
-
-        const updatePromises = [];
-        if (dnis.length > 0) {
-          updatePromises.push(supabase.from('voluntarios').update(kitPatch).in('dni', dnis));
-          updatePromises.push(supabase.from('voluntarios_general').update(kitPatch).in('dni', dnis));
-        }
-        if (idsSinDniF2.length > 0) {
-          updatePromises.push(supabase.from('voluntarios').update(kitPatch).in('id', idsSinDniF2));
-        }
-        if (idsSinDniF1.length > 0) {
-          updatePromises.push(supabase.from('voluntarios_general').update(kitPatch).in('id', idsSinDniF1));
-        }
-        await Promise.all(updatePromises);
+        });
       }
 
-      // 2. Despachar Desayunos pendientes
-      if (despacharDesayunoCheck && loteDesayunosPending.length > 0) {
-        const dnis = loteDesayunosPending.map(v => v.dni).filter(Boolean);
-        const idsSinDniF2 = loteDesayunosPending.filter(v => !v.dni && v._origenTabla === 'voluntarios').map(v => v.id);
-        const idsSinDniF1 = loteDesayunosPending.filter(v => !v.dni && v._origenTabla === 'voluntarios_general').map(v => v.id);
-
-        const dPatch = {
+      // 2. Despachar Desayunos seleccionados
+      if (desayunosTarget.length > 0) {
+        await dispatchBatchTarget(desayunosTarget, {
           desayuno_estado: 'EN_CUSTODIA_RESPONSABLE',
           desayuno_custodio_nombre: selectedLeader,
           desayuno_fecha: nowIso,
           desayuno_entregado_por: validadorNombre,
           desayuno_punto: puntoAlimentos
-        };
-
-        const updatePromises = [];
-        if (dnis.length > 0) {
-          updatePromises.push(supabase.from('voluntarios').update(dPatch).in('dni', dnis));
-          updatePromises.push(supabase.from('voluntarios_general').update(dPatch).in('dni', dnis));
-        }
-        if (idsSinDniF2.length > 0) {
-          updatePromises.push(supabase.from('voluntarios').update(dPatch).in('id', idsSinDniF2));
-        }
-        if (idsSinDniF1.length > 0) {
-          updatePromises.push(supabase.from('voluntarios_general').update(dPatch).in('id', idsSinDniF1));
-        }
-        await Promise.all(updatePromises);
+        });
       }
 
-      // 3. Despachar Cenas pendientes
-      if (despacharCenaCheck && loteCenasPending.length > 0) {
-        const dnis = loteCenasPending.map(v => v.dni).filter(Boolean);
-        const idsSinDniF2 = loteCenasPending.filter(v => !v.dni && v._origenTabla === 'voluntarios').map(v => v.id);
-        const idsSinDniF1 = loteCenasPending.filter(v => !v.dni && v._origenTabla === 'voluntarios_general').map(v => v.id);
-
-        const cPatch = {
+      // 3. Despachar Cenas seleccionadas
+      if (cenasTarget.length > 0) {
+        await dispatchBatchTarget(cenasTarget, {
           cena_estado: 'EN_CUSTODIA_RESPONSABLE',
           cena_custodio_nombre: selectedLeader,
           cena_fecha: nowIso,
           cena_entregada_por: validadorNombre,
           cena_punto: puntoAlimentos
-        };
-
-        const updatePromises = [];
-        if (dnis.length > 0) {
-          updatePromises.push(supabase.from('voluntarios').update(cPatch).in('dni', dnis));
-          updatePromises.push(supabase.from('voluntarios_general').update(cPatch).in('dni', dnis));
-        }
-        if (idsSinDniF2.length > 0) {
-          updatePromises.push(supabase.from('voluntarios').update(cPatch).in('id', idsSinDniF2));
-        }
-        if (idsSinDniF1.length > 0) {
-          updatePromises.push(supabase.from('voluntarios_general').update(cPatch).in('id', idsSinDniF1));
-        }
-        await Promise.all(updatePromises);
+        });
       }
 
       playSound('success');
+
+      // Voluntarios amarrados a este comprobante específico (parcial o total)
+      const receiptVolMap = new Map();
+      [...kitsTarget, ...desayunosTarget, ...cenasTarget].forEach(v => {
+        receiptVolMap.set(v.dni || v.id, v);
+      });
+      const receiptVolList = Array.from(receiptVolMap.values());
+      const receiptTallas = kitsTarget.length > 0 ? computeTallas(kitsTarget) : computeTallas(receiptVolList);
 
       // Generar Comprobante de Despacho Oficial
       const receiptData = {
@@ -1372,11 +1395,11 @@ export default function ValidadorDashboard() {
         despachadoPor: validadorNombre,
         fechaHora: new Date().toLocaleString(),
         totalAsignados: loteVoluntarios.length,
-        kitsDespachados: despacharKitsCheck ? loteKitsPending.length : 0,
-        desayunosDespachados: despacharDesayunoCheck ? loteDesayunosPending.length : 0,
-        cenasDespachadas: despacharCenaCheck ? loteCenasPending.length : 0,
-        tallas: loteTallasBreakdown,
-        voluntarios: loteVoluntarios.map(v => ({
+        kitsDespachados: kitsTarget.length,
+        desayunosDespachados: desayunosTarget.length,
+        cenasDespachadas: cenasTarget.length,
+        tallas: receiptTallas,
+        voluntarios: receiptVolList.map(v => ({
           dni: v.dni,
           nombre: v.nombres_apellidos,
           talla: v.talla || 'Estándar',
@@ -1386,8 +1409,8 @@ export default function ValidadorDashboard() {
 
       setLoteReceipt(receiptData);
 
-      // Recargar lista del líder para reflejar los nuevos estados
-      await handleSelectLeader(selectedLeader);
+      // Recargar lista del líder manteniendo el comprobante visible
+      await handleSelectLeader(selectedLeader, true);
       await fetchStats();
       await fetchVisorRecords();
     } catch (err) {
@@ -1849,77 +1872,139 @@ export default function ValidadorDashboard() {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {/* Check Kits */}
-                      <label className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition ${
-                        despacharKitsCheck ? 'bg-white border-amber-400 shadow-xs' : 'bg-white/60 border-stone-200 opacity-80'
-                      }`}>
-                        <input
-                          type="checkbox"
-                          checked={despacharKitsCheck}
-                          onChange={(e) => setDespacharKitsCheck(e.target.checked)}
-                          disabled={loteKitsPending.length === 0}
-                          className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <div className="text-xs">
-                          <span className="font-bold text-stone-900 block">🎁 Kits & Polos</span>
-                          <span className="text-stone-500">
-                            {loteKitsPending.length > 0 
-                              ? `Despachar ${loteKitsPending.length} pendientes` 
-                              : '✅ Ya despachados'}
-                          </span>
-                        </div>
-                      </label>
+                      {[
+                        {
+                          id: 'kits',
+                          label: '🎁 Kits & Polos',
+                          checked: despacharKitsCheck,
+                          setChecked: setDespacharKitsCheck,
+                          pendingCount: loteKitsPending.length,
+                          qty: kitsCantidad,
+                          setQty: setKitsCantidad,
+                          effectiveQty: effectiveKitsQty,
+                          activeBorder: 'border-amber-400'
+                        },
+                        {
+                          id: 'desayunos',
+                          label: '☕ Raciones Desayuno',
+                          checked: despacharDesayunoCheck,
+                          setChecked: setDespacharDesayunoCheck,
+                          pendingCount: loteDesayunosPending.length,
+                          qty: desayunosCantidad,
+                          setQty: setDesayunosCantidad,
+                          effectiveQty: effectiveDesayunosQty,
+                          activeBorder: 'border-orange-400'
+                        },
+                        {
+                          id: 'cenas',
+                          label: '🍽️ Raciones Cena',
+                          checked: despacharCenaCheck,
+                          setChecked: setDespacharCenaCheck,
+                          pendingCount: loteCenasPending.length,
+                          qty: cenasCantidad,
+                          setQty: setCenasCantidad,
+                          effectiveQty: effectiveCenasQty,
+                          activeBorder: 'border-emerald-400'
+                        }
+                      ].map(opt => (
+                        <div
+                          key={opt.id}
+                          className={`p-3.5 rounded-xl border flex flex-col justify-between gap-2.5 transition ${
+                            opt.checked && opt.pendingCount > 0
+                              ? `bg-white ${opt.activeBorder} shadow-xs`
+                              : 'bg-white/60 border-stone-200 opacity-80'
+                          }`}
+                        >
+                          <label className="flex items-start gap-2.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={opt.checked}
+                              onChange={(e) => opt.setChecked(e.target.checked)}
+                              disabled={opt.pendingCount === 0}
+                              className="w-4 h-4 mt-0.5 rounded text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <div className="text-xs flex-1 min-w-0">
+                              <span className="font-bold text-stone-900 block">{opt.label}</span>
+                              <span className="text-stone-500 block">
+                                {opt.pendingCount > 0
+                                  ? `${opt.pendingCount} pendientes en total`
+                                  : '✅ Ya despachados'}
+                              </span>
+                            </div>
+                          </label>
 
-                      {/* Check Desayunos */}
-                      <label className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition ${
-                        despacharDesayunoCheck ? 'bg-white border-orange-400 shadow-xs' : 'bg-white/60 border-stone-200 opacity-80'
-                      }`}>
-                        <input
-                          type="checkbox"
-                          checked={despacharDesayunoCheck}
-                          onChange={(e) => setDespacharDesayunoCheck(e.target.checked)}
-                          disabled={loteDesayunosPending.length === 0}
-                          className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <div className="text-xs">
-                          <span className="font-bold text-stone-900 block">☕ Raciones Desayuno</span>
-                          <span className="text-stone-500">
-                            {loteDesayunosPending.length > 0 
-                              ? `Despachar ${loteDesayunosPending.length} pendientes` 
-                              : '✅ Ya despachados'}
-                          </span>
+                          {opt.checked && opt.pendingCount > 0 && (
+                            <div className="pt-2 border-t border-stone-100 space-y-1.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[11px] font-bold text-stone-700">Cantidad ahora:</span>
+                                <button
+                                  type="button"
+                                  onClick={() => opt.setQty(opt.pendingCount)}
+                                  className="text-[10px] font-bold px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 rounded border border-indigo-200 transition cursor-pointer"
+                                  title="Seleccionar todo el restante pendiente"
+                                >
+                                  Todo ({opt.pendingCount})
+                                </button>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={opt.pendingCount}
+                                  value={opt.qty}
+                                  onChange={(e) => {
+                                    const raw = e.target.value;
+                                    if (raw === '') {
+                                      opt.setQty('');
+                                    } else {
+                                      const parsed = Math.max(0, Math.min(opt.pendingCount, parseInt(raw, 10) || 0));
+                                      opt.setQty(parsed);
+                                    }
+                                  }}
+                                  onBlur={() => {
+                                    if (opt.qty === '' || Number(opt.qty) < 1) {
+                                      opt.setQty(Math.min(1, opt.pendingCount));
+                                    }
+                                  }}
+                                  className="w-full px-2.5 py-1.5 bg-stone-50 border border-stone-300 rounded-lg text-sm font-black font-mono text-stone-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                                <span className="text-[11px] font-mono text-stone-500 shrink-0">
+                                  / {opt.pendingCount}
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-indigo-700 font-semibold block">
+                                {opt.pendingCount - opt.effectiveQty > 0
+                                  ? `Quedarán ${opt.pendingCount - opt.effectiveQty} pendientes para después`
+                                  : 'Se despachará el 100% pendiente'}
+                              </span>
+                            </div>
+                          )}
                         </div>
-                      </label>
-
-                      {/* Check Cenas */}
-                      <label className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition ${
-                        despacharCenaCheck ? 'bg-white border-emerald-400 shadow-xs' : 'bg-white/60 border-stone-200 opacity-80'
-                      }`}>
-                        <input
-                          type="checkbox"
-                          checked={despacharCenaCheck}
-                          onChange={(e) => setDespacharCenaCheck(e.target.checked)}
-                          disabled={loteCenasPending.length === 0}
-                          className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <div className="text-xs">
-                          <span className="font-bold text-stone-900 block">🍽️ Raciones Cena</span>
-                          <span className="text-stone-500">
-                            {loteCenasPending.length > 0 
-                              ? `Despachar ${loteCenasPending.length} pendientes` 
-                              : '✅ Ya despachados'}
-                          </span>
-                        </div>
-                      </label>
+                      ))}
                     </div>
+
+                    {/* Vista previa de tallas exactas cuando es despacho parcial de Kits */}
+                    {despacharKitsCheck && effectiveKitsQty > 0 && effectiveKitsQty < loteKitsPending.length && (
+                      <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl space-y-1.5">
+                        <span className="text-[11px] font-bold text-amber-950 block">
+                          👕 Tallas sugeridas para estos {effectiveKitsQty} Kits que vas a despachar ahora:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {Object.entries(kitsTallasPreview).map(([talla, count]) => (
+                            <span
+                              key={talla}
+                              className="px-2 py-0.5 bg-white border border-amber-200 rounded-lg text-[11px] font-mono text-amber-950"
+                            >
+                              {talla}: <strong>{count}</strong>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     <button
                       type="button"
-                      disabled={confirmingLote || (!despacharKitsCheck && !despacharDesayunoCheck && !despacharCenaCheck) || (
-                        (!despacharKitsCheck || loteKitsPending.length === 0) &&
-                        (!despacharDesayunoCheck || loteDesayunosPending.length === 0) &&
-                        (!despacharCenaCheck || loteCenasPending.length === 0)
-                      )}
+                      disabled={confirmingLote || (effectiveKitsQty === 0 && effectiveDesayunosQty === 0 && effectiveCenasQty === 0)}
                       onClick={handleConfirmDespachoLote}
                       className="w-full py-4 px-6 bg-indigo-700 hover:bg-indigo-800 active:bg-indigo-900 text-white rounded-2xl font-bold text-sm shadow-md transition flex items-center justify-center gap-2.5 disabled:opacity-50 cursor-pointer"
                     >
@@ -1931,7 +2016,16 @@ export default function ValidadorDashboard() {
                       ) : (
                         <>
                           <Boxes className="w-5 h-5 text-indigo-200" />
-                          <span>Confirmar Despacho en Bloque a {selectedLeader}</span>
+                          <span>
+                            Confirmar Despacho a {selectedLeader}
+                            {(effectiveKitsQty + effectiveDesayunosQty + effectiveCenasQty) > 0 && (
+                              ` (${[
+                                effectiveKitsQty > 0 ? `${effectiveKitsQty} Kits` : '',
+                                effectiveDesayunosQty > 0 ? `${effectiveDesayunosQty} Des.` : '',
+                                effectiveCenasQty > 0 ? `${effectiveCenasQty} Cen.` : ''
+                              ].filter(Boolean).join(' • ')})`
+                            )}
+                          </span>
                         </>
                       )}
                     </button>
