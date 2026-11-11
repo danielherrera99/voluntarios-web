@@ -7,10 +7,11 @@ import {
   FileSpreadsheet, RefreshCw, LogOut, Check, X, ChevronDown, ChevronRight,
   AlertTriangle, HeartPulse, Droplets, ShieldAlert, Sparkles, Coffee, MapPin,
   AlertCircle, ExternalLink, FileText, MessageCircle, Copy, CheckCheck, Eye,
-  Phone, Mail, Filter, Download, QrCode
+  Phone, Mail, Filter, Download, QrCode, ArrowLeftRight
 } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import MapaTactico from '../components/MapaTactico';
+import ReasignarCuadrillaModal from '../components/ReasignarCuadrillaModal';
 
 
 // Mapeo canónico exacto para localizar sin margen de error los voluntarios de cada Responsable
@@ -59,6 +60,7 @@ export default function ResponsableDashboard() {
   const [expandedLideres, setExpandedLideres] = useState({});
   const [expandedCuadrillas, setExpandedCuadrillas] = useState({});
   const [showNoAsignados, setShowNoAsignados] = useState(false);
+  const [volToReassign, setVolToReassign] = useState(null);
   const [actionMsg, setActionMsg] = useState(null);
   const [dniStatusMap, setDniStatusMap] = useState({ f2Map: {}, f1Map: {} });
 
@@ -501,6 +503,18 @@ export default function ResponsableDashboard() {
       ...prev,
       [key]: !prev[key]
     }));
+  };
+
+  const handleVoluntarioReassigned = (dni, patch) => {
+    const applyPatch = (list) => list.map(v => (String(v.dni || '').trim() === dni ? { ...v, ...patch } : v));
+    setVoluntariosF2(applyPatch);
+    setVoluntariosF1Only(applyPatch);
+    setActionMsg({
+      type: 'success',
+      text: patch.cuadrilla_codigo
+        ? `Voluntario (DNI ${dni}) asignado a ${patch.cuadrilla_codigo} • ${patch.guia_nombre}.`
+        : `Voluntario (DNI ${dni}) movido a No Asignados.`
+    });
   };
 
   const togglePresenciaLider = (nombre) => {
@@ -1314,14 +1328,25 @@ export default function ResponsableDashboard() {
                                                             {v.talla && <span>• Talla {v.talla}</span>}
                                                           </div>
                                                         </div>
-                                                        <button
-                                                          type="button"
-                                                          onClick={() => setSelectedVoluntarioModal(v)}
-                                                          className="shrink-0 p-1.5 rounded-lg bg-stone-100 hover:bg-amber-100 text-stone-600 hover:text-diocesis-redDark transition cursor-pointer"
-                                                          title="Ver ficha completa"
-                                                        >
-                                                          <Eye className="w-3.5 h-3.5" />
-                                                        </button>
+                                                        <div className="flex items-center gap-1 shrink-0">
+                                                          <button
+                                                            type="button"
+                                                            onClick={() => setVolToReassign(v)}
+                                                            className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-[10px] font-bold inline-flex items-center gap-1 transition cursor-pointer"
+                                                            title="Mover a otra cuadrilla o quitar asignación"
+                                                          >
+                                                            <ArrowLeftRight className="w-3 h-3" />
+                                                            <span>Mover</span>
+                                                          </button>
+                                                          <button
+                                                            type="button"
+                                                            onClick={() => setSelectedVoluntarioModal(v)}
+                                                            className="p-1.5 rounded-lg bg-stone-100 hover:bg-amber-100 text-stone-600 hover:text-diocesis-redDark transition cursor-pointer"
+                                                            title="Ver ficha completa"
+                                                          >
+                                                            <Eye className="w-3.5 h-3.5" />
+                                                          </button>
+                                                        </div>
                                                       </div>
                                                     ))}
                                                   </div>
@@ -1426,14 +1451,25 @@ export default function ResponsableDashboard() {
                                     {v.servicio && <span>• {v.servicio}</span>}
                                   </div>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedVoluntarioModal(v)}
-                                  className="shrink-0 p-1.5 rounded-lg bg-stone-100 hover:bg-amber-100 text-stone-600 hover:text-diocesis-redDark transition cursor-pointer"
-                                  title="Ver ficha completa"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                </button>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => setVolToReassign(v)}
+                                    className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-bold inline-flex items-center gap-1 transition cursor-pointer"
+                                    title="Asignar a una cuadrilla"
+                                  >
+                                    <ArrowLeftRight className="w-3 h-3" />
+                                    <span>Asignar</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedVoluntarioModal(v)}
+                                    className="p-1.5 rounded-lg bg-stone-100 hover:bg-amber-100 text-stone-600 hover:text-diocesis-redDark transition cursor-pointer"
+                                    title="Ver ficha completa"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -2137,6 +2173,15 @@ export default function ResponsableDashboard() {
             </div>
           </div>
         )}
+
+        <ReasignarCuadrillaModal
+          voluntario={volToReassign}
+          mandos={mandos}
+          volsByCuadrilla={voluntariosByCuadrilla}
+          allowCrossResponsable={false}
+          onClose={() => setVolToReassign(null)}
+          onSaved={handleVoluntarioReassigned}
+        />
 
       </main>
     </div>

@@ -23,9 +23,11 @@ import {
   UserPlus,
   UserMinus,
   RefreshCcw,
-  CheckCheck
+  CheckCheck,
+  ArrowLeftRight
 } from 'lucide-react';
 import * as xlsx from 'xlsx';
+import ReasignarCuadrillaModal from './ReasignarCuadrillaModal';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
 
@@ -47,6 +49,11 @@ export default function GestionJerarquia() {
   // Voluntarios asignados / no asignados en toda la red
   const [allVoluntarios, setAllVoluntarios] = useState([]);
   const [loadingVols, setLoadingVols] = useState(false);
+  const [volToReassign, setVolToReassign] = useState(null);
+
+  const handleAdminReassigned = (dni, patch) => {
+    setAllVoluntarios(prev => prev.map(v => (String(v.dni || '').trim() === dni ? { ...v, ...patch } : v)));
+  };
 
   // Estados para sincronización inteligente con Google Sheets
   const [syncLoading, setSyncLoading] = useState(false);
@@ -895,11 +902,21 @@ export default function GestionJerarquia() {
                                                   <p className="font-bold text-stone-800 truncate">{vi + 1}. {v.nombres_apellidos}</p>
                                                   <p className="font-mono text-stone-500 text-[9px]">DNI: {v.dni} {v.telefono ? `• ${v.telefono}` : ''}</p>
                                                 </div>
-                                                <span className={`shrink-0 px-1 py-0.2 rounded text-[9px] font-bold ${
-                                                  v._fase === 2 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'
-                                                }`}>
-                                                  F{v._fase}
-                                                </span>
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                  <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${
+                                                    v._fase === 2 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'
+                                                  }`}>
+                                                    F{v._fase}
+                                                  </span>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setVolToReassign(v)}
+                                                    className="p-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 transition cursor-pointer"
+                                                    title="Mover a otra cuadrilla o quitar asignación"
+                                                  >
+                                                    <ArrowLeftRight className="w-2.5 h-2.5" />
+                                                  </button>
+                                                </div>
                                               </div>
                                             ))
                                           )}
@@ -992,11 +1009,22 @@ export default function GestionJerarquia() {
                                       <p className="font-bold text-stone-800 truncate">{vi + 1}. {v.nombres_apellidos}</p>
                                       <p className="font-mono text-stone-500 text-[10px]">DNI: {v.dni} {v.telefono ? `• ${v.telefono}` : ''}</p>
                                     </div>
-                                    <span className={`shrink-0 px-1.5 py-0.2 rounded text-[9px] font-bold ${
-                                      v._fase === 2 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'
-                                    }`}>
-                                      F{v._fase}
-                                    </span>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                                        v._fase === 2 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'
+                                      }`}>
+                                        F{v._fase}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setVolToReassign(v)}
+                                        className="px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[9px] font-bold inline-flex items-center gap-0.5 transition cursor-pointer"
+                                        title="Asignar a una cuadrilla"
+                                      >
+                                        <ArrowLeftRight className="w-2.5 h-2.5" />
+                                        <span>Asignar</span>
+                                      </button>
+                                    </div>
                                   </div>
                                 ))}
                               </div>
@@ -1068,11 +1096,22 @@ export default function GestionJerarquia() {
                               DNI: {v.dni} {v.responsable_nombre ? `• ${v.responsable_nombre}` : '• Sin resp.'}
                             </p>
                           </div>
-                          <span className={`shrink-0 px-1.5 py-0.2 rounded text-[9px] font-bold ${
-                            v._fase === 2 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'
-                          }`}>
-                            F{v._fase}
-                          </span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                              v._fase === 2 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'
+                            }`}>
+                              F{v._fase}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setVolToReassign(v)}
+                              className="px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[9px] font-bold inline-flex items-center gap-0.5 transition cursor-pointer"
+                              title="Asignar a un Responsable y Cuadrilla"
+                            >
+                              <ArrowLeftRight className="w-2.5 h-2.5" />
+                              <span>Asignar</span>
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1401,6 +1440,15 @@ export default function GestionJerarquia() {
           </div>
         </div>
       )}
+
+      <ReasignarCuadrillaModal
+        voluntario={volToReassign}
+        mandos={records}
+        volsByCuadrilla={volsByCuadrilla}
+        allowCrossResponsable={true}
+        onClose={() => setVolToReassign(null)}
+        onSaved={handleAdminReassigned}
+      />
 
     </div>
   );
