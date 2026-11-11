@@ -413,7 +413,7 @@ export default function ValidadorDashboard() {
     try {
       const targetLeader = typeof leaderOverride === 'string' ? leaderOverride : selectedVisorLeader;
       const scopeOr = getUserScopeOrCondition(rowsOverride);
-      const selectCols = 'id, dni, codigo, nombres_apellidos, talla, servicio, responsable_nombre, lugar_asignado, fotografia_url, kit_entregado, kit_polo_entregado, kit_items_entregados, kit_fecha_entrega, kit_entregado_por, kit_estado, kit_custodio_nombre, kit_fecha_despacho_lote, asistencia_dia_d, asistencia_fecha, asistencia_registrada_por, asistencia_punto, desayuno_entregado, desayuno_fecha, desayuno_entregado_por, desayuno_punto, desayuno_estado, desayuno_custodio_nombre, cena_entregada, cena_fecha, cena_entregada_por, cena_punto, cena_estado, cena_custodio_nombre, fase, estado';
+      const selectCols = 'id, dni, codigo, nombres_apellidos, talla, servicio, responsable_nombre, lider_nombre, guia_nombre, cuadrilla_codigo, lugar_asignado, fotografia_url, kit_entregado, kit_polo_entregado, kit_items_entregados, kit_fecha_entrega, kit_entregado_por, kit_estado, kit_custodio_nombre, kit_fecha_despacho_lote, asistencia_dia_d, asistencia_fecha, asistencia_registrada_por, asistencia_punto, desayuno_entregado, desayuno_fecha, desayuno_entregado_por, desayuno_punto, desayuno_estado, desayuno_custodio_nombre, cena_entregada, cena_fecha, cena_entregada_por, cena_punto, cena_estado, cena_custodio_nombre, fase, estado';
 
       let qF2 = supabase.from('voluntarios').select(selectCols).limit(3000);
       let qF1 = supabase.from('voluntarios_general').select(selectCols).limit(3000);
@@ -1748,14 +1748,17 @@ export default function ValidadorDashboard() {
     if (visorSearch.trim()) {
       const term = visorSearch.toLowerCase().trim();
       const normTerm = normalizeMandoText(term);
-      const matchName = item.nombres_apellidos?.toLowerCase().includes(term);
+      const matchName = item.nombres_apellidos?.toLowerCase().includes(term) || normalizeMandoText(item.nombres_apellidos || '').includes(normTerm);
       const matchDni = item.dni?.includes(term);
       const matchCodigo = item.codigo?.toLowerCase().includes(term);
-      const matchResp = item.responsable_nombre?.toLowerCase().includes(term);
+      const matchResp = item.responsable_nombre?.toLowerCase().includes(term) || normalizeMandoText(item.responsable_nombre || '').includes(normTerm);
+      const matchLider = item.lider_nombre?.toLowerCase().includes(term) || normalizeMandoText(item.lider_nombre || '').includes(normTerm);
+      const matchGuia = item.guia_nombre?.toLowerCase().includes(term) || normalizeMandoText(item.guia_nombre || '').includes(normTerm);
+      const matchCuadrilla = item.cuadrilla_codigo?.toLowerCase().includes(term);
       const matchCust = (item.kit_custodio_nombre || '').toLowerCase().includes(term) || (item.desayuno_custodio_nombre || '').toLowerCase().includes(term);
       const matchVal = (item.kit_entregado_por || '').toLowerCase().includes(term) || (item.asistencia_registrada_por || '').toLowerCase().includes(term);
       const matchRole = mando && (mando.role.includes(normTerm) || normalizeMandoText(mando.badge).includes(normTerm) || normalizeMandoText(mando.superior || '').includes(normTerm));
-      return matchName || matchDni || matchCodigo || matchResp || matchCust || matchVal || matchRole;
+      return matchName || matchDni || matchCodigo || matchResp || matchLider || matchGuia || matchCuadrilla || matchCust || matchVal || matchRole;
     }
     return true;
   });
@@ -2833,6 +2836,16 @@ export default function ValidadorDashboard() {
                                 {mando.role === 'GUIA' ? `Líder: ${mando.superior}` : `Resp: ${mando.superior}`}
                               </span>
                             )}
+                            {!mando?.superior && item.lider_nombre && (
+                              <span className="text-[10px] bg-amber-50 text-amber-900 px-1.5 py-0.2 rounded border border-amber-200 font-semibold">
+                                ⭐ Líder: {item.lider_nombre}
+                              </span>
+                            )}
+                            {(item.guia_nombre || item.cuadrilla_codigo) && (
+                              <span className="text-[10px] bg-orange-50 text-orange-900 px-1.5 py-0.2 rounded border border-orange-200 font-semibold">
+                                🚩 {item.cuadrilla_codigo ? `${item.cuadrilla_codigo} • ` : ''}Guía: {item.guia_nombre || 'Asignado'}
+                              </span>
+                            )}
                             {item.servicio && (
                               <span className="text-[10px] bg-stone-100 text-stone-700 px-1.5 py-0.2 rounded font-medium">
                                 {item.servicio}
@@ -3790,6 +3803,16 @@ export default function ValidadorDashboard() {
                     {getMandoInfo(scannedVoluntario)?.superior && (
                       <span className="text-[10px] font-bold bg-amber-50 text-amber-900 px-2 py-0.5 rounded border border-amber-200">
                         {getMandoInfo(scannedVoluntario).role === 'GUIA' ? `Líder: ${getMandoInfo(scannedVoluntario).superior}` : `Resp: ${getMandoInfo(scannedVoluntario).superior}`}
+                      </span>
+                    )}
+                    {!getMandoInfo(scannedVoluntario)?.superior && scannedVoluntario.lider_nombre && (
+                      <span className="text-[10px] font-bold bg-amber-50 text-amber-900 px-2 py-0.5 rounded border border-amber-200">
+                        ⭐ Líder: {scannedVoluntario.lider_nombre}
+                      </span>
+                    )}
+                    {(scannedVoluntario.guia_nombre || scannedVoluntario.cuadrilla_codigo) && (
+                      <span className="text-[10px] font-bold bg-orange-50 text-orange-900 px-2 py-0.5 rounded border border-orange-200">
+                        🚩 {scannedVoluntario.cuadrilla_codigo ? `${scannedVoluntario.cuadrilla_codigo} • ` : ''}Guía: {scannedVoluntario.guia_nombre || 'Asignado'}
                       </span>
                     )}
                     <span className="text-[10px] font-bold bg-stone-100 text-stone-700 px-2 py-0.5 rounded border border-stone-200">
