@@ -194,6 +194,7 @@ export default function ValidadorDashboard() {
   const html5QrCodeRef = useRef(null);
   const claimedDonorKeysRef = useRef(new Set());
   const isFieldRole = user?.rol === 'responsable' || user?.rol === 'lider' || user?.rol === 'guia';
+  const isSectorScope = isFieldRole || Boolean(selectedVisorLeader);
 
   // Determinar condición de filtro por rol y jurisdicción
   const getUserScopeOrCondition = () => {
@@ -1240,18 +1241,22 @@ export default function ValidadorDashboard() {
     let donorPrev = null;
     let donorClaimKey = null;
 
-    // Candado Anti-Fugas para roles de campo (Responsables, Líderes, Guías)
-    if (isFieldRole && meta && voluntario[meta.estadoKey] !== 'EN_CUSTODIA_RESPONSABLE') {
+    // Candado Anti-Fugas para roles de campo y vista de sector específico
+    if (isSectorScope && meta && voluntario[meta.estadoKey] !== 'EN_CUSTODIA_RESPONSABLE') {
       donor = findCustodyDonor(tipo, idKey);
       if (!donor) {
-        playSound('warning');
-        alert('🔒 Candado Anti-Fugas: Ya entregaste todo tu stock en custodia para este rubro. Debes solicitar un nuevo despacho en Almacén Central antes de entregar más.');
-        return;
+        if (isFieldRole) {
+          playSound('warning');
+          alert('🔒 Candado Anti-Fugas: Ya entregaste todo tu stock en custodia para este rubro. Debes solicitar un nuevo despacho en Almacén Central antes de entregar más.');
+          return;
+        }
+        // Si es Admin/Validador y el lote del responsable está en 0, procede como entrega directa de Almacén Central
+      } else {
+        donorClaimKey = `${donor.dni || donor.id}_${tipo}`;
+        claimedDonorKeysRef.current.add(donorClaimKey);
+        donorPrev = meta.snapshotDonor(donor);
+        spec.patch[meta.custodioKey] = donor[meta.custodioKey] || selectedVisorLeader || user?.nombre || 'Responsable';
       }
-      donorClaimKey = `${donor.dni || donor.id}_${tipo}`;
-      claimedDonorKeysRef.current.add(donorClaimKey);
-      donorPrev = meta.snapshotDonor(donor);
-      spec.patch[meta.custodioKey] = donor[meta.custodioKey] || user?.nombre || 'Responsable';
     }
 
     setMarkingActionKey(actionKey);
@@ -2398,26 +2403,26 @@ export default function ValidadorDashboard() {
               </div>
             </div>
 
-            {/* Panel de Bolsa de Custodia Disponible (Exclusivo Roles de Campo: Responsables, Líderes, Guías) */}
-            {isFieldRole && (
+            {/* Panel de Bolsa de Custodia Disponible (Roles de Campo o Admin inspeccionando un Sector) */}
+            {isSectorScope && (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
                   {
-                    label: '🎁 Kits en Tu Custodia',
+                    label: isFieldRole ? '🎁 Kits en Tu Custodia' : '🎁 Kits en Custodia (Sector)',
                     avail: custodiaKitsCount,
                     delivered: visorRecords.filter(v => v.kit_entregado).length,
                     pending: visorRecords.filter(v => !v.kit_entregado && v.kit_estado !== 'EN_CUSTODIA_RESPONSABLE').length,
                     activeClasses: 'bg-amber-50 border-amber-300 text-amber-950'
                   },
                   {
-                    label: '☕ Desayunos en Tu Custodia',
+                    label: isFieldRole ? '☕ Desayunos en Tu Custodia' : '☕ Desayunos en Custodia',
                     avail: custodiaDesayunosCount,
                     delivered: visorRecords.filter(v => v.desayuno_entregado).length,
                     pending: visorRecords.filter(v => !v.desayuno_entregado && v.desayuno_estado !== 'EN_CUSTODIA_RESPONSABLE').length,
                     activeClasses: 'bg-orange-50 border-orange-300 text-orange-950'
                   },
                   {
-                    label: '🍽️ Cenas en Tu Custodia',
+                    label: isFieldRole ? '🍽️ Cenas en Tu Custodia' : '🍽️ Cenas en Custodia',
                     avail: custodiaCenasCount,
                     delivered: visorRecords.filter(v => v.cena_entregada).length,
                     pending: visorRecords.filter(v => !v.cena_entregada && v.cena_estado !== 'EN_CUSTODIA_RESPONSABLE').length,
@@ -2803,7 +2808,8 @@ export default function ValidadorDashboard() {
                       ].map(card => {
                         const inCustody = !card.delivered && card.estado === 'EN_CUSTODIA_RESPONSABLE';
                         const isLockedOut = isFieldRole && !card.delivered && !inCustody && card.custodyAvail === 0;
-                        const isPoolSwap = isFieldRole && !card.delivered && !inCustody && card.custodyAvail > 0;
+                        const isPoolSwap = isSectorScope && !card.delivered && !inCustody && card.custodyAvail > 0;
+                        const isAdminAlmacenZero = !isFieldRole && isSectorScope && !card.delivered && !inCustody && card.custodyAvail === 0;
                         const actionKey = `${idKey}_${card.tipo}`;
 
                         return (
@@ -2836,6 +2842,11 @@ export default function ValidadorDashboard() {
                                   Custodio: <strong>{card.custodio}</strong>
                                 </span>
                               )}
+                              {isAdminAlmacenZero && (
+                                <span className="text-[10px] text-stone-500 block truncate">
+                                  🔒 Lote en 0 • Solo Almacén
+                                </span>
+                              )}
                             </div>
 
                             {!card.delivered ? (
@@ -2855,13 +2866,17 @@ export default function ValidadorDashboard() {
                                     className={`w-full py-1.5 px-2.5 text-white rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 ${
                                       inCustody || isPoolSwap
                                         ? 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800'
+                                        : isAdminAlmacenZero
+                                        ? 'bg-stone-700 hover:bg-stone-800 active:bg-stone-900'
                                         : card.btnClasses
                                     }`}
                                     title={
                                       inCustody
                                         ? 'Confirmar entrega final al voluntario'
                                         : isPoolSwap
-                                        ? `Entregar usando 1 de los ${card.custodyAvail} disponibles en tu custodia`
+                                        ? `Entregar usando 1 de los ${card.custodyAvail} disponibles en la custodia del sector`
+                                        : isAdminAlmacenZero
+                                        ? 'El lote de este responsable está en 0. Click para entregar directamente desde Almacén Central.'
                                         : `${card.btnLabel} en 1 clic`
                                     }
                                   >
@@ -2871,6 +2886,8 @@ export default function ValidadorDashboard() {
                                         ? 'Entregar al Vol.'
                                         : isPoolSwap
                                         ? `Usar de Lote (${card.custodyAvail})`
+                                        : isAdminAlmacenZero
+                                        ? 'Dar en Almacén'
                                         : card.btnLabel}
                                     </span>
                                   </button>
