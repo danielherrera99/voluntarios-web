@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabase';
+import { invalidatePortalConfig } from '../utils/portalConfig';
 import { 
   Megaphone, 
   Globe, 
@@ -85,6 +86,10 @@ export default function AdministracionWeb() {
         .upsert(payload, { onConflict: 'id' });
 
       if (error) throw error;
+
+      invalidatePortalConfig();
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
+      fetch(`${apiUrl}/api/portal/config?refresh=true`).catch(() => {});
 
       setMsg({ type: 'success', text: '✅ ¡Anuncio flotante guardado exitosamente! Los cambios ya están reflejados en el portal público.' });
       setTimeout(() => setMsg(null), 5000);

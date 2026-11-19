@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabase';
 import FloatingChat from '../components/FloatingChat';
 import BannerCapacitacion from '../components/BannerCapacitacion';
+import { getPortalConfig } from '../utils/portalConfig';
 
 // Base de datos de prueba / demo institucional
 const mockDatabase = {
@@ -97,17 +98,14 @@ export default function ConsultaVoluntariado() {
   const [showPopupModal, setShowPopupModal] = useState(false);
   const [zoomPopupImage, setZoomPopupImage] = useState(false);
 
-  // Cargar anuncio pop-up flotante
+  // Cargar anuncio pop-up flotante (con caché local para no saturar Supabase ni generar logs innecesarios)
   useEffect(() => {
     async function checkPopup() {
       try {
-        const { data, error } = await supabase
-          .from('portal_popup')
-          .select('*')
-          .eq('id', 1)
-          .maybeSingle();
+        const portalData = await getPortalConfig();
+        const data = portalData?.popup;
 
-        if (data && data.activo && !error) {
+        if (data && data.activo) {
           const yaVisto = data.frecuencia === 'UNA_VEZ' && sessionStorage.getItem('portal_popup_visto_v1');
           if (!yaVisto) {
             setPopupConfig(data);

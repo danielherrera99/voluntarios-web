@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabase';
+import { invalidatePortalConfig } from '../utils/portalConfig';
 import { 
   Save, 
   Eye, 
@@ -141,6 +142,10 @@ export default function GestionCapacitacion() {
         .upsert(payload, { onConflict: 'id' });
 
       if (error) throw error;
+
+      invalidatePortalConfig();
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://voluntarios-backend.vercel.app';
+      fetch(`${apiUrl}/api/portal/config?refresh=true`).catch(() => {});
 
       setMsg({ type: 'success', text: '✅ ¡Configuración guardada exitosamente! Ya está activa en la web pública.' });
       setTimeout(() => setMsg(null), 5000);

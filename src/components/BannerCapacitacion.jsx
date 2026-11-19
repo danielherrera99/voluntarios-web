@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../supabase';
+import { getPortalConfig } from '../utils/portalConfig';
 
 const resolveImageUrl = (url) => {
   if (!url) return '';
@@ -49,13 +49,10 @@ export default function BannerCapacitacion() {
   useEffect(() => {
     async function loadConfig() {
       try {
-        const { data, error } = await supabase
-          .from('configuracion_banners')
-          .select('*')
-          .eq('id', 'capacitaciones')
-          .maybeSingle();
+        const portalData = await getPortalConfig();
+        const data = portalData?.banner;
 
-        if (data && !error) {
+        if (data) {
           const loadedData = {
             ...DEFAULT_CONFIG,
             ...data,
