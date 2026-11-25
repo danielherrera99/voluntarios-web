@@ -104,7 +104,7 @@ export function CelebrationCardModal({preset, onClose}: CelebrationCardModalProp
 
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">
-                {mode === 'birthday' ? 'Cargo o Pastoral' : 'Decanato o Comunidad'}
+                {mode === 'birthday' ? 'Cargo o Pastoral' : 'Zona Pastoral o Comunidad'}
               </label>
               <input
                 type="text"

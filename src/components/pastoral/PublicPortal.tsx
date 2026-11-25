@@ -8,16 +8,17 @@ interface PublicPortalProps {
   isAuthenticated: boolean;
 }
 
-const DECANATOS_CHICLAYO = [
-  'Decanato Chiclayo Centro',
-  'Decanato Chiclayo Norte',
-  'Decanato Chiclayo Sur',
-  'Decanato La Victoria',
-  'Decanato José Leonardo Ortiz',
-  'Decanato Lambayeque',
-  'Decanato Ferreñafe',
-  'Decanato Circuito Mochica',
-  'Decanato Olmos / Motupe',
+const ZONAS_CHICLAYO = [
+  'Zona Chiclayo Centro',
+  'Zona Chiclayo Norte',
+  'Zona Chiclayo Sur',
+  'Zona La Victoria',
+  'Zona José Leonardo Ortiz',
+  'Zona Lambayeque',
+  'Zona Ferreñafe',
+  'Zona Costa / Circuito Mochica',
+  'Zona Sierra / Santa Cruz',
+  'Zona Olmos / Motupe',
 ];
 
 export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) {
@@ -28,7 +29,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
   // Public CRM Prospect Form state
   const [fullName, setFullName] = useState('');
   const [parish, setParish] = useState('');
-  const [decanato, setDecanato] = useState(DECANATOS_CHICLAYO[0]);
+  const [zona, setZona] = useState(ZONAS_CHICLAYO[0]);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [pastoralId, setPastoralId] = useState('pas-juvenil');
@@ -65,7 +66,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
       const res = await api.submitPublicLead({
         fullName,
         parish,
-        decanato,
+        decanato: zona,
         phone,
         email,
         pastoralId,
@@ -217,7 +218,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                   </p>
                   <p className="text-sm text-slate-700 leading-relaxed">
                     Bajo el amparo de Nuestra Señora Inmaculada Concepción, acompañamos la vida
-                    juvenil en los decanatos de Chiclayo, Lambayeque y Ferreñafe.
+                    juvenil en las zonas pastorales de Chiclayo, Lambayeque, Ferreñafe y Santa Cruz.
                   </p>
                 </div>
 
@@ -433,7 +434,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
               </p>
               <p className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-[#109A51] shrink-0" />
-                <span>Invitación directa a las próximas jornadas y asambleas del decanato.</span>
+                <span>Invitación directa a las próximas jornadas y asambleas de tu zona pastoral.</span>
               </p>
             </div>
           </div>
@@ -489,18 +490,18 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label htmlFor="lead-decanato" className="block text-xs font-medium text-slate-700 mb-1">
-                    Decanato
+                  <label htmlFor="lead-zona" className="block text-xs font-medium text-slate-700 mb-1">
+                    Zona Pastoral
                   </label>
                   <select
-                    id="lead-decanato"
-                    value={decanato}
-                    onChange={(e) => setDecanato(e.target.value)}
+                    id="lead-zona"
+                    value={zona}
+                    onChange={(e) => setZona(e.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0A6EB4] focus:outline-none"
                   >
-                    {DECANATOS_CHICLAYO.map((dec) => (
-                      <option key={dec} value={dec}>
-                        {dec}
+                    {ZONAS_CHICLAYO.map((z) => (
+                      <option key={z} value={z}>
+                        {z}
                       </option>
                     ))}
                   </select>

@@ -45,7 +45,8 @@ export interface Member {
   roleTitle: string;
   pastoralId: string;
   parish: string;
-  decanato: string;
+  decanato?: string;
+  zona?: string;
   phone: string;
   email: string;
   birthDate: string; // YYYY-MM-DD
@@ -57,7 +58,8 @@ export interface Prospect {
   id: string;
   fullName: string;
   parish: string;
-  decanato: string;
+  decanato?: string;
+  zona?: string;
   phone: string;
   email: string;
   pastoralId: string;

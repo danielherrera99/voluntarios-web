@@ -228,7 +228,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
   // Prospect Form
   const [prName, setPrName] = useState('');
   const [prParish, setPrParish] = useState('');
-  const [prDecanato, setPrDecanato] = useState('Decanato Chiclayo Centro');
+  const [prDecanato, setPrDecanato] = useState('Zona Chiclayo Centro');
   const [prPhone, setPrPhone] = useState('');
   const [prEmail, setPrEmail] = useState('');
   const [prPastoralId, setPrPastoralId] = useState('');
@@ -284,7 +284,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
   const [memRole, setMemRole] = useState('Integrante Juvenil');
   const [memPastoral, setMemPastoral] = useState('');
   const [memParish, setMemParish] = useState('');
-  const [memDecanato, setMemDecanato] = useState('Decanato Chiclayo Centro');
+  const [memDecanato, setMemDecanato] = useState('Zona Chiclayo Centro');
   const [memPhone, setMemPhone] = useState('');
   const [memBirth, setMemBirth] = useState('2001-05-15');
 
@@ -454,7 +454,8 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
       !q ||
       p.fullName.toLowerCase().includes(q) ||
       p.parish.toLowerCase().includes(q) ||
-      p.decanato.toLowerCase().includes(q);
+      (p.decanato && p.decanato.toLowerCase().includes(q)) ||
+      (p.zona && p.zona.toLowerCase().includes(q));
     return matchStage && matchQ;
   });
 
@@ -937,7 +938,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                       />
                       <input
                         type="text"
-                        placeholder="Decanato"
+                        placeholder="Zona Pastoral"
                         value={prDecanato}
                         onChange={(e) => setPrDecanato(e.target.value)}
                         className="rounded-lg border border-slate-200 px-3 py-2 text-xs focus:border-[#0A6EB4] focus:outline-none"
@@ -1003,7 +1004,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                       <Search className="h-4 w-4 text-slate-400" />
                       <input
                         type="text"
-                        placeholder="Buscar prospecto por nombre, parroquia o decanato..."
+                        placeholder="Buscar prospecto por nombre, parroquia o zona..."
                         value={crmSearch}
                         onChange={(e) => setCrmSearch(e.target.value)}
                         className="w-full text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none"
@@ -1020,7 +1021,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                           <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
                             <tr>
                               <th className="px-4 py-3 font-medium">Joven / Prospecto</th>
-                              <th className="px-4 py-3 font-medium">Parroquia / Decanato</th>
+                              <th className="px-4 py-3 font-medium">Parroquia / Zona Pastoral</th>
                               <th className="px-4 py-3 font-medium">Pastoral</th>
                               <th className="px-4 py-3 font-medium">Contacto</th>
                               <th className="px-4 py-3 font-medium">Etapa CRM</th>
@@ -1476,7 +1477,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                       />
                       <input
                         type="text"
-                        placeholder="Decanato"
+                        placeholder="Zona Pastoral"
                         value={memDecanato}
                         onChange={(e) => setMemDecanato(e.target.value)}
                         className="rounded-lg border border-slate-200 px-3 py-2 text-xs"
@@ -1527,7 +1528,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                             <tr>
                               <th className="px-4 py-3 font-medium">Integrante</th>
                               <th className="px-4 py-3 font-medium">Pastoral</th>
-                              <th className="px-4 py-3 font-medium">Parroquia / Decanato</th>
+                              <th className="px-4 py-3 font-medium">Parroquia / Zona Pastoral</th>
                               <th className="px-4 py-3 font-medium">Cumpleaños</th>
                               <th className="px-4 py-3 font-medium text-right">Pieza Gráfica</th>
                             </tr>

@@ -25,7 +25,7 @@ type AuthTab = 'login' | 'register' | 'forgot';
 
 const PASTORALES_OPCIONES = [
   { id: 'general', nombre: '✝️ Coordinación General / Por Definir' },
-  { id: 'pas-juvenil', nombre: '💜 Pastoral Juvenil Parroquial / Decanato' },
+  { id: 'pas-juvenil', nombre: '💜 Pastoral Juvenil Parroquial / Zonas Pastorales' },
   { id: 'pas-vocacional', nombre: '💙 Pastoral Vocacional' },
   { id: 'pas-catequesis', nombre: '💚 Pastoral de Catequesis y Confirmación' },
   { id: 'pas-universitaria', nombre: '❤️ Pastoral Universitaria' },
