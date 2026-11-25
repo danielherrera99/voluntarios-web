@@ -86,3 +86,4 @@ export function invalidatePortalConfig() {
     localStorage.removeItem(CACHE_KEY);
   } catch (e) {}
 }
+

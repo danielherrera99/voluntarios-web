@@ -390,3 +390,4 @@ export default function ReasignarCuadrillaModal({
     </div>
   );
 }
+

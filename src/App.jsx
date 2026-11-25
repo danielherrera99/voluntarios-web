@@ -8,6 +8,7 @@ import GuiaDashboard from './pages/GuiaDashboard';
 import ValidadorDashboard from './pages/ValidadorDashboard';
 import ConsultaVoluntariado from './pages/ConsultaVoluntariado';
 import GeneradorQR from './pages/GeneradorQR';
+import VoluntariosHome from './pages/VoluntariosHome';
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useAuth();
@@ -25,7 +26,7 @@ const DashboardRouter = () => {
 };
 
 // Si se abre desde la App instalada en el celular (PWA standalone), abre directo en Login / Dashboard.
-// Si se abre desde un navegador web normal (Render o diocesischiclayo.org), muestra la Consulta Pública.
+// Si se abre desde un navegador web normal (Render o diocesischiclayo.org), muestra el Lienzo Principal de Voluntarios.
 const PublicOrPwaRoot = () => {
   const { user } = useAuth();
   
@@ -37,7 +38,7 @@ const PublicOrPwaRoot = () => {
     return <Navigate to={user ? "/dashboard" : "/login"} replace />;
   }
 
-  return <ConsultaVoluntariado />;
+  return <VoluntariosHome />;
 };
 
 function AppRoutes() {
@@ -45,8 +46,13 @@ function AppRoutes() {
 
   return (
     <Routes>
-      {/* Portal Público de Consulta (o Login si es la App instalada) */}
+      {/* Lienzo Principal de Voluntarios (Pastoral Juvenil) */}
       <Route path="/" element={<PublicOrPwaRoot />} />
+      <Route path="/voluntarios" element={<VoluntariosHome />} />
+
+      {/* Consulta Histórica Visita León (Amigos de León) */}
+      <Route path="/visitaleon" element={<ConsultaVoluntariado />} />
+      <Route path="/visita-leon" element={<ConsultaVoluntariado />} />
       <Route path="/consulta" element={<ConsultaVoluntariado />} />
       
       {/* Generación discreta de Credencial con QR (Ruta dedicada para voluntarios) */}
