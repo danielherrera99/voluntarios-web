@@ -1,6 +1,6 @@
 import {ArrowRight, Calendar, CheckCircle2, MapPin, Send, Users} from 'lucide-react';
 import {useEffect, useState, type FormEvent} from 'react';
-import {api} from '../../lib/api';
+import {api, getAssetUrl} from '../../lib/api';
 import type {PastoralStatus, PublicOverviewResponse} from '../../types';
 
 interface PublicPortalProps {
@@ -97,14 +97,6 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
         <div className="flex-1 bg-[#109A51]" />
       </div>
 
-      {/* Banner de Enlace a Consulta Visita León */}
-      <div className="bg-[#8B1E1E] text-white text-xs py-2 px-4 text-center font-medium flex items-center justify-center gap-2 shadow-xs">
-        <span>✝️ Diócesis de Chiclayo · ¿Consultas tu postulación para la Visita del Santo Padre León?</span>
-        <a href="/visitaleon" className="underline font-bold text-amber-200 hover:text-white transition-colors">
-          Revisa aquí tu estado por DNI →
-        </a>
-      </div>
-
       {/* Top Bar Contract: 3 zones, gap-8, single-line controls */}
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-xs">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-8 px-6 py-3.5">
@@ -114,7 +106,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
             className="flex items-center gap-3 text-base font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0"
           >
             <img
-              src="/assets/aistudio/PJ_8x_b40a6c17.png"
+              src={getAssetUrl('assets/aistudio/PJ_8x_b40a6c17.png')}
               alt="Logo Pastoral Juvenil Diócesis de Chiclayo"
               className="h-9 w-auto object-contain"
               referrerPolicy="no-referrer"
@@ -147,12 +139,6 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
               className="hover:text-[#0A6EB4] transition-colors whitespace-nowrap shrink-0"
             >
               Participar
-            </a>
-            <a
-              href="/visitaleon"
-              className="hover:text-[#8B1E1E] font-semibold text-red-800 transition-colors whitespace-nowrap shrink-0 flex items-center gap-1"
-            >
-              <span>🏛️</span> Visita León
             </a>
           </nav>
 
@@ -212,13 +198,13 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
               <div className="flex h-full flex-col justify-between rounded-xl border border-slate-200 bg-white p-8">
                 <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-6">
                   <img
-                    src="/assets/aistudio/PJ_8x_b40a6c17.png"
+                    src={getAssetUrl('assets/aistudio/PJ_8x_b40a6c17.png')}
                     alt="Pastoral Juvenil Diócesis de Chiclayo"
                     className="h-24 w-auto object-contain"
                     referrerPolicy="no-referrer"
                   />
                   <img
-                    src="/assets/aistudio/CDJ_8x_082c8e32.png"
+                    src={getAssetUrl('assets/aistudio/CDJ_8x_082c8e32.png')}
                     alt="Comisión Diocesana de Juventud"
                     className="h-24 w-24 object-contain"
                     referrerPolicy="no-referrer"
@@ -600,13 +586,13 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
         <div className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-10 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
             <img
-              src="/assets/aistudio/PJ_8x_b40a6c17.png"
+              src={getAssetUrl('assets/aistudio/PJ_8x_b40a6c17.png')}
               alt="Logo Pastoral Juvenil"
               className="h-10 w-auto object-contain"
               referrerPolicy="no-referrer"
             />
             <img
-              src="/assets/aistudio/CDJ_8x_082c8e32.png"
+              src={getAssetUrl('assets/aistudio/CDJ_8x_082c8e32.png')}
               alt="Comisión Diocesana de Juventud"
               className="h-10 w-10 object-contain"
               referrerPolicy="no-referrer"

@@ -1,6 +1,6 @@
 import {ArrowLeft, Lock, ShieldCheck, UserPlus} from 'lucide-react';
 import {useEffect, useState, type FormEvent} from 'react';
-import {api, setAuthToken} from '../../lib/api';
+import {api, getAssetUrl, setAuthToken} from '../../lib/api';
 import type {AuthUser} from '../../types';
 
 interface AuthViewProps {
@@ -74,7 +74,7 @@ export function AuthView({onAuthenticated, onBackToPublic}: AuthViewProps) {
         </button>
         <div className="flex items-center gap-3">
           <img
-            src="/assets/aistudio/PJ_8x_b40a6c17.png"
+            src={getAssetUrl('assets/aistudio/PJ_8x_b40a6c17.png')}
             alt="Pastoral Juvenil Diócesis de Chiclayo"
             className="h-8 w-auto object-contain"
             referrerPolicy="no-referrer"
@@ -86,7 +86,7 @@ export function AuthView({onAuthenticated, onBackToPublic}: AuthViewProps) {
         <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
           <div className="flex items-center gap-4 pb-6 border-b border-slate-100">
             <img
-              src="/assets/aistudio/CDJ_8x_082c8e32.png"
+              src={getAssetUrl('assets/aistudio/CDJ_8x_082c8e32.png')}
               alt="Comisión Diocesana de Juventud"
               className="h-14 w-14 object-contain shrink-0"
               referrerPolicy="no-referrer"
@@ -195,22 +195,6 @@ export function AuthView({onAuthenticated, onBackToPublic}: AuthViewProps) {
               </button>
             </form>
           )}
-
-          {/* Enlaces al Sistema Histórico de Voluntariado Visita León */}
-          <div className="mt-6 pt-5 border-t border-slate-100 flex flex-col gap-2.5 text-center">
-            <a
-              href="/loginleon"
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3.5 py-2 text-xs font-semibold text-red-800 hover:bg-red-100 transition-colors"
-            >
-              <span>🏛️</span> Acceso Sistema Voluntarios León (Papa Francisco)
-            </a>
-            <a
-              href="/visitaleon"
-              className="text-xs text-slate-500 hover:text-slate-800 transition-colors"
-            >
-              ¿Deseas validar tu postulación por DNI? Consulta aquí
-            </a>
-          </div>
         </div>
       </main>
     </div>

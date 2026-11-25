@@ -1,5 +1,6 @@
 import {Printer, X} from 'lucide-react';
 import {useState} from 'react';
+import {getAssetUrl} from '../../lib/api';
 
 export interface CelebrationCardPreset {
   mode: 'birthday' | 'anniversary';
@@ -200,13 +201,13 @@ export function CelebrationCardModal({preset, onClose}: CelebrationCardModalProp
               {/* Institutional Seals Footer */}
               <div className="flex items-center justify-center gap-5 pt-4 border-t border-slate-100">
                 <img
-                  src="/assets/aistudio/PJ_8x_b40a6c17.png"
+                  src={getAssetUrl('assets/aistudio/PJ_8x_b40a6c17.png')}
                   alt="Logo Pastoral Juvenil Diócesis de Chiclayo"
                   className="h-11 w-auto object-contain"
                   referrerPolicy="no-referrer"
                 />
                 <img
-                  src="/assets/aistudio/CDJ_8x_082c8e32.png"
+                  src={getAssetUrl('assets/aistudio/CDJ_8x_082c8e32.png')}
                   alt="Sello Comisión Diocesana de Juventud"
                   className="h-11 w-11 object-contain"
                   referrerPolicy="no-referrer"

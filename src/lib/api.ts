@@ -24,6 +24,13 @@ export function getAuthToken(): string | null {
   return inMemoryToken || localStorage.getItem('token');
 }
 
+export function getAssetUrl(path: string): string {
+  const base = import.meta.env.BASE_URL || '/';
+  const cleanBase = base.endsWith('/') ? base : `${base}/`;
+  const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+  return `${cleanBase}${cleanPath}`;
+}
+
 const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {

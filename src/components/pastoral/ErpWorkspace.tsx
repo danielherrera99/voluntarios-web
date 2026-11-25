@@ -21,7 +21,7 @@ import {
   X,
 } from 'lucide-react';
 import {useCallback, useEffect, useState, type FormEvent} from 'react';
-import {api, type ErpDashboardData} from '../../lib/api';
+import {api, getAssetUrl, type ErpDashboardData} from '../../lib/api';
 import type {
   AuthUser,
   DiocesanEvent,
@@ -494,7 +494,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
             <div className="flex items-center gap-2.5 min-w-0">
               <img
-                src="/assets/aistudio/PJ_8x_b40a6c17.png"
+                src={getAssetUrl('assets/aistudio/PJ_8x_b40a6c17.png')}
                 alt="Pastoral Juvenil Chiclayo"
                 className="h-8 w-auto object-contain shrink-0"
                 referrerPolicy="no-referrer"
