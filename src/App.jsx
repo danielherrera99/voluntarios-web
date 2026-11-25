@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
+import LoginLeon from './pages/LoginLeon';
 import Dashboard from './pages/Dashboard';
 import ResponsableDashboard from './pages/ResponsableDashboard';
 import LiderDashboard from './pages/LiderDashboard';
@@ -59,6 +60,8 @@ function AppRoutes() {
       <Route path="/qr" element={<GeneradorQR />} />
 
       {/* Acceso Administrativo y Jerárquico */}
+      <Route path="/loginleon" element={user ? <Navigate to="/dashboard" replace /> : <LoginLeon />} />
+      <Route path="/login-leon" element={user ? <Navigate to="/dashboard" replace /> : <LoginLeon />} />
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
       <Route 
         path="/dashboard" 
