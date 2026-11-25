@@ -10,6 +10,7 @@ import ValidadorDashboard from './pages/ValidadorDashboard';
 import ConsultaVoluntariado from './pages/ConsultaVoluntariado';
 import GeneradorQR from './pages/GeneradorQR';
 import VoluntariosHome from './pages/VoluntariosHome';
+import { ErpWorkspace } from './components/pastoral/ErpWorkspace';
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useAuth();
@@ -18,12 +19,33 @@ const ProtectedRoute = ({ children }) => {
 };
 
 const DashboardRouter = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   if (user?.rol === 'validador') return <ValidadorDashboard />;
   if (user?.rol === 'responsable') return <ResponsableDashboard />;
   if (user?.rol === 'lider') return <LiderDashboard />;
   if (user?.rol === 'guia') return <GuiaDashboard />;
-  return <Dashboard />;
+  if (user?.rol === 'admin' || user?.rol === 'superadmin') return <Dashboard />;
+
+  // Roles Diocesanos de Pastoral Juvenil (AI Studio) o usuarios sin rol tradicional de León
+  return (
+    <ErpWorkspace
+      user={user || {
+        id: 'usr-diocesano',
+        name: 'Coordinador Diocesano',
+        email: 'coordinacion@pjchiclayo.org',
+        role: 'admin_diocesano',
+        pastoralId: null,
+        createdAt: '2024-01-01',
+      }}
+      onLogout={() => {
+        logout();
+        window.location.href = '/';
+      }}
+      onGoPublic={() => {
+        window.location.href = '/';
+      }}
+    />
+  );
 };
 
 // Si se abre desde la App instalada en el celular (PWA standalone), abre directo en Login / Dashboard.
@@ -43,11 +65,11 @@ const PublicOrPwaRoot = () => {
 };
 
 function AppRoutes() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
   return (
     <Routes>
-      {/* Lienzo Principal de Voluntarios (Pastoral Juvenil) */}
+      {/* Lienzo Principal de Voluntarios (Pastoral Juvenil - Diócesis de Chiclayo) */}
       <Route path="/" element={<PublicOrPwaRoot />} />
       <Route path="/voluntarios" element={<VoluntariosHome />} />
 
@@ -68,6 +90,30 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <DashboardRouter />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/erp" 
+        element={
+          <ProtectedRoute>
+            <ErpWorkspace
+              user={user || {
+                id: 'usr-diocesano',
+                name: 'Coordinador Diocesano',
+                email: 'coordinacion@pjchiclayo.org',
+                role: 'admin_diocesano',
+                pastoralId: null,
+                createdAt: '2024-01-01',
+              }}
+              onLogout={() => {
+                logout();
+                window.location.href = '/';
+              }}
+              onGoPublic={() => {
+                window.location.href = '/';
+              }}
+            />
           </ProtectedRoute>
         } 
       />
