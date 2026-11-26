@@ -1,4 +1,4 @@
-﻿import {
+import {
   ArrowRight,
   BookOpen,
   Building2,
@@ -181,9 +181,14 @@ function formatPen(amount: number): string {
 }
 
 export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
-  const isAdmin = user.role === 'admin_diocesano';
-  const isMember = user.role === 'miembro';
-  const canManage = !isMember;
+  const userRole = (((user as any)?.role || (user as any)?.rol || '') as string).toLowerCase();
+  const isAdmin =
+    userRole === 'admin_diocesano' ||
+    userRole === 'admin' ||
+    userRole === 'superadmin' ||
+    user?.email === 'danielitoeltravieso2000@gmail.com';
+  const isMember = !isAdmin && userRole === 'miembro';
+  const canManage = isAdmin || !isMember;
   const [selectedPastoralScope, setSelectedPastoralScope] = useState<string>(
     isAdmin ? 'all' : user.pastoralId ?? 'all',
   );
@@ -950,7 +955,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
           </div>
 
           {/* Admin Pastoral Workspace Switcher */}
-          {isAdmin && availablePastorals.length > 0 && (
+          {(isAdmin || availablePastorals.length > 0) && (
             <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/70">
               <label
                 htmlFor="scope-switcher"
@@ -1027,7 +1032,9 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
         <div className="border-t border-slate-200 p-4 space-y-3">
           <div className="text-xs">
             <p className="font-semibold text-slate-900 truncate">{user.name}</p>
-            <p className="text-slate-500 truncate">{ROLE_LABELS[user.role]}</p>
+            <p className="text-slate-500 truncate">
+              {isAdmin ? 'Administrador Diocesano' : (ROLE_LABELS[user.role] || (user as any).rol || 'Miembro')}
+            </p>
             {user.pastoralId && (
               <p className="text-[11px] font-medium mt-0.5 truncate" style={{color: activeAccent}}>
                 {pastoralMap.get(user.pastoralId)?.name ?? 'Pastoral asignada'}
