@@ -2,24 +2,12 @@ import {ArrowRight, Calendar, CheckCircle2, MapPin, Send, Users} from 'lucide-re
 import {useEffect, useState, type FormEvent} from 'react';
 import {api, getAssetUrl} from '../../lib/api';
 import type {PastoralStatus, PublicOverviewResponse} from '../../types';
+import {ZONAS_DIOCESANAS} from '../../data/diocesisCatalogo';
 
 interface PublicPortalProps {
   onOpenLogin: () => void;
   isAuthenticated: boolean;
 }
-
-const ZONAS_CHICLAYO = [
-  'Zona Chiclayo Centro',
-  'Zona Chiclayo Norte',
-  'Zona Chiclayo Sur',
-  'Zona La Victoria',
-  'Zona José Leonardo Ortiz',
-  'Zona Lambayeque',
-  'Zona Ferreñafe',
-  'Zona Costa / Circuito Mochica',
-  'Zona Sierra / Santa Cruz',
-  'Zona Olmos / Motupe',
-];
 
 export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) {
   const [data, setData] = useState<PublicOverviewResponse | null>(null);
@@ -29,7 +17,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
   // Public CRM Prospect Form state
   const [fullName, setFullName] = useState('');
   const [parish, setParish] = useState('');
-  const [zona, setZona] = useState(ZONAS_CHICLAYO[0]);
+  const [zona, setZona] = useState<string>(ZONAS_DIOCESANAS[0]);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [pastoralId, setPastoralId] = useState('pas-juvenil');
@@ -499,7 +487,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                     onChange={(e) => setZona(e.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0A6EB4] focus:outline-none"
                   >
-                    {ZONAS_CHICLAYO.map((z) => (
+                    {ZONAS_DIOCESANAS.map((z) => (
                       <option key={z} value={z}>
                         {z}
                       </option>
