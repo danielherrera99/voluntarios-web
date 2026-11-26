@@ -87,230 +87,40 @@ export interface ErpDashboardData {
 // ==========================================
 // SEED INSTITUCIONAL POR DEFECTO (DIÓCESIS DE CHICLAYO)
 // ==========================================
+import diocesisInitialDb from '../data/diocesis.db.json';
 
-const SEED_PASTORALS: Pastoral[] = [
-  {
-    id: 'pas-juvenil',
-    code: 'PJ-01',
-    name: 'Pastoral Juvenil Diocesana',
-    shortName: 'Pastoral Juvenil',
-    coordinatorName: 'Fátima Elizabeth Gonzales Fiestas',
-    adviserName: 'Pbro. Luis Alberto Vásquez',
-    parishCount: 28,
-    focusArea: 'Comisión Diocesana de Juventud · Articulación Parroquial',
-    status: 'Activa',
-    accentColor: '#8D4999',
-    description:
-      'Comisión Diocesana encargada de acompañar, formar y articular a los grupos juveniles de todas las parroquias y zonas pastorales de la Diócesis de Chiclayo.',
-    createdAt: '2024-01-15',
-  },
-  {
-    id: 'pas-vocacional',
-    code: 'PV-02',
-    name: 'Pastoral Vocacional',
-    shortName: 'Vocacional',
-    coordinatorName: 'Carlos Eduardo Mera',
-    adviserName: 'Pbro. José Manuel Guevara',
-    parishCount: 18,
-    focusArea: 'Discernimiento Sacerdotal, Consagrado y Laical',
-    status: 'Activa',
-    accentColor: '#0A6EB4',
-    description:
-      'Acompañamiento cercano para jóvenes en discernimiento vocacional, jornadas de oración por las vocaciones y encuentros pre-seminario.',
-    createdAt: '2024-02-01',
-  },
-  {
-    id: 'pas-catequesis',
-    code: 'PC-03',
-    name: 'Pastoral de Catequesis y Confirmación',
-    shortName: 'Catequesis',
-    coordinatorName: 'Lucía del Pilar Tantaleán',
-    adviserName: 'Hna. Rosa Elena Quispe',
-    parishCount: 34,
-    focusArea: 'Iniciación Cristiana y Formación de Catequistas',
-    status: 'Activa',
-    accentColor: '#109A51',
-    description:
-      'Escuela diocesana de catequistas jóvenes, materiales formativos para Confirmación y acompañamiento sacramental en parroquias.',
-    createdAt: '2024-02-10',
-  },
-  {
-    id: 'pas-universitaria',
-    code: 'PU-04',
-    name: 'Pastoral Universitaria',
-    shortName: 'Universitaria',
-    coordinatorName: 'Diego Sebastián Chicoma',
-    adviserName: 'Pbro. Martín Requejo',
-    parishCount: 9,
-    focusArea: 'Universidades e Institutos de Lambayeque',
-    status: 'Activa',
-    accentColor: '#E6332A',
-    description:
-      'Presencia evangelizadora en campus universitarios e institutos superiores de Chiclayo y Lambayeque mediante diálogos de fe, cultura y servicio.',
-    createdAt: '2024-03-04',
-  },
-  {
-    id: 'pas-social',
-    code: 'PS-05',
-    name: 'Pastoral Social y Cáritas Juvenil',
-    shortName: 'Pastoral Social',
-    coordinatorName: 'Andrea Paola Huamán',
-    adviserName: 'Diác. Pedro Pablo Larios',
-    parishCount: 22,
-    focusArea: 'Misiones Solidarias, Ollas Comunes y Ecología Integral',
-    status: 'Activa',
-    accentColor: '#109A51',
-    description:
-      'Voluntariado juvenil en zonas vulnerables de Chiclayo, campañas solidarias, visitas a hospitales y brigadas misioneras rurales.',
-    createdAt: '2024-03-20',
-  },
-  {
-    id: 'pas-familiar',
-    code: 'PF-06',
-    name: 'Pastoral Familiar y Noviazgos',
-    shortName: 'Pastoral Familiar',
-    coordinatorName: 'Mateo & Valeria Silva',
-    adviserName: 'Pbro. Jorge Luis Sandoval',
-    parishCount: 16,
-    focusArea: 'Noviazgos Cristianos y Matrimonios Jóvenes',
-    status: 'En Formación',
-    accentColor: '#0A6EB4',
-    description:
-      'Espacios de formación para noviazgos con propósito, preparación matrimonial y acompañamiento a familias jóvenes de la diócesis.',
-    createdAt: '2024-05-12',
-  },
-  {
-    id: 'pas-liturgia',
-    code: 'PL-07',
-    name: 'Pastoral Litúrgica y Coros Juveniles',
-    shortName: 'Liturgia y Coros',
-    coordinatorName: 'Gabriel Antonio Llontop',
-    adviserName: 'Pbro. César Augusto Ñiquen',
-    parishCount: 25,
-    focusArea: 'Animación Litúrgica, Música Sacra y Acólitos',
-    status: 'Activa',
-    accentColor: '#8D4999',
-    description:
-      'Coordinación de coros juveniles diocesanos, formación litúrgica y animación musical de las misas y vigilias diocesanas.',
-    createdAt: '2024-06-01',
-  },
-  {
-    id: 'pas-movimientos',
-    code: 'PM-08',
-    name: 'Movimientos y Grupos Parroquiales',
-    shortName: 'Movimientos',
-    coordinatorName: 'Fiorella Milagros Bances',
-    adviserName: 'Pbro. Luis Alberto Vásquez',
-    parishCount: 19,
-    focusArea: 'Comunión de Carismas, Emaús, Juan XXIII y Misiones',
-    status: 'Activa',
-    accentColor: '#E6332A',
-    description:
-      'Mesa de comunión que integra a los diversos movimientos juveniles, hermandades y grupos parroquiales de nuestra iglesia local.',
-    createdAt: '2024-07-08',
-  },
-];
-
-const SEED_EVENTS: DiocesanEvent[] = [
-  {
-    id: 'evt-01',
-    title: 'Aniversario Pastoral Juvenil P. San José Obrero (3 Años)',
-    pastoralId: 'pas-juvenil',
-    parishHost: 'P. San José Obrero',
-    eventType: 'Aniversario',
-    date: '2026-11-05',
-    time: '19:00',
-    location: 'Templo Parroquial San José Obrero, Chiclayo',
-    capacity: 180,
-    registeredCount: 164,
-    isPublic: true,
-    status: 'Realizado',
-    description: 'Misa de acción de gracias y compartir fraterno por los 3 años de servicio y entrega juvenil.',
-  },
-  {
-    id: 'evt-02',
-    title: 'Asamblea Diocesana de Coordinadores de Pastoral Juvenil',
-    pastoralId: 'pas-juvenil',
-    parishHost: 'Catedral Santa María',
-    eventType: 'Asamblea',
-    date: '2026-12-06',
-    time: '09:00',
-    location: 'Auditorio Obispado de Chiclayo',
-    capacity: 120,
-    registeredCount: 88,
-    isPublic: true,
-    status: 'Programado',
-    description: 'Evaluación anual del plan pastoral diocesano 2026 y proyección de misiones de verano 2027.',
-  },
-  {
-    id: 'evt-03',
-    title: 'Vigilia Diocesana de la Inmaculada Concepción',
-    pastoralId: 'pas-liturgia',
-    parishHost: 'Catedral Santa María',
-    eventType: 'Jornada',
-    date: '2026-12-07',
-    time: '20:00',
-    location: 'Atrio de la Iglesia Catedral de Chiclayo',
-    capacity: 450,
-    registeredCount: 310,
-    isPublic: true,
-    status: 'Programado',
-    description: 'Adoración eucarística, animación del Coro Juvenil Diocesano y consagración juvenil a María.',
-  },
-  {
-    id: 'evt-04',
-    title: 'Campaña Solidaria Navidad del Niño Lambayecano',
-    pastoralId: 'pas-social',
-    parishHost: 'P. Nuestra Señora de la Paz',
-    eventType: 'Misión',
-    date: '2026-12-19',
-    time: '08:30',
-    location: 'Sectores rurales de Mórrope y Olmos',
-    capacity: 90,
-    registeredCount: 62,
-    isPublic: true,
-    status: 'Programado',
-    description: 'Jornada misionera juvenil con chocolatada, catequesis navideña y entrega de víveres.',
-  },
-];
-
-const SEED_CELEBRATIONS: PublicOverviewResponse['celebrations'] = [
-  {
-    id: 'cel-anniv-sjo',
-    kind: 'anniversary',
-    title: 'Pastoral Juvenil P. San José Obrero',
-    subtitle: '3 Años de servicio y entrega pastoral',
-    dateLabel: '5 de noviembre',
-    parishOrRole: 'Zona Chiclayo Sur',
-  },
-  {
-    id: 'cel-mem-01',
-    kind: 'birthday',
-    title: 'Fátima Elizabeth Gonzales Fiestas',
-    subtitle: 'Sub Coordinadora Diocesana',
-    dateLabel: '28 de noviembre',
-    parishOrRole: 'Catedral Santa María',
-  },
-  {
-    id: 'cel-mem-05',
-    kind: 'birthday',
-    title: 'Andrea Paola Huamán',
-    subtitle: 'Coordinadora de Voluntariado',
-    dateLabel: '3 de diciembre',
-    parishOrRole: 'P. Nuestra Señora de la Paz',
-  },
-];
+const SEED_PASTORALS: Pastoral[] = diocesisInitialDb.pastorals as unknown as Pastoral[];
+const SEED_PARISHES: Parish[] = (diocesisInitialDb.parishes || []) as unknown as Parish[];
+const SEED_EVENTS: DiocesanEvent[] = (diocesisInitialDb.events || []) as unknown as DiocesanEvent[];
 
 const DEFAULT_PUBLIC_OVERVIEW: PublicOverviewResponse = {
   stats: {
     activePastorals: SEED_PASTORALS.filter((p) => p.status === 'Activa').length,
-    registeredMembers: 148,
+    registeredMembers: diocesisInitialDb.members?.length || 6,
     upcomingEvents: SEED_EVENTS.filter((e) => e.status === 'Programado').length,
-    parishesReached: 34,
+    parishesReached: 8,
   },
   pastorals: SEED_PASTORALS,
+  parishes: SEED_PARISHES,
   events: SEED_EVENTS,
-  celebrations: SEED_CELEBRATIONS,
+  celebrations: [
+    {
+      id: 'cel-anniv-sjo',
+      kind: 'anniversary',
+      title: 'Pastoral Juvenil P. San José Obrero',
+      subtitle: '3 Años de servicio y entrega pastoral',
+      dateLabel: '5 de noviembre',
+      parishOrRole: 'Zona Centro-Oeste',
+    },
+    {
+      id: 'cel-mem-01',
+      kind: 'birthday',
+      title: 'Fátima Elizabeth Gonzales Fiestas',
+      subtitle: 'Sub Coordinadora Diocesana',
+      dateLabel: '28 de noviembre',
+      parishOrRole: 'Catedral Santa María',
+    },
+  ],
 };
 
 // ==========================================
@@ -535,6 +345,7 @@ export const api = {
         activePastoral,
         availablePastorals: SEED_PASTORALS,
         pastorals: SEED_PASTORALS,
+        parishes: SEED_PARISHES,
         members: [
           {
             id: 'mem-01',

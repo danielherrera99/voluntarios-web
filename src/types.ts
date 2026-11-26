@@ -1,4 +1,8 @@
-export type UserRole = 'admin_diocesano' | 'coordinador_pastoral' | 'secretario_tesorero';
+export type UserRole =
+  | 'admin_diocesano'
+  | 'coordinador_pastoral'
+  | 'secretario_tesorero'
+  | 'miembro';
 
 export type PastoralStatus = 'Activa' | 'En Formación' | 'Pausa';
 
@@ -18,10 +22,31 @@ export type FinanceType = 'Ingreso' | 'Egreso';
 export interface AuthUser {
   id: string;
   name: string;
+  username?: string;
   email: string;
+  phone?: string;
+  parishOrigin?: string;
+  parroquia?: string;
+  pastoralNombre?: string;
+  telefono?: string;
+  estado?: string;
   role: UserRole;
   pastoralId: string | null;
-  createdAt: string;
+  createdAt?: string;
+}
+
+export type CommunityKind =
+  | 'Pastoral Parroquial'
+  | 'Movimiento'
+  | 'Pastoral Especializada'
+  | 'Pastoral Universitaria';
+
+export interface Parish {
+  id: string;
+  name: string;
+  locality: string;
+  zonaArciprestal: string;
+  pastorName: string;
 }
 
 export interface Pastoral {
@@ -29,6 +54,9 @@ export interface Pastoral {
   code: string;
   name: string;
   shortName: string;
+  zonaArciprestal: string;
+  communityKind?: CommunityKind;
+  parishId?: string | null;
   coordinatorName: string;
   adviserName: string;
   parishCount: number;
@@ -39,12 +67,33 @@ export interface Pastoral {
   createdAt: string;
 }
 
+export const ZONAS_ARCIPRESTALES = [
+  'Centro-Este',
+  'Centro-Oeste',
+  'Norte',
+  'Litoral',
+  'Este',
+  'Sierra',
+  'Movimientos',
+  'Pastoral Universitaria',
+] as const;
+
+export const ZONAS_PARROQUIALES = [
+  'Centro-Este',
+  'Centro-Oeste',
+  'Norte',
+  'Litoral',
+  'Este',
+  'Sierra',
+] as const;
+
 export interface Member {
   id: string;
   fullName: string;
   roleTitle: string;
   pastoralId: string;
   parish: string;
+  zonaArciprestal: string;
   decanato?: string;
   zona?: string;
   phone: string;
@@ -58,6 +107,7 @@ export interface Prospect {
   id: string;
   fullName: string;
   parish: string;
+  zonaArciprestal: string;
   decanato?: string;
   zona?: string;
   phone: string;
@@ -82,6 +132,7 @@ export interface DiocesanEvent {
   location: string;
   capacity: number;
   registeredCount: number;
+  rsvpUserIds?: string[];
   isPublic: boolean;
   status: EventStatus;
   description: string;
@@ -117,6 +168,7 @@ export interface PublicOverviewResponse {
     parishesReached: number;
   };
   pastorals: Pastoral[];
+  parishes: Parish[];
   events: DiocesanEvent[];
   celebrations: Array<{
     id: string;

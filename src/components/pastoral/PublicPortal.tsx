@@ -1,8 +1,11 @@
-import {ArrowRight, Calendar, CheckCircle2, MapPin, Send, Users} from 'lucide-react';
+﻿import {ArrowRight, Calendar, CheckCircle2, MapPin, Search, Send, Users} from 'lucide-react';
 import {useEffect, useState, type FormEvent} from 'react';
 import {api, getAssetUrl} from '../../lib/api';
-import type {PastoralStatus, PublicOverviewResponse} from '../../types';
-import {ZONAS_DIOCESANAS} from '../../data/diocesisCatalogo';
+import {
+  ZONAS_ARCIPRESTALES,
+  ZONAS_PARROQUIALES,
+  type PublicOverviewResponse,
+} from '../../types';
 
 interface PublicPortalProps {
   onOpenLogin: () => void;
@@ -12,15 +15,18 @@ interface PublicPortalProps {
 export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) {
   const [data, setData] = useState<PublicOverviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [pastoralFilter, setPastoralFilter] = useState<'Todas' | PastoralStatus>('Todas');
+  const [catalogMode, setCatalogMode] = useState<'comunidades' | 'parroquias'>('comunidades');
+  const [zonaFilter, setZonaFilter] = useState<'Todas' | string>('Todas');
+  const [pastoralSearch, setPastoralSearch] = useState('');
+  const [showAllCatalog, setShowAllCatalog] = useState(false);
 
   // Public CRM Prospect Form state
   const [fullName, setFullName] = useState('');
   const [parish, setParish] = useState('');
-  const [zona, setZona] = useState<string>(ZONAS_DIOCESANAS[0]);
+  const [zonaArciprestal, setZonaArciprestal] = useState<string>(ZONAS_ARCIPRESTALES[0]);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [pastoralId, setPastoralId] = useState('pas-juvenil');
+  const [pastoralId, setPastoralId] = useState('pas-catedral');
   const [notes, setNotes] = useState('');
   const [submittingLead, setSubmittingLead] = useState(false);
   const [leadSuccess, setLeadSuccess] = useState<string | null>(null);
@@ -35,6 +41,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
         setData(res);
         if (res.pastorals.length > 0) {
           setPastoralId(res.pastorals[0].id);
+          setZonaArciprestal(res.pastorals[0].zonaArciprestal);
         }
       })
       .finally(() => {
@@ -45,16 +52,31 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
     };
   }, []);
 
+  function handleSelectParticipacion(nextId: string) {
+    setPastoralId(nextId);
+    const found = data?.pastorals.find((p) => p.id === nextId);
+    if (found) {
+      setZonaArciprestal(found.zonaArciprestal);
+      if (found.parishId) {
+        const linkedParish = data?.parishes?.find((par) => par.id === found.parishId);
+        setParish(linkedParish ? `${linkedParish.name} (${linkedParish.locality})` : '');
+      } else {
+        setParish('');
+      }
+    }
+  }
+
   async function handleLeadSubmit(e: FormEvent) {
     e.preventDefault();
     setLeadError(null);
     setLeadSuccess(null);
     setSubmittingLead(true);
     try {
+      const matched = data?.pastorals.find((p) => p.id === pastoralId);
       const res = await api.submitPublicLead({
         fullName,
-        parish,
-        decanato: zona,
+        parish: parish.trim() || matched?.name || '',
+        zonaArciprestal,
         phone,
         email,
         pastoralId,
@@ -73,9 +95,45 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
     }
   }
 
-  const visiblePastorals = (data?.pastorals ?? []).filter((p) =>
-    pastoralFilter === 'Todas' ? true : p.status === pastoralFilter,
-  );
+  const allPastorals = data?.pastorals ?? [];
+  const allParishes = data?.parishes ?? [];
+  const parishMap = new Map(allParishes.map((par) => [par.id, par]));
+  const searchLower = pastoralSearch.trim().toLowerCase();
+
+  const filteredPastorals = allPastorals.filter((p) => {
+    const linkedParish = p.parishId ? parishMap.get(p.parishId) : undefined;
+    const matchZona = zonaFilter === 'Todas' ? true : p.zonaArciprestal === zonaFilter;
+    const matchSearch =
+      !searchLower ||
+      p.name.toLowerCase().includes(searchLower) ||
+      p.shortName.toLowerCase().includes(searchLower) ||
+      p.zonaArciprestal.toLowerCase().includes(searchLower) ||
+      p.coordinatorName.toLowerCase().includes(searchLower) ||
+      (linkedParish &&
+        `${linkedParish.name} ${linkedParish.locality}`.toLowerCase().includes(searchLower));
+    return matchZona && matchSearch;
+  });
+
+  const filteredParishes = allParishes.filter((par) => {
+    const matchZona = zonaFilter === 'Todas' ? true : par.zonaArciprestal === zonaFilter;
+    const matchSearch =
+      !searchLower ||
+      par.name.toLowerCase().includes(searchLower) ||
+      par.locality.toLowerCase().includes(searchLower) ||
+      par.pastorName.toLowerCase().includes(searchLower) ||
+      par.zonaArciprestal.toLowerCase().includes(searchLower);
+    return matchZona && matchSearch;
+  });
+
+  const isUnfilteredView = zonaFilter === 'Todas' && !searchLower;
+  const visiblePastorals =
+    isUnfilteredView && !showAllCatalog
+      ? filteredPastorals.slice(0, 12)
+      : filteredPastorals;
+  const visibleParishes =
+    isUnfilteredView && !showAllCatalog
+      ? filteredParishes.slice(0, 12)
+      : filteredParishes;
 
   return (
     <div className="min-h-screen bg-white text-slate-900">
@@ -96,7 +154,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
           >
             <img
               src={getAssetUrl('assets/aistudio/PJ_8x_b40a6c17.png')}
-              alt="Logo Pastoral Juvenil Diócesis de Chiclayo"
+              alt="Logo Pastoral Juvenil DiÃ³cesis de Chiclayo"
               className="h-9 w-auto object-contain"
               referrerPolicy="no-referrer"
             />
@@ -150,19 +208,19 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
           <div className="grid grid-cols-1 items-stretch gap-12 lg:grid-cols-12">
             <div className="flex flex-col justify-center lg:col-span-7">
               <p className="text-xs font-semibold tracking-wide text-[#0A6EB4]">
-                Comisión Diocesana de Juventud · Diócesis de Chiclayo
+                ComisiÃ³n Diocesana de Juventud Â· DiÃ³cesis de Chiclayo
               </p>
               <h1
                 className="mt-4 font-serif text-slate-900 font-semibold leading-[1.12] tracking-tight text-balance"
                 style={{fontSize: 'clamp(2.25rem, 4vw, 3.6rem)'}}
               >
-                Juventud en comunión, formación y{' '}
-                <span className="italic text-[#8D4999]">misión diocesana</span>.
+                Juventud en comuniÃ³n, formaciÃ³n y{' '}
+                <span className="italic text-[#8D4999]">misiÃ³n diocesana</span>.
               </h1>
               <p className="mt-5 max-w-2xl text-base leading-relaxed text-slate-600">
-                Articulamos a los grupos juveniles, parroquias, movimientos y áreas pastorales de
-                toda la Diócesis de Chiclayo. Conoce nuestras pastorales vigentes, participa en los
-                próximos encuentros o registra tu comunidad en el directorio diocesano.
+                Articulamos a los grupos juveniles, parroquias, movimientos y Ã¡reas pastorales de
+                toda la DiÃ³cesis de Chiclayo. Conoce nuestras pastorales vigentes, participa en los
+                prÃ³ximos encuentros o registra tu comunidad en el directorio diocesano.
               </p>
 
               <div className="mt-8 flex flex-wrap items-center gap-4">
@@ -188,13 +246,13 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                 <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-6">
                   <img
                     src={getAssetUrl('assets/aistudio/PJ_8x_b40a6c17.png')}
-                    alt="Pastoral Juvenil Diócesis de Chiclayo"
+                    alt="Pastoral Juvenil DiÃ³cesis de Chiclayo"
                     className="h-24 w-auto object-contain"
                     referrerPolicy="no-referrer"
                   />
                   <img
                     src={getAssetUrl('assets/aistudio/CDJ_8x_082c8e32.png')}
-                    alt="Comisión Diocesana de Juventud"
+                    alt="ComisiÃ³n Diocesana de Juventud"
                     className="h-24 w-24 object-contain"
                     referrerPolicy="no-referrer"
                   />
@@ -202,11 +260,12 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
 
                 <div className="py-6 space-y-2">
                   <p className="text-xs font-medium text-slate-500">
-                    Identidad Institucional · Cruz, Palabra y Juventud
+                    Identidad Institucional Â· Cruz, Palabra y Juventud
                   </p>
                   <p className="text-sm text-slate-700 leading-relaxed">
-                    Bajo el amparo de Nuestra Señora Inmaculada Concepción, acompañamos la vida
-                    juvenil en las zonas pastorales de Chiclayo, Lambayeque, Ferreñafe y Santa Cruz.
+                    Bajo el amparo de Nuestra SeÃ±ora Inmaculada ConcepciÃ³n, acompaÃ±amos la vida
+                    juvenil en todas las zonas arciprestales, movimientos y universidades de la
+                    DiÃ³cesis de Chiclayo.
                   </p>
                 </div>
 
@@ -214,27 +273,27 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                 <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-6">
                   <div>
                     <p className="font-mono text-2xl font-bold text-slate-900 tabular-nums">
-                      {loading ? '—' : data?.stats.activePastorals ?? 8}
+                      {loading ? 'â€”' : data?.stats.activePastorals ?? 65}
                     </p>
-                    <p className="text-xs text-slate-500 mt-0.5">Pastorales Activas</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Parroquias y Movimientos</p>
                   </div>
                   <div>
                     <p className="font-mono text-2xl font-bold text-slate-900 tabular-nums">
-                      {loading ? '—' : data?.stats.parishesReached ?? 34}
+                      {loading ? 'â€”' : data?.stats.parishesReached ?? 8}
                     </p>
-                    <p className="text-xs text-slate-500 mt-0.5">Parroquias Articuladas</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Zonas Arciprestales</p>
                   </div>
                   <div>
                     <p className="font-mono text-2xl font-bold text-slate-900 tabular-nums">
-                      {loading ? '—' : data?.stats.registeredMembers ?? 6}
+                      {loading ? 'â€”' : data?.stats.registeredMembers ?? 6}
                     </p>
                     <p className="text-xs text-slate-500 mt-0.5">Coordinadores Activos</p>
                   </div>
                   <div>
                     <p className="font-mono text-2xl font-bold text-slate-900 tabular-nums">
-                      {loading ? '—' : data?.stats.upcomingEvents ?? 3}
+                      {loading ? 'â€”' : data?.stats.upcomingEvents ?? 3}
                     </p>
-                    <p className="text-xs text-slate-500 mt-0.5">Actividades Próximas</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Actividades PrÃ³ximas</p>
                   </div>
                 </div>
               </div>
@@ -243,34 +302,92 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
         </div>
       </section>
 
-      {/* Section 01: Pastorales de la Diócesis */}
+      {/* Section 01: Parroquias, Movimientos y Zonas Arciprestales */}
       <section id="pastorales" className="mx-auto max-w-7xl px-6 py-20">
-        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between border-b border-slate-200 pb-6">
-          <div>
-            <h2 className="font-serif text-3xl font-semibold text-slate-900">
-              01. Pastorales de la Diócesis
-            </h2>
-            <p className="mt-2 max-w-2xl text-sm text-slate-600">
-              Catálogo diocesano administrado desde el sistema ERP. Cada área articula parroquias,
-              asesores sacerdotales y equipos juveniles de servicio.
-            </p>
+        <div className="flex flex-col gap-6 border-b border-slate-200 pb-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h2 className="font-serif text-3xl font-semibold text-slate-900">
+                01. Parroquias, Movimientos y Zonas
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm text-slate-600">
+                Directorio diocesano de comunidades juveniles, movimientos y pastoral universitaria,
+                junto al catÃ¡logo oficial de las {allParishes.length || 50} parroquias por Zona Arciprestal.
+              </p>
+            </div>
+
+            <div className="relative w-full md:w-72">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={pastoralSearch}
+                onChange={(e) => setPastoralSearch(e.target.value)}
+                placeholder={
+                  catalogMode === 'parroquias'
+                    ? 'Buscar parroquia, distrito o pÃ¡rroco...'
+                    : 'Buscar comunidad, movimiento o parroquia...'
+                }
+                className="w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#0A6EB4] focus:outline-none"
+              />
+            </div>
           </div>
 
-          <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 self-start">
-            {(['Todas', 'Activa', 'En Formación'] as const).map((tab) => (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-1 rounded-lg bg-slate-100 p-1 w-fit">
+              {(catalogMode === 'parroquias'
+                ? (['Todas', ...ZONAS_PARROQUIALES] as const)
+                : (['Todas', ...ZONAS_ARCIPRESTALES] as const)
+              ).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => {
+                    setZonaFilter(tab);
+                    setShowAllCatalog(false);
+                  }}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                    zonaFilter === tab
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 w-fit">
               <button
-                key={tab}
                 type="button"
-                onClick={() => setPastoralFilter(tab)}
+                onClick={() => {
+                  setCatalogMode('comunidades');
+                  setZonaFilter('Todas');
+                  setShowAllCatalog(false);
+                }}
                 className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                  pastoralFilter === tab
+                  catalogMode === 'comunidades'
                     ? 'bg-white text-slate-900 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                {tab}
+                Comunidades y Movimientos ({allPastorals.length})
               </button>
-            ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setCatalogMode('parroquias');
+                  setZonaFilter('Todas');
+                  setShowAllCatalog(false);
+                }}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  catalogMode === 'parroquias'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Parroquias Oficiales ({allParishes.length})
+              </button>
+            </div>
           </div>
         </div>
 
@@ -280,44 +397,148 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
               <div key={i} className="h-48 rounded-xl border border-slate-200 bg-slate-50 animate-pulse" />
             ))}
           </div>
-        ) : (
-          <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
-            {visiblePastorals.map((pastoral) => (
-              <article
-                key={pastoral.id}
-                className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-6 hover:border-slate-300 transition-colors"
-              >
-                <div>
-                  <div className="flex items-center justify-between text-xs text-slate-500">
-                    <span className="font-mono font-medium tabular-nums">{pastoral.code}</span>
-                    <span>{pastoral.status}</span>
-                  </div>
-                  <div
-                    className="mt-3 h-0.5 w-10 rounded-full"
-                    style={{backgroundColor: pastoral.accentColor}}
-                  />
-                  <h3 className="mt-3 text-base font-semibold text-slate-900 leading-snug">
-                    {pastoral.name}
-                  </h3>
-                  <p className="mt-2 text-xs text-slate-600 leading-relaxed">
-                    {pastoral.description}
-                  </p>
-                </div>
+        ) : catalogMode === 'comunidades' ? (
+          visiblePastorals.length === 0 ? (
+            <div className="mt-8 rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
+              No se encontraron comunidades o movimientos que coincidan con "{pastoralSearch}".
+            </div>
+          ) : (
+            <>
+              <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
+                {visiblePastorals.map((pastoral) => {
+                  const linkedParish = pastoral.parishId
+                    ? parishMap.get(pastoral.parishId)
+                    : undefined;
+                  return (
+                    <article
+                      key={pastoral.id}
+                      className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-6 hover:border-slate-300 transition-colors"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between text-xs text-slate-500 gap-2">
+                          <span className="font-mono font-medium tabular-nums whitespace-nowrap shrink-0">
+                            {pastoral.code}
+                          </span>
+                          <span className="whitespace-nowrap shrink-0">
+                            {pastoral.communityKind ?? pastoral.status}
+                          </span>
+                        </div>
+                        <div
+                          className="mt-3 h-0.5 w-10 rounded-full"
+                          style={{backgroundColor: pastoral.accentColor}}
+                        />
+                        <h3 className="mt-3 text-base font-semibold text-slate-900 leading-snug">
+                          {pastoral.name}
+                        </h3>
+                        <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+                          {pastoral.description}
+                        </p>
+                      </div>
 
-                <div className="mt-5 border-t border-slate-100 pt-4 text-xs text-slate-500 space-y-1">
-                  <p className="truncate">
-                    <span className="text-slate-400">Coord.:</span>{' '}
-                    <span className="font-medium text-slate-700">{pastoral.coordinatorName}</span>
-                  </p>
-                  <p className="flex items-center gap-1.5 font-mono tabular-nums">
-                    <span>{pastoral.parishCount} parroquias</span>
-                    <span aria-hidden="true">·</span>
-                    <span className="truncate font-sans">{pastoral.adviserName}</span>
-                  </p>
+                      <div className="mt-5 border-t border-slate-100 pt-4 text-xs text-slate-500 space-y-1.5">
+                        <p className="truncate">
+                          <span className="text-slate-400">Parroquia:</span>{' '}
+                          <span className="font-medium text-slate-700">
+                            {linkedParish
+                              ? `${linkedParish.name} (${linkedParish.locality})`
+                              : 'Ãmbito diocesano (opcional)'}
+                          </span>
+                        </p>
+                        <p className="truncate">
+                          <span className="text-slate-400">Coord.:</span>{' '}
+                          <span className="font-medium text-slate-700">{pastoral.coordinatorName}</span>
+                        </p>
+                        <div className="flex items-center justify-between gap-2 pt-0.5">
+                          <span className="font-medium text-slate-700 whitespace-nowrap shrink-0">
+                            {pastoral.zonaArciprestal}
+                          </span>
+                          <a
+                            href="#inscripcion"
+                            onClick={() => handleSelectParticipacion(pastoral.id)}
+                            className="text-xs font-medium text-[#0A6EB4] hover:underline whitespace-nowrap shrink-0"
+                          >
+                            Participar â†’
+                          </a>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+
+              {isUnfilteredView && filteredPastorals.length > 12 && (
+                <div className="mt-8 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowAllCatalog((v) => !v)}
+                    className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:text-slate-900 transition-colors cursor-pointer"
+                  >
+                    {showAllCatalog
+                      ? 'Mostrar vista resumida (12)'
+                      : `Ver todas las comunidades (${filteredPastorals.length})`}
+                  </button>
                 </div>
-              </article>
-            ))}
+              )}
+            </>
+          )
+        ) : visibleParishes.length === 0 ? (
+          <div className="mt-8 rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
+            No se encontraron parroquias que coincidan con "{pastoralSearch}".
           </div>
+        ) : (
+          <>
+            <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
+              {visibleParishes.map((par) => {
+                const linkedCommunities = allPastorals.filter((pas) => pas.parishId === par.id);
+                return (
+                  <article
+                    key={par.id}
+                    className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-6 hover:border-slate-300 transition-colors"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between text-xs text-slate-500 gap-2">
+                        <span className="font-medium text-[#109A51] whitespace-nowrap shrink-0">
+                          {par.zonaArciprestal}
+                        </span>
+                        <span className="whitespace-nowrap shrink-0">{par.locality}</span>
+                      </div>
+                      <h3 className="mt-3 text-base font-semibold text-slate-900 leading-snug">
+                        "{par.name}"
+                      </h3>
+                      <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+                        <span className="text-slate-400">PÃ¡rroco:</span> {par.pastorName}
+                      </p>
+                    </div>
+
+                    <div className="mt-5 border-t border-slate-100 pt-4 text-xs text-slate-500 space-y-1.5">
+                      <p className="truncate">
+                        <span className="text-slate-400">Comunidades:</span>{' '}
+                        <span className="font-medium text-slate-800">
+                          {linkedCommunities.length > 0
+                            ? linkedCommunities.map((c) => c.shortName).join(', ')
+                            : 'Sin grupo vinculado aÃºn'}
+                        </span>
+                      </p>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            {isUnfilteredView && filteredParishes.length > 12 && (
+              <div className="mt-8 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShowAllCatalog((v) => !v)}
+                  className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:text-slate-900 transition-colors cursor-pointer"
+                >
+                  {showAllCatalog
+                    ? 'Mostrar vista resumida (12)'
+                    : `Ver las ${filteredParishes.length} parroquias oficiales`}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </section>
 
@@ -341,11 +562,11 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                     <div className="space-y-1.5">
                       <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                         <span className="font-medium text-[#0A6EB4]">{evt.eventType}</span>
-                        <span aria-hidden="true">·</span>
+                        <span aria-hidden="true">Â·</span>
                         <span className="font-mono tabular-nums">{evt.date}</span>
-                        <span aria-hidden="true">·</span>
+                        <span aria-hidden="true">Â·</span>
                         <span className="font-mono tabular-nums">{evt.time} h</span>
-                        <span aria-hidden="true">·</span>
+                        <span aria-hidden="true">Â·</span>
                         <span>{evt.status}</span>
                       </div>
                       <h3 className="text-base font-semibold text-slate-900">{evt.title}</h3>
@@ -371,7 +592,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                 Vida Comunitaria
               </h2>
               <p className="mt-2 text-sm text-slate-600">
-                Aniversarios parroquiales y cumpleaños de quienes sirven en la Pastoral Juvenil.
+                Aniversarios parroquiales y cumpleaÃ±os de quienes sirven en la Pastoral Juvenil.
               </p>
 
               <div className="mt-8 space-y-4">
@@ -386,13 +607,13 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                           item.kind === 'anniversary' ? 'text-[#109A51]' : 'text-[#8D4999]'
                         }`}
                       >
-                        {item.kind === 'anniversary' ? 'Aniversario Parroquial' : 'Cumpleaños Pastoral'}
+                        {item.kind === 'anniversary' ? 'Aniversario Parroquial' : 'CumpleaÃ±os Pastoral'}
                       </span>
                       <span className="font-mono tabular-nums">{item.dateLabel}</span>
                     </div>
                     <h3 className="mt-2 text-base font-bold text-slate-900">{item.title}</h3>
                     <p className="mt-1 text-xs text-slate-600">
-                      {item.subtitle} · {item.parishOrRole}
+                      {item.subtitle} Â· {item.parishOrRole}
                     </p>
                   </div>
                 ))}
@@ -402,27 +623,27 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
         </div>
       </section>
 
-      {/* Section 03: Prospecto & Registro CRM Público */}
+      {/* Section 03: Prospecto & Registro CRM PÃºblico */}
       <section id="inscripcion" className="mx-auto max-w-7xl px-6 py-20">
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-12">
           <div className="lg:col-span-5 space-y-4">
             <h2 className="font-serif text-3xl font-semibold text-slate-900">
-              03. Súmate a una Pastoral
+              03. SÃºmate a una Pastoral
             </h2>
             <p className="text-sm leading-relaxed text-slate-600">
-              ¿Deseas integrarte a un grupo juvenil, inscribir a tu parroquia en el directorio
-              diocesano o solicitar acompañamiento para tu comunidad? Completa este prospecto de
-              contacto y tu solicitud ingresará directamente al CRM de la Comisión Diocesana.
+              Â¿Deseas integrarte a un grupo juvenil, inscribir a tu parroquia en el directorio
+              diocesano o solicitar acompaÃ±amiento para tu comunidad? Completa este prospecto de
+              contacto y tu solicitud ingresarÃ¡ directamente al CRM de la ComisiÃ³n Diocesana.
             </p>
 
             <div className="border-t border-slate-200 pt-6 space-y-3 text-xs text-slate-600">
               <p className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-[#0A6EB4] shrink-0" />
-                <span>Derivación automática al coordinador de la pastoral seleccionada.</span>
+                <span>DerivaciÃ³n automÃ¡tica al coordinador de la pastoral seleccionada.</span>
               </p>
               <p className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-[#109A51] shrink-0" />
-                <span>Invitación directa a las próximas jornadas y asambleas de tu zona pastoral.</span>
+                <span>InvitaciÃ³n directa a las prÃ³ximas jornadas y asambleas de tu zona arciprestal.</span>
               </p>
             </div>
           </div>
@@ -456,60 +677,87 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                     required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Ej. María Fernanda Quispe"
+                    placeholder="Ej. MarÃ­a Fernanda Quispe"
                     className="w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0A6EB4] focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label htmlFor="lead-parish" className="block text-xs font-medium text-slate-700 mb-1">
-                    Parroquia o Movimiento
+                  <label htmlFor="lead-pastoral" className="block text-xs font-medium text-slate-700 mb-1">
+                    Indica en cuÃ¡l participas
                   </label>
-                  <input
-                    id="lead-parish"
-                    type="text"
-                    required
-                    value={parish}
-                    onChange={(e) => setParish(e.target.value)}
-                    placeholder="Ej. P. San José Obrero"
-                    className="w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0A6EB4] focus:outline-none"
-                  />
+                  <select
+                    id="lead-pastoral"
+                    value={pastoralId}
+                    onChange={(e) => handleSelectParticipacion(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0A6EB4] focus:outline-none"
+                  >
+                    {ZONAS_ARCIPRESTALES.map((zona) => {
+                      const items = allPastorals.filter((p) => p.zonaArciprestal === zona);
+                      if (items.length === 0) return null;
+                      return (
+                        <optgroup key={zona} label={`Zona ${zona}`}>
+                          {items.map((pas) => (
+                            <option key={pas.id} value={pas.id}>
+                              {pas.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      );
+                    })}
+                    {allPastorals
+                      .filter((p) => !ZONAS_ARCIPRESTALES.includes(p.zonaArciprestal as typeof ZONAS_ARCIPRESTALES[number]))
+                      .map((pas) => (
+                        <option key={pas.id} value={pas.id}>
+                          {pas.name}
+                        </option>
+                      ))}
+                  </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label htmlFor="lead-zona" className="block text-xs font-medium text-slate-700 mb-1">
-                    Zona Pastoral
+                    Zona Arciprestal
                   </label>
                   <select
                     id="lead-zona"
-                    value={zona}
-                    onChange={(e) => setZona(e.target.value)}
+                    value={zonaArciprestal}
+                    onChange={(e) => setZonaArciprestal(e.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0A6EB4] focus:outline-none"
                   >
-                    {ZONAS_DIOCESANAS.map((z) => (
-                      <option key={z} value={z}>
-                        {z}
+                    {ZONAS_ARCIPRESTALES.map((zona) => (
+                      <option key={zona} value={zona}>
+                        {zona}
                       </option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label htmlFor="lead-pastoral" className="block text-xs font-medium text-slate-700 mb-1">
-                    Pastoral de interés
+                  <label htmlFor="lead-parish" className="block text-xs font-medium text-slate-700 mb-1">
+                    Parroquia de pertenencia (opcional)
                   </label>
                   <select
-                    id="lead-pastoral"
-                    value={pastoralId}
-                    onChange={(e) => setPastoralId(e.target.value)}
+                    id="lead-parish"
+                    value={parish}
+                    onChange={(e) => setParish(e.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0A6EB4] focus:outline-none"
                   >
-                    {(data?.pastorals ?? []).map((pas) => (
-                      <option key={pas.id} value={pas.id}>
-                        {pas.name}
-                      </option>
-                    ))}
+                    <option value="">Sin parroquia especÃ­fica (en blanco / movimiento)</option>
+                    {ZONAS_PARROQUIALES.map((zona) => {
+                      const items = allParishes.filter((par) => par.zonaArciprestal === zona);
+                      if (items.length === 0) return null;
+                      return (
+                        <optgroup key={zona} label={`Zona ${zona}`}>
+                          {items.map((par) => (
+                            <option key={par.id} value={`${par.name} (${par.locality})`}>
+                              {par.name} Â· {par.locality}
+                            </option>
+                          ))}
+                        </optgroup>
+                      );
+                    })}
                   </select>
                 </div>
               </div>
@@ -517,7 +765,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label htmlFor="lead-phone" className="block text-xs font-medium text-slate-700 mb-1">
-                    WhatsApp / Teléfono
+                    WhatsApp / TelÃ©fono
                   </label>
                   <input
                     id="lead-phone"
@@ -530,7 +778,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                 </div>
                 <div>
                   <label htmlFor="lead-email" className="block text-xs font-medium text-slate-700 mb-1">
-                    Correo electrónico
+                    Correo electrÃ³nico
                   </label>
                   <input
                     id="lead-email"
@@ -552,7 +800,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                   rows={3}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Cuéntanos si ya participas en un grupo juvenil o cómo te gustaría colaborar."
+                  placeholder="CuÃ©ntanos si ya participas en un grupo juvenil o cÃ³mo te gustarÃ­a colaborar."
                   className="w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0A6EB4] focus:outline-none"
                 />
               </div>
@@ -582,15 +830,15 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
             />
             <img
               src={getAssetUrl('assets/aistudio/CDJ_8x_082c8e32.png')}
-              alt="Comisión Diocesana de Juventud"
+              alt="ComisiÃ³n Diocesana de Juventud"
               className="h-10 w-10 object-contain"
               referrerPolicy="no-referrer"
             />
             <div className="text-xs text-slate-600">
               <p className="font-semibold text-slate-900">
-                Pastoral Juvenil · Diócesis de Chiclayo
+                Pastoral Juvenil Â· DiÃ³cesis de Chiclayo
               </p>
-              <p>Comisión Diocesana de Juventud · Lambayeque, Perú</p>
+              <p>ComisiÃ³n Diocesana de Juventud Â· Lambayeque, PerÃº</p>
             </div>
           </div>
 
