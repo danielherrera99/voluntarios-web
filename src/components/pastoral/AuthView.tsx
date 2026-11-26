@@ -15,6 +15,7 @@ import {
 import {useState, type FormEvent} from 'react';
 import {api, getAssetUrl} from '../../lib/api';
 import type {AuthUser} from '../../types';
+import {COMUNIDADES_SELECT_OPTIONS} from '../../data/diocesisCatalogo';
 
 interface AuthViewProps {
   onAuthenticated: (user: AuthUser) => void;
@@ -22,19 +23,6 @@ interface AuthViewProps {
 }
 
 type AuthTab = 'login' | 'register' | 'forgot';
-
-const PASTORALES_OPCIONES = [
-  { id: 'general', nombre: '✝️ Coordinación General / Por Definir' },
-  { id: 'pas-juvenil', nombre: '💜 Pastoral Juvenil Parroquial / Zonas Pastorales' },
-  { id: 'pas-vocacional', nombre: '💙 Pastoral Vocacional' },
-  { id: 'pas-catequesis', nombre: '💚 Pastoral de Catequesis y Confirmación' },
-  { id: 'pas-universitaria', nombre: '❤️ Pastoral Universitaria' },
-  { id: 'pas-social', nombre: '🤝 Pastoral Social y Cáritas Juvenil' },
-  { id: 'pas-familiar', nombre: '👨‍👩‍👧 Pastoral Familiar y Noviazgos' },
-  { id: 'pas-liturgia', nombre: '🎵 Pastoral Litúrgica y Coros' },
-  { id: 'pas-movimientos', nombre: '🕊️ Movimientos y Hermandades' },
-  { id: 'otra', nombre: '✨ Voluntario Independiente / Otra Área' },
-];
 
 export function AuthView({onAuthenticated, onBackToPublic}: AuthViewProps) {
   const [tab, setTab] = useState<AuthTab>('login');
@@ -110,7 +98,10 @@ export function AuthView({onAuthenticated, onBackToPublic}: AuthViewProps) {
       return;
     }
 
-    const selectedPastoral = PASTORALES_OPCIONES.find((p) => p.id === regPastoralId);
+    const selectedOption = COMUNIDADES_SELECT_OPTIONS.find((p) => p.id === regPastoralId);
+    const pastoralNombre = selectedOption ? selectedOption.nombre : 'Coordinación General';
+    const parroquia = selectedOption?.parroquiaNombre || 'Sin parroquia territorial';
+    const zona = selectedOption?.zona || 'Centro-Este';
 
     setSubmitting(true);
     try {
@@ -120,12 +111,20 @@ export function AuthView({onAuthenticated, onBackToPublic}: AuthViewProps) {
         correo: regCorreo.trim(),
         password: regPassword,
         pastoralId: regPastoralId,
-        pastoralNombre: selectedPastoral ? selectedPastoral.nombre : 'Coordinación General',
-        parroquia: regParroquia.trim(),
+        pastoralNombre,
+        parroquia,
+        zona,
         telefono: regTelefono.trim(),
         rol: 'miembro',
       });
-      onAuthenticated(res.user);
+      if (res.user?.estado === 'pendiente' || res.message?.includes('aprobación') || res.message?.includes('pendiente')) {
+        setSuccessMsg(
+          '¡Solicitud registrada con bendición! Tu cuenta está a la espera de aprobación por tu Coordinador o el Administrador Diocesano.'
+        );
+        setTimeout(() => setTab('login'), 3500);
+      } else {
+        onAuthenticated(res.user);
+      }
     } catch (err: any) {
       setError(err?.message || 'Error al registrar tu cuenta. Verifica los datos.');
     } finally {
@@ -477,38 +476,48 @@ export function AuthView({onAuthenticated, onBackToPublic}: AuthViewProps) {
                 </div>
               </div>
 
-              {/* Selector de Pastoral con las opciones diocesanas */}
+              {/* Selector Simple y Unificado de Comunidad / Pastoral / Movimiento */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  ¿A qué Pastoral o Comisión perteneces? *
+                  ¿A qué Comunidad, Pastoral o Movimiento perteneces? *
                 </label>
                 <select
                   value={regPastoralId}
                   onChange={(e) => setRegPastoralId(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs sm:text-sm text-slate-900 bg-white focus:border-[#0A6EB4] focus:outline-none cursor-pointer"
+                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 bg-white focus:border-[#0A6EB4] focus:outline-none cursor-pointer"
                 >
-                  {PASTORALES_OPCIONES.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nombre}
-                    </option>
-                  ))}
+                  <optgroup label="Coordinación Central">
+                    {COMUNIDADES_SELECT_OPTIONS.filter((c) => c.categoria === 'Comisión Diocesana').map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nombre}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Movimientos Eclesiales Diocesanos">
+                    {COMUNIDADES_SELECT_OPTIONS.filter((c) => c.categoria === 'Movimiento').map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nombre}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Pastorales Universitarias">
+                    {COMUNIDADES_SELECT_OPTIONS.filter((c) => c.categoria === 'Pastoral Universitaria').map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nombre}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Pastorales Parroquiales Territoriales">
+                    {COMUNIDADES_SELECT_OPTIONS.filter((c) => c.categoria === 'Pastoral Parroquial').map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nombre} ({p.zona})
+                      </option>
+                    ))}
+                  </optgroup>
                 </select>
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Si aún no estás integrado a una pastoral específica, déjalo en <strong>Coordinación General</strong>.
+                  Tu zona y jurisdicción se asignarán automáticamente según la comunidad elegida.
                 </p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Parroquia o Comunidad de Origen
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej. Santa María Catedral, San José Obrero, Santa Rosa..."
-                  value={regParroquia}
-                  onChange={(e) => setRegParroquia(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#0A6EB4] focus:outline-none"
-                />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
