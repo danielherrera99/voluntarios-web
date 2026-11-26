@@ -44,7 +44,7 @@ export function AuthView({onAuthenticated, onBackToPublic}: AuthViewProps) {
   const [showRegPassword, setShowRegPassword] = useState(false);
 
   // Estados Formulario Recuperación Contraseña
-  const [forgotStep, setForgotStep] = useState<1 | 2>(1);
+  const [forgotStep, setForgotStep] = useState<1 | 2 | 3>(1);
   const [forgotLogin, setForgotLogin] = useState('');
   const [forgotCode, setForgotCode] = useState('');
   const [forgotNewPassword, setForgotNewPassword] = useState('');
@@ -132,7 +132,7 @@ export function AuthView({onAuthenticated, onBackToPublic}: AuthViewProps) {
     }
   }
 
-  // Submit Solicitar Código Recuperación
+  // Paso 1: Solicitar Código Recuperación
   async function handleForgotRequestCode(e: FormEvent) {
     e.preventDefault();
     resetFeedback();
@@ -141,7 +141,7 @@ export function AuthView({onAuthenticated, onBackToPublic}: AuthViewProps) {
       const res = await api.forgotPasswordPJ({ login: forgotLogin.trim() });
       if (res.code) {
         setForgotGeneratedCode(res.code);
-        setForgotCode(res.code); // Autocompletar para conveniencia del usuario
+        setForgotCode(res.code);
       }
       setSuccessMsg(res.message || 'Código de recuperación generado con éxito.');
       setForgotStep(2);
@@ -152,7 +152,32 @@ export function AuthView({onAuthenticated, onBackToPublic}: AuthViewProps) {
     }
   }
 
-  // Submit Restablecer Contraseña
+  // Paso 2: Verificar Código antes de permitir crear contraseña
+  async function handleVerifyCodeSubmit(e: FormEvent) {
+    e.preventDefault();
+    resetFeedback();
+
+    if (!forgotCode.trim() || forgotCode.trim().length < 6) {
+      setError('Por favor ingresa el código de 6 dígitos enviado a tu correo.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await api.verifyResetCodePJ({
+        login: forgotLogin.trim(),
+        code: forgotCode.trim(),
+      });
+      setSuccessMsg(res.message || '¡Código verificado con éxito! Ahora ingresa tu nueva contraseña.');
+      setForgotStep(3);
+    } catch (err: any) {
+      setError(err?.message || 'El código de verificación ingresado es incorrecto o ha expirado.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // Paso 3: Restablecer Contraseña
   async function handleResetPasswordSubmit(e: FormEvent) {
     e.preventDefault();
     resetFeedback();
@@ -173,11 +198,15 @@ export function AuthView({onAuthenticated, onBackToPublic}: AuthViewProps) {
         code: forgotCode.trim(),
         newPassword: forgotNewPassword,
       });
-      setSuccessMsg(res.message);
+      setSuccessMsg(res.message || '¡Contraseña actualizada exitosamente! Redirigiendo...');
       // Tras 2 segundos regresar a login
       setTimeout(() => {
         setTab('login');
         setLoginInput(forgotLogin.trim());
+        setForgotStep(1);
+        setForgotCode('');
+        setForgotNewPassword('');
+        setForgotConfirmPassword('');
         resetFeedback();
       }, 2500);
     } catch (err: any) {
@@ -600,7 +629,7 @@ export function AuthView({onAuthenticated, onBackToPublic}: AuthViewProps) {
               {forgotStep === 1 ? (
                 <form onSubmit={handleForgotRequestCode} className="space-y-4">
                   <p className="text-xs text-slate-600 leading-relaxed">
-                    Ingresa el correo electrónico o nombre de usuario registrado en la base de datos diocesana. Te generaremos un código de verificación para restablecer tu contraseña.
+                    Ingresa el correo electrónico o nombre de usuario registrado en la base de datos diocesana. Te enviaremos un código de verificación para restablecer tu contraseña.
                   </p>
 
                   <div>
@@ -631,8 +660,12 @@ export function AuthView({onAuthenticated, onBackToPublic}: AuthViewProps) {
                     {submitting ? 'Verificando cuenta...' : 'Generar Código de Recuperación'}
                   </button>
                 </form>
-              ) : (
-                <form onSubmit={handleResetPasswordSubmit} className="space-y-3.5">
+              ) : forgotStep === 2 ? (
+                <form onSubmit={handleVerifyCodeSubmit} className="space-y-4">
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Hemos enviado un código de 6 dígitos a tu correo registrado. Ingrésalo a continuación para verificar tu identidad:
+                  </p>
+
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
                       Código de Verificación (6 dígitos)
@@ -644,8 +677,37 @@ export function AuthView({onAuthenticated, onBackToPublic}: AuthViewProps) {
                       placeholder="123456"
                       value={forgotCode}
                       onChange={(e) => setForgotCode(e.target.value.trim())}
-                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-center font-mono text-lg font-bold text-slate-900 tracking-widest focus:border-[#0A6EB4] focus:outline-none"
+                      className="w-full rounded-xl border border-slate-200 px-3.5 py-3 text-center font-mono text-xl font-bold text-slate-900 tracking-widest focus:border-[#0A6EB4] focus:outline-none bg-slate-50/50"
                     />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#0A6EB4] hover:bg-[#085A94] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60 transition-all cursor-pointer shadow-sm"
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+                    {submitting ? 'Verificando código...' : 'Verificar Código'}
+                  </button>
+
+                  <div className="pt-2 text-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForgotStep(1);
+                        resetFeedback();
+                      }}
+                      className="text-xs text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                    >
+                      Solicitar otro código
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={handleResetPasswordSubmit} className="space-y-3.5">
+                  <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-xs text-[#0A6EB4] font-medium flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <span>Código verificado correctamente. Ingresa tu nueva contraseña:</span>
                   </div>
 
                   <div>
@@ -684,16 +746,19 @@ export function AuthView({onAuthenticated, onBackToPublic}: AuthViewProps) {
                     className="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60 transition-all cursor-pointer shadow-sm"
                   >
                     <ShieldCheck className="h-4 w-4" />
-                    {submitting ? 'Restableciendo...' : 'Guardar Nueva Contraseña'}
+                    {submitting ? 'Guardando contraseña...' : 'Guardar Nueva Contraseña'}
                   </button>
 
                   <div className="pt-2 text-center">
                     <button
                       type="button"
-                      onClick={() => setForgotStep(1)}
+                      onClick={() => {
+                        setForgotStep(2);
+                        resetFeedback();
+                      }}
                       className="text-xs text-slate-500 hover:text-slate-800 underline cursor-pointer"
                     >
-                      Solicitar otro código
+                      ← Cambiar código
                     </button>
                   </div>
                 </form>

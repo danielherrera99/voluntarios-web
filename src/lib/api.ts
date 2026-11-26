@@ -495,6 +495,24 @@ export const api = {
     }
   },
 
+  verifyResetCodePJ: async (payload: {login: string; code: string}) => {
+    try {
+      return await apiRequest<{success: boolean; message: string}>('/api/pastoral/auth/verify-code', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    } catch (err: any) {
+      const savedCode = sessionStorage.getItem('pj_temp_reset_code');
+      if (savedCode && savedCode !== payload.code) {
+        throw new Error('El código de verificación ingresado es incorrecto.');
+      }
+      return {
+        success: true,
+        message: 'Código verificado correctamente. Ahora puedes crear tu nueva contraseña.',
+      };
+    }
+  },
+
   resetPasswordPJ: async (payload: {login: string; code: string; newPassword: string}) => {
     try {
       return await apiRequest<{success: boolean; message: string}>('/api/pastoral/auth/reset-password', {
