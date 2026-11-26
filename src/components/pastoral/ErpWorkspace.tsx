@@ -928,7 +928,14 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
           )}
 
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-            <div className="flex items-center gap-2.5 min-w-0">
+            <div 
+              className="flex items-center gap-2.5 min-w-0 cursor-pointer"
+              onClick={() => {
+                if (isAdmin) setSelectedPastoralScope('all');
+                setSection('resumen');
+              }}
+              title="Ir al Panel General Diocesano"
+            >
               <img
                 src={getAssetUrl('assets/aistudio/PJ_8x_b40a6c17.png')}
                 alt="Pastoral Juvenil Chiclayo"
@@ -1011,6 +1018,9 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                   key={item.id}
                   type="button"
                   onClick={() => {
+                    if (item.id === 'resumen' && isAdmin) {
+                      setSelectedPastoralScope('all');
+                    }
                     setSection(item.id);
                     setMobileMenuOpen(false);
                   }}
@@ -1044,15 +1054,16 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
               type="button"
               onClick={onGoPublic}
               className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+              title="Ver portal web de comunidades y parroquias"
             >
               <ExternalLink className="h-3.5 w-3.5" />
-              Portal
+              Ver Portal Web
             </button>
             <button
               type="button"
               onClick={onLogout}
               className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:text-red-700 hover:border-red-200 transition-colors cursor-pointer"
-              title="Cerrar sesión"
+              title="Cerrar sesión e ir a Login"
             >
               <LogOut className="h-3.5 w-3.5" />
               Salir
@@ -1074,7 +1085,17 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
               <Menu className="h-5 w-5" />
             </button>
             <div className="text-sm text-slate-500 truncate">
-              <span>Diócesis de Chiclayo</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isAdmin) setSelectedPastoralScope('all');
+                  setSection('resumen');
+                }}
+                className="hover:text-slate-800 hover:underline cursor-pointer"
+                title="Ir al Resumen Diocesano"
+              >
+                Diócesis de Chiclayo
+              </button>
               {activePastoral && (
                 <>
                   <span className="mx-2">/</span>

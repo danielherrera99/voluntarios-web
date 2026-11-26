@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import LoginLeon from './pages/LoginLeon';
@@ -20,6 +20,7 @@ const ProtectedRoute = ({ children }) => {
 
 const DashboardRouter = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   if (user?.rol === 'validador') return <ValidadorDashboard />;
   if (user?.rol === 'responsable') return <ResponsableDashboard />;
   if (user?.rol === 'lider') return <LiderDashboard />;
@@ -39,10 +40,10 @@ const DashboardRouter = () => {
       }}
       onLogout={() => {
         logout();
-        window.location.href = '/';
+        navigate('/login', { replace: true });
       }}
       onGoPublic={() => {
-        window.location.href = '/';
+        navigate('/');
       }}
     />
   );
@@ -66,6 +67,7 @@ const PublicOrPwaRoot = () => {
 
 function AppRoutes() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <Routes>
@@ -108,10 +110,10 @@ function AppRoutes() {
               }}
               onLogout={() => {
                 logout();
-                window.location.href = '/';
+                navigate('/login', { replace: true });
               }}
               onGoPublic={() => {
-                window.location.href = '/';
+                navigate('/');
               }}
             />
           </ProtectedRoute>
