@@ -168,9 +168,9 @@ const PROSPECT_STAGES: ProspectStage[] = [
 
 const PASTORAL_COLORS = [
   {hex: '#0A6EB4', label: 'Azul Chiclayo'},
-  {hex: '#8D4999', label: 'PÃºrpura Cruz'},
+  {hex: '#8D4999', label: 'Púrpura Cruz'},
   {hex: '#109A51', label: 'Verde Esperanza'},
-  {hex: '#E6332A', label: 'Rojo EspÃ­ritu'},
+  {hex: '#E6332A', label: 'Rojo Espíritu'},
 ];
 
 function formatPen(amount: number): string {
@@ -182,11 +182,7 @@ function formatPen(amount: number): string {
 
 export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
   const userRole = (((user as any)?.role || (user as any)?.rol || '') as string).toLowerCase();
-  const isAdmin =
-    userRole === 'admin_diocesano' ||
-    userRole === 'admin' ||
-    userRole === 'superadmin' ||
-    user?.email === 'danielitoeltravieso2000@gmail.com';
+  const isAdmin = userRole === 'admin_diocesano' || userRole === 'admin' || userRole === 'superadmin' || user?.email === 'danielitoeltravieso2000@gmail.com';
   const isMember = !isAdmin && userRole === 'miembro';
   const canManage = isAdmin || !isMember;
   const [selectedPastoralScope, setSelectedPastoralScope] = useState<string>(
@@ -231,8 +227,12 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
       const dash = await api.getDashboard(isAdmin ? selectedPastoralScope : null);
       setData(dash);
       if (user.role === 'admin_diocesano' || user.role === 'coordinador_pastoral') {
-        const usersRes = await api.getUsers();
-        setUsersList(usersRes.users);
+        try {
+          const usersRes = await api.getUsers();
+          setUsersList(usersRes.users || []);
+        } catch (uErr) {
+          console.warn('Advertencia cargando usuarios:', uErr);
+        }
       }
     } catch (err) {
       notify('err', err instanceof Error ? err.message : 'Error al cargar datos del ERP.');
@@ -277,7 +277,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
   const [npColor, setNpColor] = useState('#0A6EB4');
   const [npDesc, setNpDesc] = useState('');
 
-  // Edit Own Pastoral Form (PersonalizaciÃ³n)
+  // Edit Own Pastoral Form (Personalización)
   const [epName, setEpName] = useState('');
   const [epZona, setEpZona] = useState<string>(ZONAS_ARCIPRESTALES[0]);
   const [epKind, setEpKind] = useState<CommunityKind>('Pastoral Parroquial');
@@ -354,7 +354,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
       setNpFocus('');
       setNpDesc('');
       setShowNewPastoral(false);
-      notify('ok', 'Comunidad creada en el catÃ¡logo diocesano.');
+      notify('ok', 'Comunidad creada en el catálogo diocesano.');
       await refreshData();
     } catch (err) {
       notify('err', err instanceof Error ? err.message : 'No se pudo crear la pastoral.');
@@ -409,7 +409,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
         'ok',
         linked
           ? `Vinculada a Parroquia "${linked.name}" (${linked.locality}).`
-          : 'Parroquia dejada en blanco (Ã¡mbito diocesano / independiente).',
+          : 'Parroquia dejada en blanco (ámbito diocesano / independiente).',
       );
       await refreshData();
     } catch (err) {
@@ -506,7 +506,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
   // Event Form
   const [evTitle, setEvTitle] = useState('');
   const [evPastoral, setEvPastoral] = useState('');
-  const [evParish, setEvParish] = useState('Catedral Santa MarÃ­a');
+  const [evParish, setEvParish] = useState('Catedral Santa María');
   const [evType, setEvType] = useState<DiocesanEvent['eventType']>('Jornada');
   const [evDate, setEvDate] = useState('2026-12-12');
   const [evTime, setEvTime] = useState('18:00');
@@ -557,7 +557,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
       });
       setFinConcept('');
       setFinAmount('');
-      notify('ok', 'Movimiento registrado en la tesorerÃ­a de la pastoral.');
+      notify('ok', 'Movimiento registrado en la tesorería de la pastoral.');
       await refreshData();
     } catch (err) {
       notify('err', err instanceof Error ? err.message : 'Error al registrar movimiento.');
@@ -857,12 +857,12 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
   }
 
   const sectionLabels: Record<ErpSection, string> = {
-    resumen: activePastoral ? `Panel Â· ${activePastoral.shortName}` : 'Resumen Diocesano',
+    resumen: activePastoral ? `Panel · ${activePastoral.shortName}` : 'Resumen Diocesano',
     crm: 'CRM Prospectos',
-    pastorals: activePastoral ? 'Mi Pastoral' : 'Pastorales de la DiÃ³cesis',
+    pastorals: activePastoral ? 'Mi Pastoral' : 'Pastorales de la Diócesis',
     members: 'Directorio y Tarjetas',
     events: 'Agenda y Asistencia',
-    admin: isMember ? 'Comunicados y Actas' : 'TesorerÃ­a, Actas y Accesos',
+    admin: isMember ? 'Comunicados y Actas' : 'Tesorería, Actas y Accesos',
   };
 
   const navItems: Array<{id: ErpSection; label: string; icon: typeof LayoutDashboard}> = isMember
@@ -879,7 +879,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
         {id: 'pastorals', label: activePastoral ? 'Mi Pastoral' : 'Pastorales', icon: BookOpen},
         {id: 'members', label: 'Miembros y Tarjetas', icon: Users},
         {id: 'events', label: 'Agenda y Asistencia', icon: CalendarDays},
-        {id: 'admin', label: 'TesorerÃ­a y Actas', icon: DollarSign},
+        {id: 'admin', label: 'Tesorería y Actas', icon: DollarSign},
       ];
 
   const filteredProspects = (data?.prospects ?? []).filter((p) => {
@@ -940,7 +940,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                   {activePastoral ? activePastoral.shortName : 'ERP Diocesano'}
                 </p>
                 <p className="text-[11px] font-mono text-slate-400 truncate">
-                  {activePastoral ? `${activePastoral.code} Â· Independiente` : 'Vista Global Chiclayo'}
+                  {activePastoral ? `${activePastoral.code} · Independiente` : 'Vista Global Chiclayo'}
                 </p>
               </div>
             </div>
@@ -948,7 +948,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
               type="button"
               onClick={() => setMobileMenuOpen(false)}
               className="lg:hidden p-1.5 text-slate-500 hover:text-slate-900 cursor-pointer"
-              aria-label="Cerrar menÃº"
+              aria-label="Cerrar menú"
             >
               <X className="h-4 w-4" />
             </button>
@@ -1032,9 +1032,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
         <div className="border-t border-slate-200 p-4 space-y-3">
           <div className="text-xs">
             <p className="font-semibold text-slate-900 truncate">{user.name}</p>
-            <p className="text-slate-500 truncate">
-              {isAdmin ? 'Administrador Diocesano' : (ROLE_LABELS[user.role] || (user as any).rol || 'Miembro')}
-            </p>
+            <p className="text-slate-500 truncate">{isAdmin ? 'Administrador Diocesano' : (ROLE_LABELS[user.role] || (user as any).rol || 'Miembro')}</p>
             {user.pastoralId && (
               <p className="text-[11px] font-medium mt-0.5 truncate" style={{color: activeAccent}}>
                 {pastoralMap.get(user.pastoralId)?.name ?? 'Pastoral asignada'}
@@ -1054,7 +1052,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
               type="button"
               onClick={onLogout}
               className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:text-red-700 hover:border-red-200 transition-colors cursor-pointer"
-              title="Cerrar sesiÃ³n"
+              title="Cerrar sesión"
             >
               <LogOut className="h-3.5 w-3.5" />
               Salir
@@ -1071,12 +1069,12 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
               type="button"
               onClick={() => setMobileMenuOpen(true)}
               className="lg:hidden rounded-lg p-2 text-slate-600 hover:bg-slate-100 cursor-pointer"
-              aria-label="Abrir menÃº"
+              aria-label="Abrir menú"
             >
               <Menu className="h-5 w-5" />
             </button>
             <div className="text-sm text-slate-500 truncate">
-              <span>DiÃ³cesis de Chiclayo</span>
+              <span>Diócesis de Chiclayo</span>
               {activePastoral && (
                 <>
                   <span className="mx-2">/</span>
@@ -1103,19 +1101,19 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
               onClick={() =>
                 setCardPreset({
                   mode: 'anniversary',
-                  title: activePastoral ? activePastoral.name : 'Pastoral Juvenil P. San JosÃ© Obrero',
+                  title: activePastoral ? activePastoral.name : 'Pastoral Juvenil P. San José Obrero',
                   subtitle: activePastoral
                     ? activePastoral.focusArea
-                    : 'Â¡Gracias por su servicio y entrega!',
+                    : '¡Gracias por su servicio y entrega!',
                   dateLabel: '5 de Noviembre',
-                  yearsLabel: '3 AÃ±os',
-                  message: 'Sigamos anunciando la alegrÃ­a del Evangelio entre los jÃ³venes de Chiclayo.',
+                  yearsLabel: '3 Años',
+                  message: 'Sigamos anunciando la alegría del Evangelio entre los jóvenes de Chiclayo.',
                 })
               }
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Sparkles className="h-3.5 w-3.5" style={{color: activeAccent}} />
-              DiseÃ±ar Tarjeta
+              Diseñar Tarjeta
             </button>
           </div>
         </header>
@@ -1131,22 +1129,22 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                     style={{backgroundColor: activeAccent}}
                   />
                   <span className="font-mono font-semibold tabular-nums">{activePastoral.code}</span>
-                  <span>Â·</span>
+                  <span>·</span>
                   <span>{activePastoral.zonaArciprestal}</span>
-                  <span>Â·</span>
+                  <span>·</span>
                   <span>
                     {activePastoral.parishId
                       ? `Parroquia ${parishMap.get(activePastoral.parishId)?.name ?? ''}`
-                      : 'Sin parroquia fija (Ãmbito diocesano)'}
+                      : 'Sin parroquia fija (Ámbito diocesano)'}
                   </span>
-                  <span>Â·</span>
+                  <span>·</span>
                   <span>
-                    {isMember ? 'Espacio de Miembro' : 'ERP y TesorerÃ­a Independiente'}
+                    {isMember ? 'Espacio de Miembro' : 'ERP y Tesorería Independiente'}
                   </span>
                 </div>
                 <h1 className="text-lg font-bold text-slate-900">{activePastoral.name}</h1>
                 <p className="text-xs text-slate-600">
-                  Coord.: {activePastoral.coordinatorName} Â· Asesor: {activePastoral.adviserName}
+                  Coord.: {activePastoral.coordinatorName} · Asesor: {activePastoral.adviserName}
                 </p>
               </div>
               {canManage && (
@@ -1174,7 +1172,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                 type="button"
                 onClick={() => setFeedback(null)}
                 className="p-1 hover:opacity-70 cursor-pointer"
-                aria-label="Cerrar notificaciÃ³n"
+                aria-label="Cerrar notificación"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -1202,7 +1200,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                   >
                     <div className="rounded-xl border border-slate-200 bg-white p-5">
                       <p className="text-xs text-slate-500">
-                        {activePastoral ? 'Actividades PrÃ³ximas' : 'Pastorales Activas'}
+                        {activePastoral ? 'Actividades Próximas' : 'Pastorales Activas'}
                       </p>
                       <p className="mt-2 font-mono text-2xl font-bold text-slate-900 tabular-nums">
                         {activePastoral ? (
@@ -1241,7 +1239,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                     ) : (
                       <div className="rounded-xl border border-slate-200 bg-white p-5">
                         <p className="text-xs text-slate-500">
-                          {activePastoral ? 'Saldo TesorerÃ­a Propia' : 'Saldo Consolidado DiÃ³cesis'}
+                          {activePastoral ? 'Saldo Tesorería Propia' : 'Saldo Consolidado Diócesis'}
                         </p>
                         <p className="mt-2 font-mono text-2xl font-bold text-[#109A51] tabular-nums">
                           {formatPen(data.summary.balancePen)}
@@ -1255,8 +1253,8 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                       <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                         <h2 className="text-sm font-semibold text-slate-900">
                           {activePastoral
-                            ? `Ãšltimas Actas y Comunicados Â· ${activePastoral.shortName}`
-                            : 'Pastorales de la DiÃ³cesis (Acceso Independiente)'}
+                            ? `Últimas Actas y Comunicados · ${activePastoral.shortName}`
+                            : 'Pastorales de la Diócesis (Acceso Independiente)'}
                         </h2>
                         <button
                           type="button"
@@ -1266,15 +1264,15 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                           {activePastoral
                             ? isMember
                               ? 'Ver documentos'
-                              : 'Ir a Actas y TesorerÃ­a'
-                            : 'Gestionar catÃ¡logo'}
+                              : 'Ir a Actas y Tesorería'
+                            : 'Gestionar catálogo'}
                         </button>
                       </div>
 
                       {activePastoral ? (
                         data.documents.length === 0 ? (
                           <div className="p-8 text-center text-xs text-slate-500">
-                            AÃºn no hay actas ni comunicados publicados en {activePastoral.shortName}.
+                            Aún no hay actas ni comunicados publicados en {activePastoral.shortName}.
                           </div>
                         ) : (
                           <div className="divide-y divide-slate-100">
@@ -1297,7 +1295,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                               <tr>
                                 <th className="px-5 py-3 font-medium">Comunidad / Parroquia</th>
                                 <th className="px-5 py-3 font-medium">Zona Arciprestal</th>
-                                <th className="px-5 py-3 font-medium">CoordinaciÃ³n</th>
+                                <th className="px-5 py-3 font-medium">Coordinación</th>
                                 {isAdmin && (
                                   <th className="px-5 py-3 font-medium text-right">Espacio ERP</th>
                                 )}
@@ -1339,7 +1337,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                                 onClick={() => setSection('pastorals')}
                                 className="text-xs font-medium text-[#0A6EB4] hover:underline cursor-pointer"
                               >
-                                Ver y clasificar las {data.pastorals.length} comunidades por Zona Arciprestal â†’
+                                Ver y clasificar las {data.pastorals.length} comunidades por Zona Arciprestal →
                               </button>
                             </div>
                           )}
@@ -1352,7 +1350,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                         <>
                           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                             <h2 className="text-sm font-semibold text-slate-900">
-                              PrÃ³ximas Actividades
+                              Próximas Actividades
                             </h2>
                             <button
                               type="button"
@@ -1364,7 +1362,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                           </div>
                           {data.events.length === 0 ? (
                             <p className="text-xs text-slate-500 py-4">
-                              No hay actividades programadas aÃºn en tu comunidad.
+                              No hay actividades programadas aún en tu comunidad.
                             </p>
                           ) : (
                             <div className="divide-y divide-slate-100">
@@ -1377,7 +1375,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                                     </span>
                                   </div>
                                   <p className="text-xs text-slate-500 mt-0.5">
-                                    {ev.time} h Â· {ev.location}
+                                    {ev.time} h · {ev.location}
                                   </p>
                                 </div>
                               ))}
@@ -1388,7 +1386,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                         <>
                           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                             <h2 className="text-sm font-semibold text-slate-900">
-                              Ãšltimos Prospectos CRM
+                              Últimos Prospectos CRM
                             </h2>
                             <button
                               type="button"
@@ -1400,7 +1398,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                           </div>
                           {data.prospects.length === 0 ? (
                             <p className="text-xs text-slate-500 py-4">
-                              No hay prospectos registrados aÃºn en este espacio pastoral.
+                              No hay prospectos registrados aún en este espacio pastoral.
                             </p>
                           ) : (
                             <div className="divide-y divide-slate-100">
@@ -1413,7 +1411,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                                     </span>
                                   </div>
                                   <p className="text-xs text-slate-500 mt-0.5">
-                                    {pr.parish} Â· {pr.stage}
+                                    {pr.parish} · {pr.stage}
                                   </p>
                                 </div>
                               ))}
@@ -1492,7 +1490,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                       </select>
                       <input
                         type="tel"
-                        placeholder="WhatsApp / TelÃ©fono"
+                        placeholder="WhatsApp / Teléfono"
                         value={prPhone}
                         onChange={(e) => setPrPhone(e.target.value)}
                         className="rounded-lg border border-slate-200 px-3 py-2 text-xs focus:border-[#0A6EB4] focus:outline-none"
@@ -1664,7 +1662,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                 </div>
               )}
 
-              {/* 3. MI PASTORAL (PersonalizaciÃ³n / Lectura para Miembro) o CATÃLOGO DE PASTORALES Y PARROQUIAS (Admin Global) */}
+              {/* 3. MI PASTORAL (Personalización / Lectura para Miembro) o CATÁLOGO DE PASTORALES Y PARROQUIAS (Admin Global) */}
               {section === 'pastorals' && (
                 <div className="space-y-6">
                   {activePastoral ? (
@@ -1679,16 +1677,16 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                             <span className="font-mono font-semibold tabular-nums">
                               {activePastoral.code}
                             </span>
-                            <span>Â·</span>
+                            <span>·</span>
                             <span>{activePastoral.zonaArciprestal}</span>
-                            <span>Â·</span>
+                            <span>·</span>
                             <span>{activePastoral.communityKind ?? activePastoral.status}</span>
                           </div>
                           <h2 className="text-base font-bold text-slate-900">
                             {activePastoral.name}
                           </h2>
                           <p className="text-xs text-slate-500 mt-1">
-                            InformaciÃ³n oficial de tu comunidad dentro de la Pastoral Juvenil de Chiclayo.
+                            Información oficial de tu comunidad dentro de la Pastoral Juvenil de Chiclayo.
                           </p>
                         </div>
 
@@ -1698,17 +1696,17 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                             <dd className="mt-0.5 font-semibold text-slate-900">
                               {activePastoral.parishId && parishMap.get(activePastoral.parishId)
                                 ? `${parishMap.get(activePastoral.parishId)?.name} (${parishMap.get(activePastoral.parishId)?.locality})`
-                                : 'Sin parroquia fija (Movimiento / Ãmbito diocesano)'}
+                                : 'Sin parroquia fija (Movimiento / Ámbito diocesano)'}
                             </dd>
                           </div>
                           <div>
-                            <dt className="text-slate-500">CoordinaciÃ³n responsable</dt>
+                            <dt className="text-slate-500">Coordinación responsable</dt>
                             <dd className="mt-0.5 font-semibold text-slate-900">
                               {activePastoral.coordinatorName}
                             </dd>
                           </div>
                           <div>
-                            <dt className="text-slate-500">Asesor espiritual / PÃ¡rroco</dt>
+                            <dt className="text-slate-500">Asesor espiritual / Párroco</dt>
                             <dd className="mt-0.5 font-semibold text-slate-900">
                               {activePastoral.adviserName}
                             </dd>
@@ -1720,7 +1718,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                             </dd>
                           </div>
                           <div className="sm:col-span-2 border-t border-slate-100 pt-3">
-                            <dt className="text-slate-500">DescripciÃ³n</dt>
+                            <dt className="text-slate-500">Descripción</dt>
                             <dd className="mt-1 text-slate-700 leading-relaxed">
                               {activePastoral.description}
                             </dd>
@@ -1734,7 +1732,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                       >
                         <div className="border-b border-slate-100 pb-4">
                           <h2 className="text-base font-bold text-slate-900">
-                            PersonalizaciÃ³n de {activePastoral.name}
+                            Personalización de {activePastoral.name}
                           </h2>
                           <p className="text-xs text-slate-500 mt-1">
                             Estos datos identifican a tu comunidad en su ERP independiente. Si es un movimiento o pastoral diocesana sin parroquia fija, puedes dejar la parroquia en blanco.
@@ -1797,7 +1795,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                                   <optgroup key={zona} label={`Zona ${zona}`}>
                                     {items.map((par) => (
                                       <option key={par.id} value={par.id}>
-                                        {par.name} Â· {par.locality}
+                                        {par.name} · {par.locality}
                                       </option>
                                     ))}
                                   </optgroup>
@@ -1851,7 +1849,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-slate-700 mb-1">
-                              Asesor espiritual / PÃ¡rroco
+                              Asesor espiritual / Párroco
                             </label>
                             <input
                               type="text"
@@ -1887,7 +1885,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
 
                         <div>
                           <label className="block text-xs font-medium text-slate-700 mb-1">
-                            DescripciÃ³n pÃºblica
+                            Descripción pública
                           </label>
                           <textarea
                             rows={3}
@@ -1901,7 +1899,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                           type="submit"
                           className="rounded-lg bg-[#0A6EB4] px-5 py-2.5 text-xs font-semibold text-white hover:bg-[#085A94] cursor-pointer"
                         >
-                          Guardar PersonalizaciÃ³n
+                          Guardar Personalización
                         </button>
                       </form>
                     )
@@ -1999,7 +1997,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                             onChange={(e) => setPastoralSearch(e.target.value)}
                             placeholder={
                               pastoralCatalogTab === 'parroquias'
-                                ? 'Buscar entre las 50 parroquias por nombre, distrito o pÃ¡rroco...'
+                                ? 'Buscar entre las 50 parroquias por nombre, distrito o párroco...'
                                 : 'Buscar comunidad, movimiento o parroquia vinculada...'
                             }
                             className="w-full text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none"
@@ -2054,7 +2052,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                                     <optgroup key={zona} label={`Zona ${zona}`}>
                                       {items.map((par) => (
                                         <option key={par.id} value={par.id}>
-                                          {par.name} Â· {par.locality}
+                                          {par.name} · {par.locality}
                                         </option>
                                       ))}
                                     </optgroup>
@@ -2083,7 +2081,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                               />
                               <input
                                 type="text"
-                                placeholder="CÃ³digo (ej. PJ-67)"
+                                placeholder="Código (ej. PJ-67)"
                                 value={npCode}
                                 onChange={(e) => setNpCode(e.target.value)}
                                 className="rounded-lg border border-slate-200 px-3 py-2 text-xs focus:border-[#0A6EB4] focus:outline-none"
@@ -2108,14 +2106,14 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                               </select>
                               <input
                                 type="text"
-                                placeholder="Territorio o Ã¡rea de enfoque"
+                                placeholder="Territorio o área de enfoque"
                                 value={npFocus}
                                 onChange={(e) => setNpFocus(e.target.value)}
                                 className="rounded-lg border border-slate-200 px-3 py-2 text-xs focus:border-[#0A6EB4] focus:outline-none"
                               />
                               <input
                                 type="text"
-                                placeholder="DescripciÃ³n breve"
+                                placeholder="Descripción breve"
                                 value={npDesc}
                                 onChange={(e) => setNpDesc(e.target.value)}
                                 className="sm:col-span-3 rounded-lg border border-slate-200 px-3 py-2 text-xs focus:border-[#0A6EB4] focus:outline-none"
@@ -2176,7 +2174,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                                         <span className="font-mono font-semibold tabular-nums">
                                           {pas.code}
                                         </span>
-                                        <span>Â·</span>
+                                        <span>·</span>
                                         <span>{pas.communityKind ?? 'Comunidad'}</span>
                                       </div>
                                       <div className="flex items-center gap-2">
@@ -2205,7 +2203,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                                           className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-800"
                                         >
                                           <option value="Activa">Activa</option>
-                                          <option value="En FormaciÃ³n">En FormaciÃ³n</option>
+                                          <option value="En Formación">En Formación</option>
                                           <option value="Pausa">Pausa</option>
                                         </select>
                                       </div>
@@ -2232,7 +2230,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                                         className="min-w-0 flex-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700"
                                       >
                                         <option value="">
-                                          Sin parroquia (en blanco / Ã¡mbito diocesano)
+                                          Sin parroquia (en blanco / ámbito diocesano)
                                         </option>
                                         {ZONAS_PARROQUIALES.map((zona) => {
                                           const items = availableParishes.filter(
@@ -2243,7 +2241,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                                             <optgroup key={zona} label={`Zona ${zona}`}>
                                               {items.map((par) => (
                                                 <option key={par.id} value={par.id}>
-                                                  {par.name} Â· {par.locality}
+                                                  {par.name} · {par.locality}
                                                 </option>
                                               ))}
                                             </optgroup>
@@ -2352,7 +2350,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                               </select>
                               <input
                                 type="text"
-                                placeholder="PÃ¡rroco responsable"
+                                placeholder="Párroco responsable"
                                 value={parPastor}
                                 onChange={(e) => setParPastor(e.target.value)}
                                 className="rounded-lg border border-slate-200 px-3 py-2 text-xs"
@@ -2383,7 +2381,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                                     <th className="px-4 py-3 font-medium">Parroquia</th>
                                     <th className="px-4 py-3 font-medium">Localidad</th>
                                     <th className="px-4 py-3 font-medium">Zona Arciprestal</th>
-                                    <th className="px-4 py-3 font-medium">PÃ¡rroco / Administrador</th>
+                                    <th className="px-4 py-3 font-medium">Párroco / Administrador</th>
                                     <th className="px-4 py-3 font-medium">
                                       Pastorales / Movimientos Vinculados
                                     </th>
@@ -2425,7 +2423,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                                           <td className="px-4 py-3 text-slate-600">
                                             {linked.length === 0 ? (
                                               <span className="text-slate-400">
-                                                Sin comunidad vinculada aÃºn
+                                                Sin comunidad vinculada aún
                                               </span>
                                             ) : (
                                               <div className="flex flex-wrap gap-2">
@@ -2464,7 +2462,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                                                       await api.deleteParish(par.id);
                                                       notify(
                                                         'ok',
-                                                        `Parroquia "${par.name}" eliminada del catÃ¡logo.`,
+                                                        `Parroquia "${par.name}" eliminada del catálogo.`,
                                                       );
                                                       await refreshData();
                                                     } catch (err) {
@@ -2599,7 +2597,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                       </select>
                       <input
                         type="tel"
-                        placeholder="TelÃ©fono / WhatsApp"
+                        placeholder="Teléfono / WhatsApp"
                         value={memPhone}
                         onChange={(e) => setMemPhone(e.target.value)}
                         className="rounded-lg border border-slate-200 px-3 py-2 text-xs"
@@ -2634,7 +2632,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                   <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
                     {filteredMembers.length === 0 ? (
                       <div className="p-10 text-center text-xs text-slate-500">
-                        No hay miembros registrados todavÃ­a en este espacio pastoral.
+                        No hay miembros registrados todavía en este espacio pastoral.
                       </div>
                     ) : (
                       <div className="overflow-x-auto">
@@ -2644,8 +2642,8 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                               <th className="px-4 py-3 font-medium">Integrante</th>
                               <th className="px-4 py-3 font-medium">Pastoral</th>
                               <th className="px-4 py-3 font-medium">Parroquia / Zona Arciprestal</th>
-                              <th className="px-4 py-3 font-medium">CumpleaÃ±os</th>
-                              <th className="px-4 py-3 font-medium text-right">Pieza GrÃ¡fica</th>
+                              <th className="px-4 py-3 font-medium">Cumpleaños</th>
+                              <th className="px-4 py-3 font-medium text-right">Pieza Gráfica</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
@@ -2673,9 +2671,9 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                                         setCardPreset({
                                           mode: 'birthday',
                                           title: m.fullName,
-                                          subtitle: `${m.roleTitle} Â· ${pastoralMap.get(m.pastoralId)?.shortName ?? 'Pastoral Juvenil'}`,
+                                          subtitle: `${m.roleTitle} · ${pastoralMap.get(m.pastoralId)?.shortName ?? 'Pastoral Juvenil'}`,
                                           dateLabel: m.birthDate,
-                                          message: `Agradecemos tu entrega y alegrÃ­a en ${m.parish}. Â¡Que Dios bendiga tu vida y vocaciÃ³n de servicio!`,
+                                          message: `Agradecemos tu entrega y alegría en ${m.parish}. ¡Que Dios bendiga tu vida y vocación de servicio!`,
                                         })
                                       }
                                       className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-[#8D4999] hover:bg-purple-50 cursor-pointer whitespace-nowrap"
@@ -2737,7 +2735,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                     <p className="text-xs text-slate-600">
                       {isMember
                         ? `Actividades de ${activePastoral ? activePastoral.shortName : 'tu comunidad'}. Confirma o cancela tu asistencia con un clic.`
-                        : `Agenda propia de ${activePastoral ? activePastoral.shortName : 'la DiÃ³cesis'}. Marca "PÃºblico" para mostrarla en el portal web.`}
+                        : `Agenda propia de ${activePastoral ? activePastoral.shortName : 'la Diócesis'}. Marca "Público" para mostrarla en el portal web.`}
                     </p>
                     {canManage && (
                       <button
@@ -2759,7 +2757,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                       <input
                         type="text"
                         required
-                        placeholder="TÃ­tulo de la actividad *"
+                        placeholder="Título de la actividad *"
                         value={evTitle}
                         onChange={(e) => setEvTitle(e.target.value)}
                         className="sm:col-span-2 rounded-lg border border-slate-200 px-3 py-2 text-xs"
@@ -2770,9 +2768,9 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                         className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
                       >
                         <option value="Jornada">Jornada</option>
-                        <option value="FormaciÃ³n">FormaciÃ³n</option>
+                        <option value="Formación">Formación</option>
                         <option value="Retiro">Retiro</option>
-                        <option value="MisiÃ³n">MisiÃ³n</option>
+                        <option value="Misión">Misión</option>
                         <option value="Aniversario">Aniversario</option>
                         <option value="Asamblea">Asamblea</option>
                       </select>
@@ -2856,7 +2854,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                   <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
                     {data.events.length === 0 ? (
                       <div className="p-10 text-center text-xs text-slate-500">
-                        No hay actividades programadas aÃºn en esta pastoral.
+                        No hay actividades programadas aún en esta pastoral.
                       </div>
                     ) : (
                       <div className="overflow-x-auto">
@@ -2884,7 +2882,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                                     <p className="text-slate-500">{ev.location}</p>
                                   </td>
                                   <td className="px-4 py-3 font-mono text-slate-600 tabular-nums">
-                                    {ev.date} Â· {ev.time}
+                                    {ev.date} · {ev.time}
                                   </td>
                                   <td className="px-4 py-3 text-slate-700">
                                     {pastoralMap.get(ev.pastoralId)?.shortName ?? 'General'}
@@ -2922,7 +2920,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                                           ev.isPublic ? 'text-[#109A51]' : 'text-slate-400'
                                         }`}
                                       >
-                                        {ev.isPublic ? 'PÃºblico' : 'Interno'}
+                                        {ev.isPublic ? 'Público' : 'Interno'}
                                       </button>
                                     ) : (
                                       <span
@@ -2930,7 +2928,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                                           ev.isPublic ? 'text-[#109A51]' : 'text-slate-500'
                                         }`}
                                       >
-                                        {ev.isPublic ? 'PÃºblico' : 'Interno'}
+                                        {ev.isPublic ? 'Público' : 'Interno'}
                                       </span>
                                     )}
                                   </td>
@@ -3016,7 +3014,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                 </div>
               )}
 
-              {/* 6. TESORERÃA, ACTAS Y USUARIOS (Independiente por Pastoral) */}
+              {/* 6. TESORERÍA, ACTAS Y USUARIOS (Independiente por Pastoral) */}
               {section === 'admin' && (
                 <div className="space-y-6">
                   <div className="flex flex-wrap items-center justify-between gap-4">
@@ -3031,7 +3029,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                               : 'text-slate-600 hover:text-slate-900'
                           }`}
                         >
-                          TesorerÃ­a Independiente (S/)
+                          Tesorería Independiente (S/)
                         </button>
                       )}
                       <button
@@ -3062,8 +3060,8 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
 
                     <p className="text-xs text-slate-500">
                       {activePastoral
-                        ? `Ãmbito aislado: ${activePastoral.name}`
-                        : 'Ãmbito global: Todas las pastorales'}
+                        ? `Ámbito aislado: ${activePastoral.name}`
+                        : 'Ámbito global: Todas las pastorales'}
                     </p>
                   </div>
 
@@ -3072,7 +3070,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                         <div className="rounded-xl border border-slate-200 bg-white p-5">
                           <p className="text-xs text-slate-500">
-                            Ingresos Â· {activePastoral ? activePastoral.shortName : 'DiÃ³cesis'}
+                            Ingresos · {activePastoral ? activePastoral.shortName : 'Diócesis'}
                           </p>
                           <p className="mt-1 font-mono text-xl font-bold text-[#109A51] tabular-nums">
                             {formatPen(data.summary.totalIncomePen)}
@@ -3080,7 +3078,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                         </div>
                         <div className="rounded-xl border border-slate-200 bg-white p-5">
                           <p className="text-xs text-slate-500">
-                            Egresos Â· {activePastoral ? activePastoral.shortName : 'DiÃ³cesis'}
+                            Egresos · {activePastoral ? activePastoral.shortName : 'Diócesis'}
                           </p>
                           <p className="mt-1 font-mono text-xl font-bold text-[#E6332A] tabular-nums">
                             {formatPen(data.summary.totalExpensePen)}
@@ -3152,7 +3150,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                       <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
                         {data.finances.length === 0 ? (
                           <div className="p-10 text-center text-xs text-slate-500">
-                            Esta pastoral aÃºn no registra movimientos en su tesorerÃ­a independiente.
+                            Esta pastoral aún no registra movimientos en su tesorería independiente.
                           </div>
                         ) : (
                           <table className="w-full text-left text-xs">
@@ -3245,7 +3243,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                           <input
                             type="text"
                             required
-                            placeholder="TÃ­tulo de acta o prospecto *"
+                            placeholder="Título de acta o prospecto *"
                             value={docTitle}
                             onChange={(e) => setDocTitle(e.target.value)}
                             className="sm:col-span-2 rounded-lg border border-slate-200 px-3 py-2 text-xs"
@@ -3300,7 +3298,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
 
                       {data.documents.length === 0 ? (
                         <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-xs text-slate-500">
-                          No hay actas ni comunicados archivados todavÃ­a en esta pastoral.
+                          No hay actas ni comunicados archivados todavía en esta pastoral.
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -3322,7 +3320,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                               </div>
                               <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-400">
                                 <span>
-                                  {pastoralMap.get(doc.pastoralId)?.shortName ?? 'Diocesana'} Â· {doc.author}
+                                  {pastoralMap.get(doc.pastoralId)?.shortName ?? 'Diocesana'} · {doc.author}
                                 </span>
                                 {canManage && (
                                   <div className="inline-flex items-center gap-2">
@@ -3378,7 +3376,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                           <p className="text-xs text-slate-500 mt-0.5">
                             {isAdmin
                               ? 'Asigna el perfil adecuado para cada comunidad: Coordinador con ERP completo o Miembro con acceso comunitario y asistencia.'
-                              : `Los perfiles que registres pertenecerÃ¡n exclusivamente a ${activePastoral?.name ?? 'tu pastoral'}.`}
+                              : `Los perfiles que registres pertenecerán exclusivamente a ${activePastoral?.name ?? 'tu pastoral'}.`}
                           </p>
                         </div>
 
@@ -3392,13 +3390,13 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                           <div>
                             <p className="font-semibold text-slate-900">Coordinador de Pastoral</p>
                             <p className="mt-0.5 text-slate-500">
-                              GestiÃ³n independiente de su pastoral: CRM, miembros, tesorerÃ­a (S/), actas, agenda y equipo.
+                              Gestión independiente de su pastoral: CRM, miembros, tesorería (S/), actas, agenda y equipo.
                             </p>
                           </div>
                           <div>
                             <p className="font-semibold text-slate-900">Miembro de Pastoral</p>
                             <p className="mt-0.5 text-slate-500">
-                              Consulta comunidad, directorio y actas; diseÃ±a tarjetas y confirma asistencia en agenda (sin CRM ni tesorerÃ­a).
+                              Consulta comunidad, directorio y actas; diseña tarjetas y confirma asistencia en agenda (sin CRM ni tesorería).
                             </p>
                           </div>
                         </div>
@@ -3427,7 +3425,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                             type="password"
                             required
                             minLength={6}
-                            placeholder="ContraseÃ±a inicial (mÃ­n. 6) *"
+                            placeholder="Contraseña inicial (mín. 6) *"
                             value={usrPassword}
                             onChange={(e) => setUsrPassword(e.target.value)}
                             className="rounded-lg border border-slate-200 px-3 py-2 text-xs"
@@ -3451,7 +3449,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                               className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs disabled:bg-slate-50 disabled:text-slate-400"
                             >
                               {usrRole === 'admin_diocesano' ? (
-                                <option value="">Acceso global a toda la DiÃ³cesis</option>
+                                <option value="">Acceso global a toda la Diócesis</option>
                               ) : (
                                 <>
                                   {ZONAS_ARCIPRESTALES.map((zona) => {
@@ -3508,7 +3506,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                               <th className="px-4 py-3 font-medium">Correo</th>
                               <th className="px-4 py-3 font-medium">Rol</th>
                               <th className="px-4 py-3 font-medium">Pastoral Asignada</th>
-                              <th className="px-4 py-3 font-medium text-right">AcciÃ³n</th>
+                              <th className="px-4 py-3 font-medium text-right">Acción</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
@@ -3519,7 +3517,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                                 <td className="px-4 py-3 text-slate-700">{ROLE_LABELS[u.role]}</td>
                                 <td className="px-4 py-3 text-slate-700">
                                   {u.role === 'admin_diocesano'
-                                    ? 'Toda la DiÃ³cesis'
+                                    ? 'Toda la Diócesis'
                                     : pastoralMap.get(u.pastoralId ?? '')?.name ?? 'Sin asignar'}
                                 </td>
                                 <td className="px-4 py-3 text-right">
@@ -3598,7 +3596,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                 type="button"
                 onClick={() => setEditModal(null)}
                 className="p-1.5 text-slate-400 hover:text-slate-900 cursor-pointer"
-                aria-label="Cerrar ediciÃ³n"
+                aria-label="Cerrar edición"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -3620,7 +3618,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">
-                    CÃ³digo *
+                    Código *
                   </label>
                   <input
                     type="text"
@@ -3664,7 +3662,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                     }}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
                   >
-                    <option value="">Sin parroquia (en blanco / Ã¡mbito diocesano)</option>
+                    <option value="">Sin parroquia (en blanco / ámbito diocesano)</option>
                     {ZONAS_PARROQUIALES.map((zona) => {
                       const items = availableParishes.filter((par) => par.zonaArciprestal === zona);
                       if (items.length === 0) return null;
@@ -3672,7 +3670,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                         <optgroup key={zona} label={`Zona ${zona}`}>
                           {items.map((par) => (
                             <option key={par.id} value={par.id}>
-                              {par.name} Â· {par.locality}
+                              {par.name} · {par.locality}
                             </option>
                           ))}
                         </optgroup>
@@ -3706,7 +3704,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
                   >
                     <option value="Activa">Activa</option>
-                    <option value="En FormaciÃ³n">En FormaciÃ³n</option>
+                    <option value="En Formación">En Formación</option>
                     <option value="Pausa">Pausa</option>
                   </select>
                 </div>
@@ -3724,7 +3722,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Asesor espiritual / PÃ¡rroco
+                    Asesor espiritual / Párroco
                   </label>
                   <input
                     type="text"
@@ -3774,7 +3772,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-medium text-slate-700 mb-1">
-                    DescripciÃ³n breve
+                    Descripción breve
                   </label>
                   <textarea
                     rows={3}
@@ -3829,7 +3827,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">
-                    PÃ¡rroco / Administrador
+                    Párroco / Administrador
                   </label>
                   <input
                     type="text"
@@ -3901,7 +3899,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">
-                    WhatsApp / TelÃ©fono
+                    WhatsApp / Teléfono
                   </label>
                   <input
                     type="text"
@@ -3998,7 +3996,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">TelÃ©fono</label>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Teléfono</label>
                   <input
                     type="text"
                     value={editModal.phone}
@@ -4036,7 +4034,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
                   >
                     <option value="Activo">Activo</option>
-                    <option value="En FormaciÃ³n">En FormaciÃ³n</option>
+                    <option value="En Formación">En Formación</option>
                     <option value="Inactivo">Inactivo</option>
                   </select>
                 </div>
@@ -4062,7 +4060,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
             {editModal.kind === 'event' && (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-slate-700 mb-1">TÃ­tulo *</label>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Título *</label>
                   <input
                     type="text"
                     required
@@ -4084,9 +4082,9 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
                   >
                     <option value="Jornada">Jornada</option>
-                    <option value="FormaciÃ³n">FormaciÃ³n</option>
+                    <option value="Formación">Formación</option>
                     <option value="Retiro">Retiro</option>
-                    <option value="MisiÃ³n">MisiÃ³n</option>
+                    <option value="Misión">Misión</option>
                     <option value="Aniversario">Aniversario</option>
                     <option value="Asamblea">Asamblea</option>
                   </select>
@@ -4163,7 +4161,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                   Publicar en portal web
                 </label>
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-slate-700 mb-1">DescripciÃ³n</label>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Descripción</label>
                   <textarea
                     rows={2}
                     value={editModal.description}
@@ -4212,7 +4210,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">CategorÃ­a</label>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Categoría</label>
                   <input
                     type="text"
                     value={editModal.category}
@@ -4235,7 +4233,7 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
             {editModal.kind === 'document' && (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">TÃ­tulo *</label>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Título *</label>
                   <input
                     type="text"
                     required
@@ -4332,12 +4330,12 @@ export function ErpWorkspace({user, onLogout, onGoPublic}: ErpWorkspaceProps) {
                 )}
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Nueva contraseÃ±a (dejar en blanco para mantener la actual)
+                    Nueva contraseña (dejar en blanco para mantener la actual)
                   </label>
                   <input
                     type="password"
                     minLength={6}
-                    placeholder="MÃ­nimo 6 caracteres (opcional)"
+                    placeholder="Mínimo 6 caracteres (opcional)"
                     value={editModal.password}
                     onChange={(e) => setEditModal({...editModal, password: e.target.value})}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs"

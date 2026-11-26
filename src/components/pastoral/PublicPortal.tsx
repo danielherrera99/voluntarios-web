@@ -1,4 +1,4 @@
-﻿import {ArrowRight, Calendar, CheckCircle2, MapPin, Search, Send, Users} from 'lucide-react';
+import {ArrowRight, Calendar, CheckCircle2, MapPin, Search, Send, Users} from 'lucide-react';
 import {useEffect, useState, type FormEvent} from 'react';
 import {api, getAssetUrl} from '../../lib/api';
 import {
@@ -154,7 +154,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
           >
             <img
               src={getAssetUrl('assets/aistudio/PJ_8x_b40a6c17.png')}
-              alt="Logo Pastoral Juvenil DiÃ³cesis de Chiclayo"
+              alt="Logo Pastoral Juvenil Diócesis de Chiclayo"
               className="h-9 w-auto object-contain"
               referrerPolicy="no-referrer"
             />
@@ -208,19 +208,19 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
           <div className="grid grid-cols-1 items-stretch gap-12 lg:grid-cols-12">
             <div className="flex flex-col justify-center lg:col-span-7">
               <p className="text-xs font-semibold tracking-wide text-[#0A6EB4]">
-                ComisiÃ³n Diocesana de Juventud Â· DiÃ³cesis de Chiclayo
+                Comisión Diocesana de Juventud · Diócesis de Chiclayo
               </p>
               <h1
                 className="mt-4 font-serif text-slate-900 font-semibold leading-[1.12] tracking-tight text-balance"
                 style={{fontSize: 'clamp(2.25rem, 4vw, 3.6rem)'}}
               >
-                Juventud en comuniÃ³n, formaciÃ³n y{' '}
-                <span className="italic text-[#8D4999]">misiÃ³n diocesana</span>.
+                Juventud en comunión, formación y{' '}
+                <span className="italic text-[#8D4999]">misión diocesana</span>.
               </h1>
               <p className="mt-5 max-w-2xl text-base leading-relaxed text-slate-600">
-                Articulamos a los grupos juveniles, parroquias, movimientos y Ã¡reas pastorales de
-                toda la DiÃ³cesis de Chiclayo. Conoce nuestras pastorales vigentes, participa en los
-                prÃ³ximos encuentros o registra tu comunidad en el directorio diocesano.
+                Articulamos a los grupos juveniles, parroquias, movimientos y áreas pastorales de
+                toda la Diócesis de Chiclayo. Conoce nuestras pastorales vigentes, participa en los
+                próximos encuentros o registra tu comunidad en el directorio diocesano.
               </p>
 
               <div className="mt-8 flex flex-wrap items-center gap-4">
@@ -246,13 +246,13 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                 <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-6">
                   <img
                     src={getAssetUrl('assets/aistudio/PJ_8x_b40a6c17.png')}
-                    alt="Pastoral Juvenil DiÃ³cesis de Chiclayo"
+                    alt="Pastoral Juvenil Diócesis de Chiclayo"
                     className="h-24 w-auto object-contain"
                     referrerPolicy="no-referrer"
                   />
                   <img
                     src={getAssetUrl('assets/aistudio/CDJ_8x_082c8e32.png')}
-                    alt="ComisiÃ³n Diocesana de Juventud"
+                    alt="Comisión Diocesana de Juventud"
                     className="h-24 w-24 object-contain"
                     referrerPolicy="no-referrer"
                   />
@@ -260,12 +260,12 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
 
                 <div className="py-6 space-y-2">
                   <p className="text-xs font-medium text-slate-500">
-                    Identidad Institucional Â· Cruz, Palabra y Juventud
+                    Identidad Institucional · Cruz, Palabra y Juventud
                   </p>
                   <p className="text-sm text-slate-700 leading-relaxed">
-                    Bajo el amparo de Nuestra SeÃ±ora Inmaculada ConcepciÃ³n, acompaÃ±amos la vida
+                    Bajo el amparo de Nuestra Señora Inmaculada Concepción, acompañamos la vida
                     juvenil en todas las zonas arciprestales, movimientos y universidades de la
-                    DiÃ³cesis de Chiclayo.
+                    Diócesis de Chiclayo.
                   </p>
                 </div>
 
@@ -273,27 +273,27 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                 <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-6">
                   <div>
                     <p className="font-mono text-2xl font-bold text-slate-900 tabular-nums">
-                      {loading ? 'â€”' : data?.stats.activePastorals ?? 65}
+                      {loading ? '—' : data?.stats.activePastorals ?? 65}
                     </p>
                     <p className="text-xs text-slate-500 mt-0.5">Parroquias y Movimientos</p>
                   </div>
                   <div>
                     <p className="font-mono text-2xl font-bold text-slate-900 tabular-nums">
-                      {loading ? 'â€”' : data?.stats.parishesReached ?? 8}
+                      {loading ? '—' : data?.stats.parishesReached ?? 8}
                     </p>
                     <p className="text-xs text-slate-500 mt-0.5">Zonas Arciprestales</p>
                   </div>
                   <div>
                     <p className="font-mono text-2xl font-bold text-slate-900 tabular-nums">
-                      {loading ? 'â€”' : data?.stats.registeredMembers ?? 6}
+                      {loading ? '—' : data?.stats.registeredMembers ?? 6}
                     </p>
                     <p className="text-xs text-slate-500 mt-0.5">Coordinadores Activos</p>
                   </div>
                   <div>
                     <p className="font-mono text-2xl font-bold text-slate-900 tabular-nums">
-                      {loading ? 'â€”' : data?.stats.upcomingEvents ?? 3}
+                      {loading ? '—' : data?.stats.upcomingEvents ?? 3}
                     </p>
-                    <p className="text-xs text-slate-500 mt-0.5">Actividades PrÃ³ximas</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Actividades Próximas</p>
                   </div>
                 </div>
               </div>
@@ -312,7 +312,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
               </h2>
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
                 Directorio diocesano de comunidades juveniles, movimientos y pastoral universitaria,
-                junto al catÃ¡logo oficial de las {allParishes.length || 50} parroquias por Zona Arciprestal.
+                junto al catálogo oficial de las {allParishes.length || 50} parroquias por Zona Arciprestal.
               </p>
             </div>
 
@@ -324,7 +324,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                 onChange={(e) => setPastoralSearch(e.target.value)}
                 placeholder={
                   catalogMode === 'parroquias'
-                    ? 'Buscar parroquia, distrito o pÃ¡rroco...'
+                    ? 'Buscar parroquia, distrito o párroco...'
                     : 'Buscar comunidad, movimiento o parroquia...'
                 }
                 className="w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#0A6EB4] focus:outline-none"
@@ -441,7 +441,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                           <span className="font-medium text-slate-700">
                             {linkedParish
                               ? `${linkedParish.name} (${linkedParish.locality})`
-                              : 'Ãmbito diocesano (opcional)'}
+                              : 'Ámbito diocesano (opcional)'}
                           </span>
                         </p>
                         <p className="truncate">
@@ -457,7 +457,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                             onClick={() => handleSelectParticipacion(pastoral.id)}
                             className="text-xs font-medium text-[#0A6EB4] hover:underline whitespace-nowrap shrink-0"
                           >
-                            Participar â†’
+                            Participar →
                           </a>
                         </div>
                       </div>
@@ -506,7 +506,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                         "{par.name}"
                       </h3>
                       <p className="mt-2 text-xs text-slate-600 leading-relaxed">
-                        <span className="text-slate-400">PÃ¡rroco:</span> {par.pastorName}
+                        <span className="text-slate-400">Párroco:</span> {par.pastorName}
                       </p>
                     </div>
 
@@ -516,7 +516,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                         <span className="font-medium text-slate-800">
                           {linkedCommunities.length > 0
                             ? linkedCommunities.map((c) => c.shortName).join(', ')
-                            : 'Sin grupo vinculado aÃºn'}
+                            : 'Sin grupo vinculado aún'}
                         </span>
                       </p>
                     </div>
@@ -562,11 +562,11 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                     <div className="space-y-1.5">
                       <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                         <span className="font-medium text-[#0A6EB4]">{evt.eventType}</span>
-                        <span aria-hidden="true">Â·</span>
+                        <span aria-hidden="true">·</span>
                         <span className="font-mono tabular-nums">{evt.date}</span>
-                        <span aria-hidden="true">Â·</span>
+                        <span aria-hidden="true">·</span>
                         <span className="font-mono tabular-nums">{evt.time} h</span>
-                        <span aria-hidden="true">Â·</span>
+                        <span aria-hidden="true">·</span>
                         <span>{evt.status}</span>
                       </div>
                       <h3 className="text-base font-semibold text-slate-900">{evt.title}</h3>
@@ -592,7 +592,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                 Vida Comunitaria
               </h2>
               <p className="mt-2 text-sm text-slate-600">
-                Aniversarios parroquiales y cumpleaÃ±os de quienes sirven en la Pastoral Juvenil.
+                Aniversarios parroquiales y cumpleaños de quienes sirven en la Pastoral Juvenil.
               </p>
 
               <div className="mt-8 space-y-4">
@@ -607,13 +607,13 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                           item.kind === 'anniversary' ? 'text-[#109A51]' : 'text-[#8D4999]'
                         }`}
                       >
-                        {item.kind === 'anniversary' ? 'Aniversario Parroquial' : 'CumpleaÃ±os Pastoral'}
+                        {item.kind === 'anniversary' ? 'Aniversario Parroquial' : 'Cumpleaños Pastoral'}
                       </span>
                       <span className="font-mono tabular-nums">{item.dateLabel}</span>
                     </div>
                     <h3 className="mt-2 text-base font-bold text-slate-900">{item.title}</h3>
                     <p className="mt-1 text-xs text-slate-600">
-                      {item.subtitle} Â· {item.parishOrRole}
+                      {item.subtitle} · {item.parishOrRole}
                     </p>
                   </div>
                 ))}
@@ -623,27 +623,27 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
         </div>
       </section>
 
-      {/* Section 03: Prospecto & Registro CRM PÃºblico */}
+      {/* Section 03: Prospecto & Registro CRM Público */}
       <section id="inscripcion" className="mx-auto max-w-7xl px-6 py-20">
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-12">
           <div className="lg:col-span-5 space-y-4">
             <h2 className="font-serif text-3xl font-semibold text-slate-900">
-              03. SÃºmate a una Pastoral
+              03. Súmate a una Pastoral
             </h2>
             <p className="text-sm leading-relaxed text-slate-600">
-              Â¿Deseas integrarte a un grupo juvenil, inscribir a tu parroquia en el directorio
-              diocesano o solicitar acompaÃ±amiento para tu comunidad? Completa este prospecto de
-              contacto y tu solicitud ingresarÃ¡ directamente al CRM de la ComisiÃ³n Diocesana.
+              ¿Deseas integrarte a un grupo juvenil, inscribir a tu parroquia en el directorio
+              diocesano o solicitar acompañamiento para tu comunidad? Completa este prospecto de
+              contacto y tu solicitud ingresará directamente al CRM de la Comisión Diocesana.
             </p>
 
             <div className="border-t border-slate-200 pt-6 space-y-3 text-xs text-slate-600">
               <p className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-[#0A6EB4] shrink-0" />
-                <span>DerivaciÃ³n automÃ¡tica al coordinador de la pastoral seleccionada.</span>
+                <span>Derivación automática al coordinador de la pastoral seleccionada.</span>
               </p>
               <p className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-[#109A51] shrink-0" />
-                <span>InvitaciÃ³n directa a las prÃ³ximas jornadas y asambleas de tu zona arciprestal.</span>
+                <span>Invitación directa a las próximas jornadas y asambleas de tu zona arciprestal.</span>
               </p>
             </div>
           </div>
@@ -677,13 +677,13 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                     required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Ej. MarÃ­a Fernanda Quispe"
+                    placeholder="Ej. María Fernanda Quispe"
                     className="w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0A6EB4] focus:outline-none"
                   />
                 </div>
                 <div>
                   <label htmlFor="lead-pastoral" className="block text-xs font-medium text-slate-700 mb-1">
-                    Indica en cuÃ¡l participas
+                    Indica en cuál participas
                   </label>
                   <select
                     id="lead-pastoral"
@@ -744,7 +744,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                     onChange={(e) => setParish(e.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0A6EB4] focus:outline-none"
                   >
-                    <option value="">Sin parroquia especÃ­fica (en blanco / movimiento)</option>
+                    <option value="">Sin parroquia específica (en blanco / movimiento)</option>
                     {ZONAS_PARROQUIALES.map((zona) => {
                       const items = allParishes.filter((par) => par.zonaArciprestal === zona);
                       if (items.length === 0) return null;
@@ -752,7 +752,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                         <optgroup key={zona} label={`Zona ${zona}`}>
                           {items.map((par) => (
                             <option key={par.id} value={`${par.name} (${par.locality})`}>
-                              {par.name} Â· {par.locality}
+                              {par.name} · {par.locality}
                             </option>
                           ))}
                         </optgroup>
@@ -765,7 +765,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label htmlFor="lead-phone" className="block text-xs font-medium text-slate-700 mb-1">
-                    WhatsApp / TelÃ©fono
+                    WhatsApp / Teléfono
                   </label>
                   <input
                     id="lead-phone"
@@ -778,7 +778,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                 </div>
                 <div>
                   <label htmlFor="lead-email" className="block text-xs font-medium text-slate-700 mb-1">
-                    Correo electrÃ³nico
+                    Correo electrónico
                   </label>
                   <input
                     id="lead-email"
@@ -800,7 +800,7 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
                   rows={3}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="CuÃ©ntanos si ya participas en un grupo juvenil o cÃ³mo te gustarÃ­a colaborar."
+                  placeholder="Cuéntanos si ya participas en un grupo juvenil o cómo te gustaría colaborar."
                   className="w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0A6EB4] focus:outline-none"
                 />
               </div>
@@ -830,15 +830,15 @@ export function PublicPortal({onOpenLogin, isAuthenticated}: PublicPortalProps) 
             />
             <img
               src={getAssetUrl('assets/aistudio/CDJ_8x_082c8e32.png')}
-              alt="ComisiÃ³n Diocesana de Juventud"
+              alt="Comisión Diocesana de Juventud"
               className="h-10 w-10 object-contain"
               referrerPolicy="no-referrer"
             />
             <div className="text-xs text-slate-600">
               <p className="font-semibold text-slate-900">
-                Pastoral Juvenil Â· DiÃ³cesis de Chiclayo
+                Pastoral Juvenil · Diócesis de Chiclayo
               </p>
-              <p>ComisiÃ³n Diocesana de Juventud Â· Lambayeque, PerÃº</p>
+              <p>Comisión Diocesana de Juventud · Lambayeque, Perú</p>
             </div>
           </div>
 
