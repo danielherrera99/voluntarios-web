@@ -477,58 +477,24 @@ export const api = {
   },
 
   forgotPasswordPJ: async (payload: {login: string}) => {
-    try {
-      return await apiRequest<{success: boolean; message: string; code?: string; emailMasked?: string}>('/api/pastoral/auth/forgot-password', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-    } catch (err: any) {
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      sessionStorage.setItem('pj_temp_reset_code', code);
-      sessionStorage.setItem('pj_temp_reset_login', payload.login);
-      return {
-        success: true,
-        message: `Código de recuperación generado para ${payload.login}.`,
-        code,
-        emailMasked: payload.login,
-      };
-    }
+    return await apiRequest<{success: boolean; message: string; code?: string; emailMasked?: string}>('/api/pastoral/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   },
 
   verifyResetCodePJ: async (payload: {login: string; code: string}) => {
-    try {
-      return await apiRequest<{success: boolean; message: string}>('/api/pastoral/auth/verify-code', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-    } catch (err: any) {
-      const savedCode = sessionStorage.getItem('pj_temp_reset_code');
-      if (savedCode && savedCode !== payload.code) {
-        throw new Error('El código de verificación ingresado es incorrecto.');
-      }
-      return {
-        success: true,
-        message: 'Código verificado correctamente. Ahora puedes crear tu nueva contraseña.',
-      };
-    }
+    return await apiRequest<{success: boolean; message: string}>('/api/pastoral/auth/verify-code', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   },
 
   resetPasswordPJ: async (payload: {login: string; code: string; newPassword: string}) => {
-    try {
-      return await apiRequest<{success: boolean; message: string}>('/api/pastoral/auth/reset-password', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-    } catch (err: any) {
-      const savedCode = sessionStorage.getItem('pj_temp_reset_code');
-      if (savedCode && savedCode !== payload.code) {
-        throw new Error('El código de verificación ingresado es incorrecto.');
-      }
-      return {
-        success: true,
-        message: '¡Contraseña restablecida exitosamente! Ya puedes iniciar sesión.',
-      };
-    }
+    return await apiRequest<{success: boolean; message: string}>('/api/pastoral/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   },
 
   getMe: () => apiRequest<{user: AuthUser}>('/api/auth/me'),
