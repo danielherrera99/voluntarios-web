@@ -705,11 +705,6 @@ export function AuthView({onAuthenticated, onBackToPublic}: AuthViewProps) {
                 </form>
               ) : (
                 <form onSubmit={handleResetPasswordSubmit} className="space-y-3.5">
-                  <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-xs text-[#0A6EB4] font-medium flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                    <span>Código verificado correctamente. Ingresa tu nueva contraseña:</span>
-                  </div>
-
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
                       Nueva Contraseña * (mínimo 6)
